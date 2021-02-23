@@ -4,7 +4,8 @@ Interpreted C-like language with a Rust influenced syntax.
 ## Example programs
 
 ```rust
-/// recursive function calls
+/// recursive function calls to compute n-th
+/// fibonacci sequence number
 
 fn fib(n: int) -> num {
     if n <= 1 {
@@ -60,6 +61,26 @@ fn calc_area(c: Circle) -> float {
 calc_area(circle);
 ```
 
+```rust
+/// compute the greatest common divisor 
+/// of two integers using Euclid’s algorithm
+
+fn gcd(mut n: int, mut m: int) -> int {
+    while m != 0 {
+        if m < n {
+            let t = m;
+            m = n;
+            n = t;
+        }
+        m = m % n;
+    }
+
+    return n;
+}
+
+gcd(15, 5); // 5
+```
+
 ## Usage
 ### Interpret a file
 ```shell
@@ -89,11 +110,12 @@ oxide
     * [Unary](#unary)
     * [Binary](#binary)
 * [Comments](#comments)
+* [Standard library](#standard-library)
 
 
 ## Variables and Type System
 
-There are six types embodied in the language: `nil`, `num`, `int`, `float`, `func`, `any` and user-defined types (via structs).
+There are eight types embodied in the language: `nil`, `num`, `int`, `float`, `bool`, `str`, `func`, `any` and user-defined types (via structs).
 
 Each variable has a type associated with it, either explicitly declared with the variable itself:
 
@@ -113,7 +135,7 @@ or implicitly inferred by the interpreter the first time it is being assigned:
 let x = true || false; // x is of type "bool";
 
 let mut y;
-y = "string"; // y is of type "string";
+y = "string"; // y is of type "str";
 
 let dog;
 dog = Dog { name: "Good Boy"}; // dog is of struct-type "Dog"
@@ -355,7 +377,7 @@ You instantiate a struct creating it and initializing all its properties.
 let cat = Animal {
     kind: "cat",
     fluffy: true
-}
+};
 
 let mut john: Person = Person {
     first_name: "John",
@@ -402,3 +424,16 @@ Classic comments that exist in most other languages.
 
 let x = 100; /* inlined multiline comment */ let y = x;
 ```
+
+## Standard library
+
+A small set of built-in functionality is available anywhere in the code, so I dare call it a standard library.
+
+- `print(msg: str)` prints `msg` to the standard output stream (stdout).
+- `println(msg: str)` same as `print`, but inserts a newline at the end of the string.
+- `eprint(err: str)` prints `err` to the standard error (stderr).
+- `eprintln(err: str)` you got the idea.
+- `timestamp() -> int` returns current Unix Epoch timestamp in seconds
+- `read_line() -> str` reads user input from standard input (stdin) and returns it as a `str`
+- `file_write(file: str, content: str) -> str` write `content` to a file, creating it first, should it not exist
+- `typeof(val: any) -> str` returns type of a given value or variable

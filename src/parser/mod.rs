@@ -25,6 +25,7 @@ pub struct ParserError;
 
 pub struct Parser {
     pub tokens: Vec<Token>,
+    pub structs: Vec<String>,
     current: usize,
     loop_depth: usize,
     fn_depth: usize,
@@ -35,6 +36,7 @@ impl Parser {
     pub fn new(tokens: Vec<Token>) -> Self {
         Self {
             tokens,
+            structs: vec![],
             current: 0,
             loop_depth: 0,
             fn_depth: 0,
@@ -276,6 +278,7 @@ impl Parser {
             "Curly brace \"}\" expected after struct body".to_string(),
         )?;
 
+        self.structs.push(name.lexeme.clone());
         let struct_decl_stmt = Stmt::Struct(StructDecl::new(name, props, fns));
 
         Ok(struct_decl_stmt)
@@ -781,13 +784,15 @@ impl Parser {
     fn call_expr(&mut self) -> Result<Expr> {
         let mut expr = self.primary_expr()?;
 
-        match expr {
-            VariableExpr(_) => {
-                if self.match_token(TokenType::LeftCurlyBrace) {
-                    expr = self.finish_struct_call_expr(expr)?
+        if self.structs.contains(&self.previous().lexeme.clone()) {
+            match expr {
+                VariableExpr(_) => {
+                    if self.match_token(TokenType::LeftCurlyBrace) {
+                        expr = self.finish_struct_call_expr(expr)?
+                    }
                 }
+                _ => {}
             }
-            _ => {}
         }
 
         loop {

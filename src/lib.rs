@@ -116,7 +116,7 @@ fn error_token(token: &Token, msg: String) {
 
 fn print_error(line: usize, err_token: String, message: String) {
     eprintln!(
-        "\x1b[0;31mError{}: {} at line {}\x1b[0m",
+        "\x1b[0;31mError {}: {} at line {}\x1b[0m",
         err_token, message, line
     );
 }
