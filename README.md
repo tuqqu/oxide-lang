@@ -1,5 +1,5 @@
 # Oxide Programming Language
-Interpreted C-like language with a Rust influenced syntax.
+Interpreted C-like language with a Rust influenced syntax. [Latest release][latest-releases]
 
 ## Example programs
 
@@ -7,7 +7,7 @@ Interpreted C-like language with a Rust influenced syntax.
 /// recursive function calls to compute n-th
 /// fibonacci sequence number
 
-fn fib(n: int) -> num {
+fn fib(n: int) -> int {
     if n <= 1 {
         return n;
     }
@@ -42,7 +42,7 @@ println(add7(2)); // 9
 const PI = 3.14159;
 
 struct Circle {
-    radius: num,
+    radius: float,
     center: Point,
 }
 
@@ -55,7 +55,7 @@ let center = Point { x: 1, y: 5 };
 let circle = Circle { radius: 103.5, center: center };
 
 fn calc_area(c: Circle) -> float {
-    return PI * self.radius * self.radius;
+    return PI * c.radius * c.radius;
 }
 
 calc_area(circle);
@@ -120,7 +120,7 @@ There are eight types embodied in the language: `nil`, `num`, `int`, `float`, `b
 Each variable has a type associated with it, either explicitly declared with the variable itself:
 
 ```rust
-let x: num; // accepts both integers or floats
+let x: num;
 
 let mut y: str = "hello" + " world";
 
@@ -132,26 +132,32 @@ let double: func = fn (x: num) -> num {
 or implicitly inferred by the interpreter the first time it is being assigned:
 
 ```rust
-let x = true || false; // x is of type "bool";
+// inferred as "bool";
+let x = true || false;
 
+// inferred as "str";
 let mut y;
-y = "string"; // y is of type "str";
+y = "string";
 
+// inferred as "Dog";
 let dog;
-dog = Dog { name: "Good Boy"}; // dog is of struct-type "Dog"
+dog = Dog { name: "Good Boy"};
 ```
 
 Mutable variables cannot be assigned to a value of another type, unless they are of type `any`:
 
 ```rust
+//! type error
 let mut s: str = "string";
-s = 100; //! this is an error
+s = 100;
 
+//! type error
 let mut x = true;
-x = "string"; //! this is an error, because x was inferred as "num" in initialisation
+x = "string";
 
+// valid
 let mut a: any = Rectangle { height: 10, width: 10 };
-a = 45.34; // this is valid, since it can hold a value of any type
+a = 45.34; 
 ```
 
 ### Mutable Variables vs Immutable ones
@@ -170,7 +176,7 @@ However, mutable ones behave like you would expect a variable to behave in most 
 ```rust
 let mut x: str = "hello";
 x += " world";
-x = "another string";
+x += "another string";
 ```
 
 ### Shadowing
@@ -223,7 +229,7 @@ for let mut i = 0; i <= 100; i += 1 {
     println(i);
 }
 
-/// the first or the last parts can be omitted
+// the first or the last parts can be omitted
 let mut i = 0;
 
 for ; i <= 100; {
@@ -231,7 +237,7 @@ for ; i <= 100; {
     i += 1;
 }
 
-/// this is basically "while true" or "loop"
+// this is basically "while true" or "loop"
 let mut i = 0;
 
 for ;; {
@@ -276,7 +282,7 @@ fn clone(c: Circle) -> Circle {
     };
 }
 
-let cloned = clone(circle); // cloned is now a new struct, copy of "circle"
+let cloned = clone(circle);
 
 // since this function returns nothing, the return type can be omitted
 fn log(level: str, msg: str) {
@@ -333,9 +339,9 @@ fn inc(mut x: int) -> int {
     return x;
 }
 
-// same as
+// same as with shadowing
 fn inc(x: int) -> int {
-    let mut x = x; // shadowing argument, creating a local variable of the same name
+    let mut x = x;
     x += 1;
     return x;
 }
@@ -437,3 +443,5 @@ A small set of built-in functionality is available anywhere in the code, so I da
 - `read_line() -> str` reads user input from standard input (stdin) and returns it as a `str`
 - `file_write(file: str, content: str) -> str` write `content` to a file, creating it first, should it not exist
 - `typeof(val: any) -> str` returns type of a given value or variable
+
+[latest-releases]: https://github.com/tuqqu/oxide-lang/releases/latest
