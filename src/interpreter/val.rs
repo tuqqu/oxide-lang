@@ -216,8 +216,15 @@ impl Val {
             Int(n) => n.to_string(),
             Float(n) => n.to_string(),
             Callable(_f) => TYPE_FUNC.to_string(),
-            Struct(_c) => "?to_string?".to_string(),
-            StructInstance(_i) => "?to_string??".to_string(),
+            Struct(_c) => "struct".to_string(),
+            StructInstance(i) => {
+                let mut props = vec![];
+                for (prop, (val, _val_t)) in &i.props {
+                    props.push(format!("{}: {}", prop, val.to_string()));
+                }
+
+                format!("[struct] {} {{ {} }}, ", i.struct_name, props.join(", "))
+            }
         }
     }
 
