@@ -15,9 +15,40 @@ fn fib(n: int) -> int {
     return fib(n - 2) + fib(n - 1);
 }
 
+let nums = vec[];
 for let mut i = 0; i < 30; i += 1 {
-    println(fib(i));
+    nums.push(fib(i));
 }
+```
+
+```rust
+/// sorting a vector using
+/// insertion sort
+
+fn insertion_sort(input: vec) {
+    for let mut i = 1; i < input.len(); i += 1 {
+        let cur = input[i];
+        let mut j = i - 1;
+    
+        while input[j] > cur {
+            let temp = input[j + 1];
+            input[j + 1] = input[j];
+            input[j] = temp;
+      
+            if j == 0 {
+              break;
+            }
+    
+            j -= 1;
+        }
+    }
+}
+
+let input = vec[4, 13, 0, 3, -3, 4, 19, 1];
+
+insertion_sort(input);
+
+println(input); // [vec] [-3, 0, 1, 3, 4, 4, 13, 19]
 ```
 
 ```rust
@@ -29,8 +60,8 @@ let make_adder = fn (x: num) -> func {
     };
 };
 
-let add5: func = make_adder(5);
-let add7: func = make_adder(7);
+let add5 = make_adder(5);
+let add7 = make_adder(7);
 
 println(add5(2)); // 7
 println(add7(2)); // 9
@@ -60,14 +91,7 @@ fn calc_area(c: Circle) -> float {
     return PI * c.radius * c.radius;
 }
 
-let area = calc_area(circle);
-let message = match true {
-    area > 30000 => "The area is greater than 30k!",
-    30000 > area && area > 10000 => "The area is between 10k and 30k",
-    area <= 10000 => "The area is less or equal to 10k",
-};
-
-println(message);
+let area = calc_area(circle); // 33653.4974775
 ```
 
 ```rust
@@ -90,6 +114,8 @@ fn gcd(mut n: int, mut m: int) -> int {
 gcd(15, 5); // 5
 ```
 
+[More examples][examples]
+
 ## Usage
 ### Interpret a file
 ```shell
@@ -105,7 +131,7 @@ oxide
 
 # Quick Overview
 
-* [Variables and Type System](#variables-and-type-system)
+* [Variables and Type System](#variables)
     * [Mutable Variables vs Immutable ones](#mutable-variables-vs-immutable-ones)
     * [Shadowing](#shadowing)
 * [Control Flow and Loops](#control-flow-and-loops)
@@ -114,12 +140,13 @@ oxide
     * [While](#while)
     * [Loop](#loop)
     * [For](#for)
-* [Constants](#constants)
 * [Functions](#functions)
     * [Closures and Lambdas](#closures-and-lambdas)
     * [Declared functions](#declared-functions)
 * [Structs](#structs)
-* [Functions](#functions)
+* [Vectors](#vectors)
+* [Constants](#constants)
+* [Type System](#type-system)
 * [Operators](#operators)
     * [Unary](#unary)
     * [Binary](#binary)
@@ -129,7 +156,7 @@ oxide
 
 ## Variables and Type System
 
-There are eight types embodied in the language: `nil`, `num`, `int`, `float`, `bool`, `str`, `func`, `any` and user-defined types (via structs).
+There are ten types embodied in the language: `nil`, `num`, `int`, `float`, `bool`, `str`, `func`, `vec`, `any` and user-defined types (via structs). See [type system][type-system]
 
 Each variable has a type associated with it, either explicitly declared with the variable itself:
 
@@ -143,6 +170,8 @@ let double: func = fn (x: num) -> num {
 };
 
 let human: Person = Person { name: "Jane" };
+
+let names: vec = vec["Josh", "Carol", "Steven"];
 ```
 
 or implicitly inferred by the interpreter the first time it is being assigned:
@@ -151,9 +180,9 @@ or implicitly inferred by the interpreter the first time it is being assigned:
 // inferred as "bool";
 let x = true || false;
 
-// inferred as "str";
+// inferred as "vec";
 let mut y;
-y = "string";
+y = vec[];
 
 // inferred as "Dog";
 let dog;
@@ -200,7 +229,7 @@ One important thing is that variables can be redeclared in other words, shadowed
 ```rust
 let x: int = 100;
 let x: str = "This was x value before: " + x;
-let mut x: bool = true;
+let x: vec = vec[];
 ```
 
 ## Control Flow and Loops
@@ -295,18 +324,6 @@ for ;; {
         break;
     }
 }
-```
-
-## Constants
-
-Constants unlike variables need not be declared with a type since it can always be inferred. Constants also cannot be redeclared, and it will result in a runtime error. Constants **must** hold only a scalar value: `str`, `int`, `float`, `bool`.
-
-```rust
-const MESSAGE = "hello world";
-
-const PI = 3.14159;
-
-const E = 2.71828;
 ```
 
 ## Functions
@@ -411,8 +428,7 @@ All struct properties are mutable and public by default.
 
 ```rust
 struct Person {
-    first_name: str,
-    last_name: str,
+    name: str,
     country: Country,
     alive: bool,
     pet: Animal,
@@ -437,8 +453,7 @@ let cat = Animal {
 };
 
 let john: Person = Person {
-    first_name: "John",
-    last_name: "Doe",
+    name: "John",
     alive: true,
     pet: cat,                          // via variable
     country: Country { name: "UK" }    // via inlined struct instantiation
@@ -455,9 +470,9 @@ println(john.pet.kind); // cat
 Immutable variable will let you change the struct's fields, it will prevent you from overwriting the variable itself. Similar to Javascript `const` that holds an object.
 
 ```rust
-john.first_name = "Steven"; // valid, John is not a John anymore
-john.pet.kind = "dog"       // also valid, john's pet is changed
-john = Person { .. };       // invalid, "john" cannot point to another struct
+john.name = "Steven";    // valid, John is not a John anymore
+john.pet.kind = "dog"    // also valid, john's pet is changed
+john = Person { .. };    // invalid, "john" cannot point to another struct
 ```
 
 Structs are always passed by reference, consider:
@@ -469,6 +484,93 @@ fn kill(person: Person) {
 }
 
 kill(john);
+```
+
+## Vectors
+Vectors, values of type `vec`, represent arrays of values and can be created using `vec[]` syntax.
+
+```rust
+let planets = vec["Mercury", "Venus", "Earth", "Mars"];
+
+let mars = planets["Mars"];
+
+planents.push("Jupiter");     // "Jupiter" is now the last value in a vector
+
+let jupiter = planets.pop(); // "Jupiter" is no longer in a vector.
+
+planets[2] = "Uranus";       // "Earth" is gone. "Uranus" is on its place now
+
+planets.len();               // 3
+```
+
+Vectors support following methods:
+* `vec.push(val: any)` push value to the end of the vector
+  
+
+* `vec.pop() -> any` remove value from the end of the vector and return it
+  
+
+* `vec.len() -> int` get vectors length
+
+Like structs vectors are passed by reference. Consider this example of an in place sorting algorithm, selection sort, that accepts a vector and sorts it in place, without allocating memory for a new one.
+
+<details>
+  <summary>Selection sort</summary>
+
+```rust
+fn selection_sort(input: vec) {
+    if input.len() == 0 {
+        return;
+    }
+
+    let mut min: int;
+    for let mut i = 0; i < input.len() - 1; i += 1 {
+        min = i;
+
+        for let mut j = i; j < input.len(); j += 1 {
+            if input[j] < input[min] {
+                min = j;
+            }
+        }
+
+        if min != i {
+            let temp = input[i];
+            input[i] = input[min];
+            input[min] = temp;
+        }
+    }
+}
+```
+</details>
+
+Vectors can hold any values and be used inside structs.
+```rust
+let animals: vec = vec[
+    Elephant { name: "Samuel" },
+    Zebra { name: "Robert" },
+    WolfPack { 
+        wolves: vec[
+            Wolf { name: "Joe" },
+            Wolf { name: "Mag" },
+        ]
+    }
+]
+
+let mag = animals[2].wolves[1]; // Mag
+```
+
+Trying to read from a non-existent vector index will result in a `uninit` value returned. Trying to write to it will result in an error.
+
+## Constants
+
+Constants unlike variables need not be declared with a type since it can always be inferred. Constants also cannot be redeclared, and it will result in a runtime error. Constants **must** hold only a scalar value: `str`, `int`, `float`, `bool`.
+
+```rust
+const MESSAGE = "hello world";
+
+const PI = 3.14159;
+
+const E = 2.71828;
 ```
 
 ## Operators
@@ -528,3 +630,5 @@ A small set of built-in functionality is available anywhere in the code.
 
 
 [latest-releases]: https://github.com/tuqqu/oxide-lang/releases/latest
+[examples]: https://github.com/tuqqu/oxide-lang/tree/master/examples
+[type-system]: /doc/type_system.md

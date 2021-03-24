@@ -1,9 +1,7 @@
 use std::result;
 
-use crate::parser::expr::Expr::{GetPropExpr, IntLiteralExpr, SetPropExpr};
-use crate::parser::expr::{
-    CallStruct, GetProp, IntLiteral, Lambda, Match, MatchArm, Self_, SetProp, StructDecl, ValType,
-};
+use crate::parser::expr::Expr::{GetPropExpr, IntLiteralExpr, SetPropExpr, VecIndexExpr, SetIndexExpr};
+use crate::parser::expr::{CallStruct, GetProp, IntLiteral, Lambda, Match, MatchArm, Self_, SetProp, StructDecl, ValType, Vec_, VecIndex, SetIndex};
 use crate::{error, error_token, Token, TokenType};
 
 use self::expr::Expr::{
@@ -720,6 +718,12 @@ impl Parser {
                     operator,
                     Box::new(expr_val),
                 ))),
+                VecIndexExpr(vec_indx) => Ok(SetIndexExpr(SetIndex::new(
+                    vec_indx.callee.clone(),
+                    vec_indx.index.clone(),
+                    operator,
+                    Box::new(expr_val),
+                ))),
                 _ => {
                     self.err = true;
                     error_token(&operator, "Invalid assignment target.".to_string());
@@ -841,10 +845,12 @@ impl Parser {
         loop {
             if self.match_token(TokenType::LeftParen) {
                 expr = self.finish_call_expr(expr)?;
+            } else if self.match_token(TokenType::LeftBracket) {
+                expr = self.finish_vec_index_expr(expr)?;
             } else if self.match_token(TokenType::Dot) {
                 let name = self.consume(
                     TokenType::Identifier,
-                    "Property name ecpected after \".\".".to_string(),
+                    "Property or method name expected after \".\".".to_string(),
                 )?;
                 expr = Expr::GetPropExpr(GetProp::new(Box::new(expr), name));
             } else {
@@ -864,7 +870,7 @@ impl Parser {
                     self.err = true;
                     error(
                         self.peek().line,
-                        format!("Can\"t have more than {} arguments.", FnDecl::MAX_ARGS),
+                        format!("Cannot have more than {} arguments.", FnDecl::MAX_ARGS),
                     );
                 }
 
@@ -889,28 +895,30 @@ impl Parser {
     fn finish_struct_call_expr(&mut self, callee: Expr) -> Result<Expr> {
         let mut args = vec![];
 
-        if !self.check(TokenType::RightCurlyBrace) {
-            loop {
-                if args.len() >= FnDecl::MAX_ARGS {
-                    self.err = true;
-                    error(
-                        self.peek().line,
-                        format!("Can\"t have more than {} arguments.", FnDecl::MAX_ARGS),
-                    );
-                }
+        loop {
+            if args.len() >= FnDecl::MAX_ARGS {
+                self.err = true;
+                error(
+                    self.peek().line,
+                    format!("Cannot have more than {} arguments.", FnDecl::MAX_ARGS),
+                );
+            }
 
-                let prop =
-                    self.consume(TokenType::Identifier, "Property name expected.".to_string())?;
-                self.consume(
-                    TokenType::Colon,
-                    "Colon \":\" expected after after prop.".to_string(),
-                )?;
+            let prop =
+                self.consume(TokenType::Identifier, "Property name expected.".to_string())?;
+            self.consume(
+                TokenType::Colon,
+                "Colon \":\" expected after after prop.".to_string(),
+            )?;
 
-                args.push((prop, self.any_expr()?));
+            args.push((prop, self.any_expr()?));
 
-                if !self.match_token(TokenType::Comma) {
-                    break;
-                }
+            if !self.match_token(TokenType::Comma) {
+                break;
+            }
+
+            if self.check(TokenType::RightCurlyBrace) {
+                break;
             }
         }
 
@@ -920,6 +928,49 @@ impl Parser {
         );
 
         let call = Expr::CallStructExpr(CallStruct::new(Box::new(callee), args));
+
+        Ok(call)
+    }
+
+    fn finish_vec_index_expr(&mut self, callee: Expr) -> Result<Expr> {
+        let index_expr = self.any_expr()?;
+
+        self.consume(
+            TokenType::RightBracket,
+            "Square braket \"]\" expected.".to_string(),
+        )?;
+
+        let call = Expr::VecIndexExpr(VecIndex::new(Box::new(callee), Box::new(index_expr)));
+
+        Ok(call)
+    }
+
+    fn vec_expr(&mut self) -> Result<Expr> {
+        self.consume(
+            TokenType::LeftBracket,
+            "Square braket \"[\" expected after vec.".to_string(),
+        )?;
+
+        let mut values = vec![];
+
+        loop {
+            if self.check(TokenType::RightBracket) {
+                break;
+            }
+
+            values.push(self.any_expr()?);
+
+            if !self.match_token(TokenType::Comma) {
+                break;
+            }
+        }
+
+        self.consume(
+            TokenType::RightBracket,
+            "Square braket \"]\" expected after vec.".to_string(),
+        )?;
+
+        let call = Expr::VecExpr(Vec_::new(values));
 
         Ok(call)
     }
@@ -943,6 +994,10 @@ impl Parser {
 
         if self.match_token(TokenType::Match) {
             return self.match_expr();
+        }
+
+        if self.match_token(TokenType::Vec) {
+            return self.vec_expr();
         }
 
         if self.match_token(TokenType::LeftParen) {

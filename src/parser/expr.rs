@@ -14,8 +14,11 @@ pub enum Expr {
     SelfExpr(Self_),
     CallExpr(Call),
     CallStructExpr(CallStruct),
+    VecExpr(Vec_),
+    VecIndexExpr(VecIndex),
     GetPropExpr(GetProp),
     SetPropExpr(SetProp),
+    SetIndexExpr(SetIndex),
     FnExpr(Lambda),
     BinaryExpr(Binary),
     LogicalBinaryExpr(Binary),
@@ -98,6 +101,7 @@ impl ValType {
             Val::Str(_) => Some(Self::Str),
             Val::Callable(_) => Some(Self::Func),
             Val::StructInstance(i) => Some(Self::Struct(i.borrow_mut().struct_name.clone())),
+            Val::VecInstance(_) => Some(Self::Vec),
             _ => None,
         }
     }
@@ -116,6 +120,7 @@ impl ValType {
             (Self::Float, Val::Int(_)) => true,
             (Self::Str, Val::Str(_)) => true,
             (Self::Struct(s), Val::StructInstance(i)) => i.borrow_mut().struct_name == *s,
+            (Self::Vec, Val::VecInstance(_)) => true,
             _ => false,
         }
     }
@@ -178,6 +183,17 @@ pub struct CallStruct {
 }
 
 #[derive(Debug, Clone)]
+pub struct Vec_ {
+    pub vals: Vec<Expr>,
+}
+
+#[derive(Debug, Clone)]
+pub struct VecIndex {
+    pub callee: Box<Expr>,
+    pub index: Box<Expr>,
+}
+
+#[derive(Debug, Clone)]
 pub struct GetProp {
     pub name: Box<Expr>,
     pub prop_name: Token,
@@ -187,6 +203,14 @@ pub struct GetProp {
 pub struct SetProp {
     pub name: Box<Expr>,
     pub prop_name: Token,
+    pub operator: Token,
+    pub expr: Box<Expr>,
+}
+
+#[derive(Debug, Clone)]
+pub struct SetIndex {
+    pub name: Box<Expr>,
+    pub index: Box<Expr>,
     pub operator: Token,
     pub expr: Box<Expr>,
 }
@@ -333,6 +357,21 @@ impl CallStruct {
     }
 }
 
+impl Vec_ {
+    pub fn new(vals: Vec<Expr>) -> Self {
+        Self { vals }
+    }
+}
+
+impl VecIndex {
+    pub fn new(callee: Box<Expr>, index: Box<Expr>) -> Self {
+        Self {
+            callee,
+            index
+        }
+    }
+}
+
 impl GetProp {
     pub fn new(name: Box<Expr>, prop_name: Token) -> Self {
         Self { name, prop_name }
@@ -344,6 +383,17 @@ impl SetProp {
         Self {
             name,
             prop_name,
+            operator,
+            expr,
+        }
+    }
+}
+
+impl SetIndex {
+    pub fn new(name: Box<Expr>, index: Box<Expr>, operator: Token, expr: Box<Expr>) -> Self {
+        Self {
+            name,
+            index,
             operator,
             expr,
         }

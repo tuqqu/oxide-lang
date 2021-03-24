@@ -5,16 +5,11 @@ use std::sync::Arc;
 use std::{mem, result};
 
 use crate::interpreter::env::Struct;
-use crate::interpreter::val::StructInstance;
+use crate::interpreter::val::{StructInstance, VecInstance};
 use crate::interpreter::val::{PropFuncVal, StructCallable};
 
 use crate::lexer::token::{Token, TokenType};
-use crate::parser::expr::{
-    Assignment, Binary, Block, BoolLiteral, Call, CallStruct, ConstDecl, Expr, FloatLiteral,
-    FnDecl, GetProp, Grouping, If, IntLiteral, Lambda, Loop, Match, NilLiteral, Return, Self_,
-    SetProp, Stmt, StrLiteral, StructDecl, Unary, ValType, VarDecl, Variable, TYPE_BOOL, TYPE_FUNC,
-    TYPE_NUM, TYPE_STR, TYPE_STRUCT,
-};
+use crate::parser::expr::{Assignment, Binary, Block, BoolLiteral, Call, CallStruct, ConstDecl, Expr, FloatLiteral, FnDecl, GetProp, Grouping, If, IntLiteral, Lambda, Loop, Match, NilLiteral, Return, Self_, SetProp, Stmt, StrLiteral, StructDecl, Unary, ValType, VarDecl, Variable, TYPE_BOOL, TYPE_FUNC, TYPE_NUM, TYPE_STR, TYPE_STRUCT, Vec_, VecIndex, TYPE_VEC, TYPE_INT, SetIndex};
 
 use self::env::{Env, EnvVal};
 use self::val::{Callable, Function, StmtVal, Val};
@@ -434,7 +429,7 @@ impl Interpreter {
                 }
 
                 (callee.call)(self, &args)
-            }
+            },
             _ => Err(RuntimeError::new(
                 0,
                 format!(
@@ -481,23 +476,68 @@ impl Interpreter {
         }
     }
 
+    fn eval_vec_expr(&mut self, expr: &Vec_) -> Result<Val> {
+        let mut values = vec![];
+        for val_expr in &expr.vals {
+            let val = self.evaluate(val_expr)?;
+            values.push(val);
+        }
+
+        let vec_val = Val::VecInstance(Rc::new(RefCell::new(VecInstance::new(values))));
+
+        Ok(vec_val)
+    }
+
+    fn eval_vec_index(&mut self, expr: &VecIndex) -> Result<Val> {
+        let val = self.evaluate(&expr.callee)?;
+        let indx = self.evaluate(&expr.index)?;
+        let indx = if let Val::Int(int) = indx {
+            int as usize
+        } else {
+            return Err(RuntimeError::new(
+                0,
+                format!(
+                    "Values of type \"{}\" can have indices of type \"{}\", got \"{}\"",
+                    TYPE_VEC,
+                    TYPE_INT,
+                    indx.get_type()
+                )
+            ));
+        };
+
+        match val {
+            Val::VecInstance(vec) => vec.borrow_mut().get(indx),
+            _ => Err(RuntimeError::new(
+                0,
+                format!(
+                    "Indexing works with values of type \"{}\", got \"{}\"",
+                    TYPE_VEC,
+                    val.get_type()
+                )
+            ))
+        }
+    }
+
     fn eval_get_prop_expr(&mut self, expr: &GetProp) -> Result<Val> {
         let instance = self.evaluate(&expr.name)?;
-        let instance = match instance {
-            Val::StructInstance(i) => i,
+        return match instance {
+            Val::StructInstance(i) => {
+                let val = i.borrow_mut().get_prop(&expr.prop_name)?;
+                match val {
+                    PropFuncVal::Prop(val) => Ok(val),
+                    PropFuncVal::Func(func) => Ok(self.eval_fn_expr(&func)),
+                }
+            },
+            Val::VecInstance(vec) => {
+                VecInstance::get_method(&expr.prop_name, vec.clone())
+            },
             _ => {
-                return Err(RuntimeError::new(
+                Err(RuntimeError::new(
                     0,
                     format!("Must be a struct instance, got \"{}\"", instance.get_type()),
                 ))
             }
         };
-
-        let val = instance.borrow_mut().get_prop(&expr.prop_name)?;
-        match val {
-            PropFuncVal::Prop(val) => Ok(val),
-            PropFuncVal::Func(func) => Ok(self.eval_fn_expr(&func)),
-        }
     }
 
     fn eval_set_prop_expr(&mut self, expr: &SetProp) -> Result<Val> {
@@ -543,6 +583,59 @@ impl Interpreter {
         instance
             .borrow_mut()
             .set_prop(&expr.prop_name, val.clone())?;
+
+        Ok(val)
+    }
+
+    fn eval_set_index_expr(&mut self, expr: &SetIndex) -> Result<Val> {
+        let vec = self.evaluate(&expr.name)?;
+        let vec = if let Val::VecInstance(v) = vec {
+            v
+        } else {
+            return Err(RuntimeError::new(
+                0,
+                "Must be a vec instance.".to_string(),
+            ));
+        };
+
+        let index = self.evaluate(&expr.index)?;
+        let index = if let Val::Int(int) = index {
+            int as usize
+        } else {
+            return Err(RuntimeError::new(
+                0,
+                format!(
+                    "Values of type \"{}\" can have indices of type \"{}\", got \"{}\"",
+                    TYPE_VEC,
+                    TYPE_INT,
+                    index.get_type()
+                )
+            ));
+        };
+
+        let val = self.evaluate(&expr.expr)?;
+        let val = match expr.operator.token_type {
+            TokenType::Equal => val.clone(),
+            TokenType::PlusEqual
+            | TokenType::MinusEqual
+            | TokenType::AsteriskEqual
+            | TokenType::SlashEqual
+            | TokenType::ModulusEqual => {
+                let r_val = vec.borrow_mut().get(index)?;
+
+                Self::evaluate_two_operands(expr.operator.clone(), val, r_val)?
+            }
+            _ => {
+                return Err(RuntimeError::from_token(
+                    expr.operator.clone(),
+                    "Unrecognised token in an assignment expression.".to_string(),
+                ))
+            }
+        };
+
+        vec
+            .borrow_mut()
+            .set(index, val.clone())?;
 
         Ok(val)
     }
@@ -824,8 +917,11 @@ impl Interpreter {
             CallExpr(call) => self.eval_call_expr(&call)?,
             SelfExpr(self_) => self.eval_self_expr(&self_)?,
             CallStructExpr(call_struct) => self.eval_call_struct_expr(&call_struct)?,
+            VecExpr(call_vec) => self.eval_vec_expr(&call_vec)?,
+            VecIndexExpr(vec_indx) => self.eval_vec_index(&vec_indx)?,
             GetPropExpr(get_prop) => self.eval_get_prop_expr(&get_prop)?,
             SetPropExpr(set_prop) => self.eval_set_prop_expr(&set_prop)?,
+            SetIndexExpr(set_index) => self.eval_set_index_expr(&set_index)?,
             BinaryExpr(binary) => self.eval_binary_expr(&binary)?,
             LogicalBinaryExpr(l_binary) => self.eval_logical_binary_expr(&l_binary)?,
             GroupingExpr(grouping) => self.eval_grouping_expr(&grouping)?,

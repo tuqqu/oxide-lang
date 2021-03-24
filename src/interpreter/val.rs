@@ -3,10 +3,7 @@ use std::fmt;
 use std::rc::Rc;
 use std::sync::Arc;
 
-use crate::parser::expr::{
-    Lambda, StructDecl, ValType, TYPE_BOOL, TYPE_FLOAT, TYPE_FUNC, TYPE_INT, TYPE_NIL, TYPE_STR,
-    TYPE_STRUCT, TYPE_STRUCT_INSTANCE, TYPE_UNINIT,
-};
+use crate::parser::expr::{Lambda, StructDecl, ValType, TYPE_BOOL, TYPE_FLOAT, TYPE_FUNC, TYPE_INT, TYPE_NIL, TYPE_STR, TYPE_STRUCT, TYPE_STRUCT_INSTANCE, TYPE_UNINIT, TYPE_VEC};
 
 use super::env::Env;
 use super::Interpreter;
@@ -28,6 +25,7 @@ pub enum Val {
     Callable(Callable),
     Struct(StructCallable),
     StructInstance(Rc<RefCell<StructInstance>>),
+    VecInstance(Rc<RefCell<VecInstance>>),
 }
 
 #[derive(Debug)]
@@ -57,6 +55,13 @@ pub struct StructInstance {
     pub props: HashMap<String, (Val, ValType)>,
     pub fns: HashMap<String, Lambda>,
     pub struct_name: String,
+}
+
+#[derive(Debug, Clone)]
+pub struct VecInstance {
+    pub id: usize,
+    pub fns: HashMap<String, Lambda>,
+    pub vals: Vec<Val>
 }
 
 #[derive(Clone)]
@@ -211,6 +216,77 @@ impl StructInstance {
     }
 }
 
+impl VecInstance {
+    pub fn new(vals: Vec<Val>) -> Self {
+        Self {
+            id: internal_id(),
+            fns: HashMap::new(),
+            vals
+        }
+    }
+
+    pub fn get(&self, i: usize) -> Result<Val> {
+        let val = if let Some(val) = self.vals.get(i) {
+            val.clone()
+        } else {
+            Val::Uninit
+        };
+
+        Ok(val)
+    }
+
+    pub fn set(&mut self, i: usize, val: Val) -> Result<()> {
+        self.vals[i] = val;
+
+        Ok(())
+    }
+
+    pub fn len(&self) -> usize {
+        self.vals.len()
+    }
+
+    pub fn get_method(name: &Token, vec: Rc<RefCell<VecInstance>>) -> Result<Val> {
+        const POP: &str = "pop";
+        const PUSH: &str = "push";
+        const LEN: &str = "len";
+
+        let callable = match name.lexeme.as_str() {
+            POP => Val::Callable(*Callable::new(
+                0,
+                Arc::new(move |_inter, _args| {
+
+                    let poped = vec.borrow_mut().vals.pop().unwrap_or(Val::Uninit);
+
+                    Ok(poped)
+                })
+            )),
+            PUSH => Val::Callable(*Callable::new(
+                1,
+                Arc::new(move |_inter, args| {
+                    for arg in args {
+                        vec.borrow_mut().vals.push(arg.clone());
+                    }
+
+                    Ok(Val::VecInstance(vec.clone()))
+                })
+            )),
+            LEN => Val::Callable(*Callable::new(
+                0,
+                Arc::new(move |_inter, _args| {
+
+                    Ok(Val::Int(vec.borrow_mut().len() as isize))
+                })
+            )),
+            _ => return Err(RuntimeError::from_token(
+                name.clone(),
+                format!("Unknown vec method \"{}\"", name.lexeme),
+            ))
+        };
+
+        Ok(callable)
+    }
+}
+
 impl Val {
     pub fn equal(a: &Self, b: &Self) -> bool {
         use Val::*;
@@ -225,6 +301,7 @@ impl Val {
             (Int(a), Float(b)) => *a as f64 == *b,
             _ => false,
             // FIXME: add struct comparisons
+            // FIXME: add vec comparisons
         }
     }
 
@@ -251,6 +328,17 @@ impl Val {
                     i.borrow_mut().struct_name,
                     props.join(", ")
                 )
+            },
+            VecInstance(v) => {
+                let mut vals = vec![];
+                for val in &v.borrow_mut().vals {
+                    vals.push(val.to_string());
+                }
+
+                format!(
+                    "[vec] [{}]",
+                    vals.join(", ")
+                )
             }
         }
     }
@@ -268,6 +356,7 @@ impl Val {
             Callable(_f) => TYPE_FUNC,
             Struct(_c) => TYPE_STRUCT,
             StructInstance(_i) => TYPE_STRUCT_INSTANCE,
+            VecInstance(_v) => TYPE_VEC,
         }
         .to_string()
     }

@@ -88,6 +88,8 @@ impl Lexer {
             '}' => self.add_token(TokenType::RightCurlyBrace),
             '(' => self.add_token(TokenType::LeftParen),
             ')' => self.add_token(TokenType::RightParen),
+            '[' => self.add_token(TokenType::LeftBracket),
+            ']' => self.add_token(TokenType::RightBracket),
             ',' => self.add_token(TokenType::Comma),
             '.' => self.add_token(TokenType::Dot),
             ';' => self.add_token(TokenType::Semicolon),

@@ -92,6 +92,11 @@ fn test_lambda() {
 }
 
 #[test]
+fn test_vec() {
+    test_script("vec");
+}
+
+#[test]
 fn test_struct_properties() {
     test_script("struct_properties");
 }
