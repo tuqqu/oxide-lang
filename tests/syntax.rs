@@ -17,6 +17,11 @@ fn test_if() {
 }
 
 #[test]
+fn test_match() {
+    test_script("match");
+}
+
+#[test]
 fn test_variable() {
     test_script("variable");
 }

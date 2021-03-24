@@ -22,6 +22,7 @@ pub enum Expr {
     GroupingExpr(Grouping),
     VariableExpr(Variable),
     AssignmentExpr(Assignment),
+    MatchExpr(Match),
 }
 
 #[derive(Debug, Clone)]
@@ -273,6 +274,20 @@ pub struct Loop {
     pub body: Box<Stmt>,
 }
 
+#[derive(Debug, Clone)]
+pub struct Match {
+    pub keyword: Token,
+    pub expr: Box<Expr>,
+    pub arms: Vec<MatchArm>,
+    pub default: Option<Box<Expr>>,
+}
+
+#[derive(Debug, Clone)]
+pub struct MatchArm {
+    pub expr: Box<Expr>,
+    pub body: Box<Expr>,
+}
+
 impl Expr {
     pub fn is_empty(&self) -> bool {
         use Expr::*;
@@ -437,3 +452,25 @@ impl Loop {
         }
     }
 }
+
+impl Match {
+    pub fn new(keyword: Token, expr: Box<Expr>, arms: Vec<MatchArm>, default: Option<Box<Expr>>) -> Self {
+        Self {
+            keyword,
+            expr,
+            arms,
+            default,
+        }
+    }
+}
+
+impl MatchArm {
+    pub fn new(expr: Box<Expr>, body: Box<Expr>) -> Self {
+        Self {
+            expr,
+            body,
+        }
+    }
+}
+
+

@@ -205,6 +205,22 @@ impl StructInstance {
 }
 
 impl Val {
+    pub fn equal(a: &Self, b: &Self) -> bool {
+        use Val::*;
+
+        match (a, b) {
+            (Nil, Nil) => true,
+            (Bool(a), Bool(b)) => a == b,
+            (Str(a), Str(b)) => a == b,
+            (Int(a), Int(b)) => a == b,
+            (Float(a), Float(b)) => a == b,
+            (Float(a), Int(b)) => *a == *b as f64,
+            (Int(a), Float(b)) => *a as f64 == *b,
+            _ => false,
+            // FIXME: add struct comparisons
+        }
+    }
+
     pub fn to_string(&self) -> String {
         use Val::*;
 

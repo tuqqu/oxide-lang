@@ -1,9 +1,7 @@
 use std::result;
 
 use crate::parser::expr::Expr::{GetPropExpr, IntLiteralExpr, SetPropExpr};
-use crate::parser::expr::{
-    CallStruct, GetProp, IntLiteral, Lambda, Self_, SetProp, StructDecl, ValType,
-};
+use crate::parser::expr::{CallStruct, GetProp, IntLiteral, Lambda, Self_, SetProp, StructDecl, ValType, MatchArm, Match};
 use crate::{error, error_token, Token, TokenType};
 
 use self::expr::Expr::{
@@ -282,6 +280,36 @@ impl Parser {
         let struct_decl_stmt = Stmt::Struct(StructDecl::new(name, props, fns));
 
         Ok(struct_decl_stmt)
+    }
+
+    /// Parses match expressions.
+    /// Since match is an expression, it must end with a semicolon.
+    fn match_expr(&mut self) -> Result<Expr> {
+        let token = self.previous().clone();
+        let expr = Box::new(self.any_expr()?);
+        self.consume(TokenType::LeftCurlyBrace, "Curly brace \"{\" expected after match".to_string())?;
+        let mut branches = vec![];
+
+        loop {
+            let br_expr = Box::new(self.any_expr()?);
+            self.consume(TokenType::FatArrow, "Arrow \"=>\" in after match branch".to_string())?;
+            let br_body = Box::new(self.any_expr()?);
+            branches.push(MatchArm::new(br_expr, br_body));
+
+            if !self.match_token(TokenType::Comma) {
+                break;
+            }
+
+            if self.check(TokenType::RightCurlyBrace) {
+                break;
+            }
+        }
+
+        self.consume(TokenType::RightCurlyBrace, "Curly brace \"}\" expected after match body".to_string())?;
+        // FIXME: add default branch handling
+        let match_expr = Expr::MatchExpr(Match::new(token, expr, branches, None));
+
+        Ok(match_expr)
     }
 
     fn lambda_expr(&mut self) -> Result<Expr> {
@@ -894,6 +922,10 @@ impl Parser {
             return self.lambda_expr();
         }
 
+        if self.match_token(TokenType::Match) {
+            return self.match_expr();
+        }
+
         if self.match_token(TokenType::LeftParen) {
             let expr = self.any_expr()?;
             self.consume(
@@ -1056,7 +1088,7 @@ impl Parser {
             }
 
             match self.peek().token_type {
-                Struct | Fn | Let | Const | For | If | Loop | While | Return | Continue => {
+                Struct | Fn | Let | Const | For | If | Loop | While | Match | Return | Continue => {
                     return;
                 }
                 _ => {}

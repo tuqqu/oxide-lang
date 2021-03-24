@@ -39,8 +39,6 @@ println(add7(2)); // 9
 ```rust
 /// structs
 
-const PI = 3.14159;
-
 struct Circle {
     radius: float,
     center: Point,
@@ -51,14 +49,26 @@ struct Point {
     y: int,
 }
 
-let center = Point { x: 1, y: 5 };
-let circle = Circle { radius: 103.5, center: center };
+const PI = 3.14159;
+
+let circle = Circle { 
+    radius: 103.5,
+    center: Point { x: 1, y: 5 }
+};
 
 fn calc_area(c: Circle) -> float {
     return PI * c.radius * c.radius;
 }
 
-calc_area(circle);
+let area = calc_area(circle);
+
+println(
+    match true {
+        area > 30000 => "The area is greater than 30k!",
+        30000 > area && area > 10000 => "The area is between 10k and 30k",
+        area <= 10000 => "The area is less or equal to 10k",
+    }
+);
 ```
 
 ```rust
@@ -100,6 +110,11 @@ oxide
     * [Mutable Variables vs Immutable ones](#mutable-variables-vs-immutable-ones)
     * [Shadowing](#shadowing)
 * [Control Flow and Loops](#control-flow-and-loops)
+    * [If](#if)
+    * [Match](#match)
+    * [While](#while)
+    * [Loop](#loop)
+    * [For](#for)
 * [Constants](#constants)
 * [Functions](#functions)
     * [Closures and Lambdas](#closures-and-lambdas)
@@ -191,7 +206,9 @@ let mut x: bool = true;
 
 ## Control Flow and Loops
 
-There is an `if` statement with the support of `else if` and `else` branches. Parentheses are not needed around conditions. Each branch must be enclosed in curly braces.
+### If
+
+`if` statement is pretty classic. It supports `else if` and `else` branches. Parentheses are not needed around conditions. Each branch must be enclosed in curly braces.
 
 ```rust
 if x >= 100 {
@@ -203,6 +220,32 @@ if x >= 100 {
 }
 ```
 
+### Match
+
+`match` expression returns the first matching arm evaluated value. Unlike other control flow statements, `match` is an expression and therefore must be terminated with semicolon. It can be used in any place an expression is expected.
+
+```rust
+let result = match get_bearing(direction) {
+    "north" => 0,
+    "east" => 90,
+    "south" => 180,
+    "west" => 270,
+}
+```
+
+`match true` can be used to make more generalised comparisons.
+```rust
+let x = 40;
+
+let age: str = match true {
+    x > 19 => "adult",
+    x >= 13 && x <= 19 => "teenager",
+    x < 13 => "kid",
+};
+```
+
+### While
+
 There are three loops in Oxide: `while`, `loop` and `for`. All loops support `break` and `continue` statements. Loop body must be enclosed in curly braces.
 
 `while` statement is rather usual.
@@ -212,6 +255,9 @@ while x != 100 {
     x += 1;
 }
 ```
+
+### Loop
+
 `loop` looks like Rust's `loop`. Basically it is `while true {}` with some nice looking syntax.
 
 ```rust
@@ -222,6 +268,8 @@ loop {
     }
 }
 ```
+
+### For
 
 `for` loop is a ~~good~~ old C-like `for` statement, which comprises three parts. You should be familiar with it.
 ```rust

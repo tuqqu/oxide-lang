@@ -48,6 +48,8 @@ impl Lexer {
         keywords.insert("for".to_string(), TokenType::For);
         keywords.insert("loop".to_string(), TokenType::Loop);
 
+        keywords.insert("match".to_string(), TokenType::Match);
+
         keywords.insert("if".to_string(), TokenType::If);
         keywords.insert("else".to_string(), TokenType::Else);
 
@@ -151,6 +153,8 @@ impl Lexer {
             '=' => {
                 let t_type = if self.match_char('=') {
                     TokenType::EqualEqual
+                } else if self.match_char('>') {
+                    TokenType::FatArrow
                 } else {
                     TokenType::Equal
                 };

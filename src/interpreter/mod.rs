@@ -9,12 +9,7 @@ use crate::interpreter::val::StructInstance;
 use crate::interpreter::val::{PropFuncVal, StructCallable};
 
 use crate::lexer::token::{Token, TokenType};
-use crate::parser::expr::{
-    Assignment, Binary, Block, BoolLiteral, Call, CallStruct, ConstDecl, Expr, FloatLiteral,
-    FnDecl, GetProp, Grouping, If, IntLiteral, Lambda, Loop, NilLiteral, Return, Self_, SetProp,
-    Stmt, StrLiteral, StructDecl, Unary, ValType, VarDecl, Variable, TYPE_BOOL, TYPE_FUNC,
-    TYPE_NUM, TYPE_STR,
-};
+use crate::parser::expr::{Assignment, Binary, Block, BoolLiteral, Call, CallStruct, ConstDecl, Expr, FloatLiteral, FnDecl, GetProp, Grouping, If, IntLiteral, Lambda, Loop, NilLiteral, Return, Self_, SetProp, Stmt, StrLiteral, StructDecl, Unary, ValType, VarDecl, Variable, TYPE_BOOL, TYPE_FUNC, TYPE_NUM, TYPE_STR, Match};
 
 use self::env::{Env, EnvVal};
 use self::val::{Callable, Function, StmtVal, Val};
@@ -202,6 +197,22 @@ impl Interpreter {
         }
 
         Ok(StmtVal::None)
+    }
+
+    fn eval_match_expr(&mut self, expr: &Match) -> Result<Val> {
+        let cond: Val = self.evaluate(&expr.expr)?;
+
+        for arm in &expr.arms {
+            let br_cond: Val = self.evaluate(&arm.expr)?;
+            if Val::equal(&cond, &br_cond) {
+                return self.evaluate(&arm.body);
+            }
+        }
+
+        Err(RuntimeError::from_token(
+            expr.keyword.clone(),
+            "Match expression must be exhaustive.".to_string(),
+        ))
     }
 
     fn eval_var_expr(&mut self, expr: &Variable) -> Result<Val> {
@@ -753,6 +764,7 @@ impl Interpreter {
                     ))
                 }
             },
+            // FIXME: add bitwise operations
             // bitwise
             // TokenType::BitwiseAnd => match (left, right) {
             //     (Val::Number(left), Val::Number(right)) => Val::Number(left & right),
@@ -819,6 +831,7 @@ impl Interpreter {
             VariableExpr(variable) => self.eval_var_expr(&variable)?,
             AssignmentExpr(assignment) => self.eval_assign_expr(&assignment)?,
             FnExpr(lambda) => self.eval_fn_expr(&lambda),
+            MatchExpr(match_expr) => self.eval_match_expr(match_expr)?,
         };
 
         Ok(val)

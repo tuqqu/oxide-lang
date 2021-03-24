@@ -24,6 +24,7 @@ pub enum TokenType {
     Colon,
     Semicolon,
     Arrow,
+    FatArrow,
     Comma,
     Dot,
 
@@ -81,6 +82,8 @@ pub enum TokenType {
     While,
     For,
     Loop,
+
+    Match,
 
     If,
     Else,
