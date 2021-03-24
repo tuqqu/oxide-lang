@@ -4,14 +4,15 @@ use std::rc::Rc;
 use std::sync::Arc;
 
 use crate::parser::expr::{
-    Lambda, StructDecl, ValType, TYPE_BOOL, TYPE_FLOAT, TYPE_FUNC, TYPE_INT, TYPE_NIL,
-    TYPE_STR, TYPE_STRUCT, TYPE_STRUCT_INSTANCE, TYPE_UNINIT,
+    Lambda, StructDecl, ValType, TYPE_BOOL, TYPE_FLOAT, TYPE_FUNC, TYPE_INT, TYPE_NIL, TYPE_STR,
+    TYPE_STRUCT, TYPE_STRUCT_INSTANCE, TYPE_UNINIT,
 };
 
 use super::env::Env;
 use super::Interpreter;
 use super::Result;
 
+use crate::interpreter::env::internal_id;
 use crate::interpreter::RuntimeError;
 use crate::lexer::token::Token;
 use std::collections::HashMap;
@@ -26,7 +27,7 @@ pub enum Val {
     Float(f64),
     Callable(Callable),
     Struct(StructCallable),
-    StructInstance(StructInstance),
+    StructInstance(Rc<RefCell<StructInstance>>),
 }
 
 #[derive(Debug)]
@@ -52,6 +53,7 @@ pub struct StructCallable {
 
 #[derive(Debug, Clone)]
 pub struct StructInstance {
+    pub id: usize,
     pub props: HashMap<String, (Val, ValType)>,
     pub fns: HashMap<String, Lambda>,
     pub struct_name: String,
@@ -59,13 +61,18 @@ pub struct StructInstance {
 
 #[derive(Clone)]
 pub struct Function {
+    pub id: usize,
     pub lambda: Lambda,
     pub env: Rc<RefCell<Env>>,
 }
 
 impl Function {
     pub fn new(lambda: Lambda, env: Rc<RefCell<Env>>) -> Self {
-        Self { lambda, env }
+        Self {
+            id: internal_id(),
+            lambda,
+            env,
+        }
     }
 
     pub fn param_size(&self) -> usize {
@@ -144,6 +151,7 @@ impl StructInstance {
         }
 
         Self {
+            id: internal_id(),
             props,
             fns,
             struct_name: struct_.name.lexeme,
@@ -186,15 +194,14 @@ impl StructInstance {
             let (_, v_type) = self.props.get(&name.lexeme).unwrap();
             let v_type = v_type.clone();
             if v_type.conforms(&val) {
-                self.props
-                    .insert(name.lexeme.clone(), (val, v_type));
+                self.props.insert(name.lexeme.clone(), (val, v_type));
 
                 Ok(())
             } else {
                 Err(RuntimeError::from_token(
                     name.clone(),
                     format!(
-                        "Trying to assign to a variable of type \"{}\" value pof type \"{}\"",
+                        "Trying to assign to a variable of type \"{}\" value of type \"{}\"",
                         v_type.to_string(),
                         val.get_type()
                     ),
@@ -235,11 +242,15 @@ impl Val {
             Struct(_c) => "struct".to_string(),
             StructInstance(i) => {
                 let mut props = vec![];
-                for (prop, (val, _val_t)) in &i.props {
+                for (prop, (val, _val_t)) in &i.borrow_mut().props {
                     props.push(format!("{}: {}", prop, val.to_string()));
                 }
 
-                format!("[struct] {} {{ {} }}, ", i.struct_name, props.join(", "))
+                format!(
+                    "[struct] {} {{ {} }}, ",
+                    i.borrow_mut().struct_name,
+                    props.join(", ")
+                )
             }
         }
     }

@@ -1,7 +1,9 @@
 use std::result;
 
 use crate::parser::expr::Expr::{GetPropExpr, IntLiteralExpr, SetPropExpr};
-use crate::parser::expr::{CallStruct, GetProp, IntLiteral, Lambda, Self_, SetProp, StructDecl, ValType, MatchArm, Match};
+use crate::parser::expr::{
+    CallStruct, GetProp, IntLiteral, Lambda, Match, MatchArm, Self_, SetProp, StructDecl, ValType,
+};
 use crate::{error, error_token, Token, TokenType};
 
 use self::expr::Expr::{
@@ -78,7 +80,8 @@ impl Parser {
                 }
             };
         } else if self.check(TokenType::Fn) && self.check_next(TokenType::Identifier) {
-            self.consume(TokenType::Fn, "Keyword \"fn\" expected.".to_string()).unwrap();
+            self.consume(TokenType::Fn, "Keyword \"fn\" expected.".to_string())
+                .unwrap();
 
             return match self.fn_decl() {
                 Ok(fn_decl) => Some(fn_decl),
@@ -110,7 +113,8 @@ impl Parser {
     /// as well as variable type and initializer.
     fn var_decl(&mut self) -> Result<Stmt> {
         let mutable: bool = self.match_token(TokenType::Mut);
-        let name: Token = self.consume(TokenType::Identifier, "Variable name expected.".to_string())?;
+        let name: Token =
+            self.consume(TokenType::Identifier, "Variable name expected.".to_string())?;
 
         let v_type = if self.match_token(TokenType::Colon) {
             Some(self.type_decl()?)
@@ -136,7 +140,8 @@ impl Parser {
     /// Struct properties have their own syntax which is different from usual vars,
     /// so they must be handled separately
     fn prop_decl(&mut self) -> Result<VarDecl> {
-        let name: Token = self.consume(TokenType::Identifier, "Property name expected.".to_string())?;
+        let name: Token =
+            self.consume(TokenType::Identifier, "Property name expected.".to_string())?;
 
         self.consume(
             TokenType::Colon,
@@ -170,7 +175,8 @@ impl Parser {
     }
 
     fn const_decl(&mut self) -> Result<Stmt> {
-        let name: Token = self.consume(TokenType::Identifier, "Constant name expected.".to_string())?;
+        let name: Token =
+            self.consume(TokenType::Identifier, "Constant name expected.".to_string())?;
 
         let init = if self.match_token(TokenType::Equal) {
             if let Some(expr) = self.scalar_expr() {
@@ -239,7 +245,8 @@ impl Parser {
     /// struct properties and its methods.
     /// future scope: move methods to `impl` blocks
     fn struct_decl(&mut self) -> Result<Stmt> {
-        let name: Token = self.consume(TokenType::Identifier, "Struct name expected.".to_string())?;
+        let name: Token =
+            self.consume(TokenType::Identifier, "Struct name expected.".to_string())?;
 
         self.consume(
             TokenType::LeftCurlyBrace,
@@ -287,12 +294,18 @@ impl Parser {
     fn match_expr(&mut self) -> Result<Expr> {
         let token = self.previous().clone();
         let expr = Box::new(self.any_expr()?);
-        self.consume(TokenType::LeftCurlyBrace, "Curly brace \"{\" expected after match".to_string())?;
+        self.consume(
+            TokenType::LeftCurlyBrace,
+            "Curly brace \"{\" expected after match".to_string(),
+        )?;
         let mut branches = vec![];
 
         loop {
             let br_expr = Box::new(self.any_expr()?);
-            self.consume(TokenType::FatArrow, "Arrow \"=>\" in after match branch".to_string())?;
+            self.consume(
+                TokenType::FatArrow,
+                "Arrow \"=>\" in after match branch".to_string(),
+            )?;
             let br_body = Box::new(self.any_expr()?);
             branches.push(MatchArm::new(br_expr, br_body));
 
@@ -305,7 +318,10 @@ impl Parser {
             }
         }
 
-        self.consume(TokenType::RightCurlyBrace, "Curly brace \"}\" expected after match body".to_string())?;
+        self.consume(
+            TokenType::RightCurlyBrace,
+            "Curly brace \"}\" expected after match body".to_string(),
+        )?;
         // FIXME: add default branch handling
         let match_expr = Expr::MatchExpr(Match::new(token, expr, branches, None));
 
@@ -579,7 +595,10 @@ impl Parser {
             );
         }
 
-        self.consume(TokenType::Semicolon, "Semicolon \";\" expected after break.".to_string())?;
+        self.consume(
+            TokenType::Semicolon,
+            "Semicolon \";\" expected after break.".to_string(),
+        )?;
 
         Ok(Stmt::Break)
     }
@@ -617,7 +636,10 @@ impl Parser {
             Expr::EmptyExpr
         };
 
-        self.consume(TokenType::Semicolon, "Semicolon \";\" expected after return.".to_string())?;
+        self.consume(
+            TokenType::Semicolon,
+            "Semicolon \";\" expected after return.".to_string(),
+        )?;
 
         Ok(Stmt::Return(Return::new(token, Box::new(expr))))
     }
@@ -692,19 +714,12 @@ impl Parser {
                     operator,
                     Box::new(expr_val),
                 ))),
-                GetPropExpr(get_prop) => {
-                    match &*get_prop.name {
-                        VariableExpr(variable) => Ok(SetPropExpr(SetProp::new(
-                            variable.name.clone(),
-                            get_prop.prop_name.clone(),
-                            operator,
-                            Box::new(expr_val),
-                        ))),
-                        // recursive call to follow all the dot chain
-                        GetPropExpr(_) => self.assign_expr(),
-                        _ => panic!("Unknown error in assignment"),
-                    }
-                }
+                GetPropExpr(get_prop) => Ok(SetPropExpr(SetProp::new(
+                    get_prop.name.clone(),
+                    get_prop.prop_name.clone(),
+                    operator,
+                    Box::new(expr_val),
+                ))),
                 _ => {
                     self.err = true;
                     error_token(&operator, "Invalid assignment target.".to_string());
@@ -884,8 +899,12 @@ impl Parser {
                     );
                 }
 
-                let prop = self.consume(TokenType::Identifier, "Property name expected.".to_string())?;
-                self.consume(TokenType::Colon, "Colon \":\" expected after after prop.".to_string())?;
+                let prop =
+                    self.consume(TokenType::Identifier, "Property name expected.".to_string())?;
+                self.consume(
+                    TokenType::Colon,
+                    "Colon \":\" expected after after prop.".to_string(),
+                )?;
 
                 args.push((prop, self.any_expr()?));
 

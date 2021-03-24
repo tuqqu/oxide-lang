@@ -111,7 +111,15 @@ fn error(line: usize, msg: String) {
 }
 
 fn error_token(token: &Token, msg: String) {
-    print_error(token.line, if token.token_type != TokenType::Eof { token.lexeme.clone() } else { "".to_string() }, msg);
+    print_error(
+        token.line,
+        if token.token_type != TokenType::Eof {
+            token.lexeme.clone()
+        } else {
+            "".to_string()
+        },
+        msg,
+    );
 }
 
 fn print_error(line: usize, err_token: String, message: String) {

@@ -6,19 +6,19 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use crate::interpreter::Result;
 use crate::interpreter::RuntimeError;
 use crate::lexer::token::Token;
-use crate::parser::expr::{ValType};
+use crate::parser::expr::ValType;
 
 use super::val::Val;
 
 static COUNTER: AtomicUsize = AtomicUsize::new(1);
 
-fn internal_id() -> usize {
+pub fn internal_id() -> usize {
     COUNTER.fetch_add(1, Ordering::Relaxed)
 }
 
 #[derive(Clone, Debug)]
 pub struct Env {
-    pub vals: HashMap<String, EnvVal>,
+    pub vals: HashMap<String, Rc<RefCell<EnvVal>>>,
     pub enclosing: Option<Rc<RefCell<Self>>>,
 }
 
@@ -140,7 +140,7 @@ impl EnvVal {
                     Err(RuntimeError::from_token(
                         name,
                         format!(
-                            "Trying to assign to a variable of type \"{}\" value pof type \"{}\"",
+                            "Trying to assign to a variable of type \"{}\" value of type \"{}\"",
                             v.v_type.to_string(),
                             val.get_type()
                         ),
@@ -204,12 +204,17 @@ impl Env {
     }
 
     pub fn define_variable(&mut self, var: Variable) {
-        self.vals.insert(var.name.clone(), EnvVal::Variable(var));
+        self.vals.insert(
+            var.name.clone(),
+            Rc::new(RefCell::new(EnvVal::Variable(var))),
+        );
     }
 
     pub fn define_struct(&mut self, struct_: Struct) {
-        self.vals
-            .insert(struct_.name.clone(), EnvVal::Struct(struct_));
+        self.vals.insert(
+            struct_.name.clone(),
+            Rc::new(RefCell::new(EnvVal::Struct(struct_))),
+        );
     }
 
     pub fn define_constant(&mut self, constant: Constant) -> Result<()> {
@@ -220,8 +225,10 @@ impl Env {
             ));
         }
 
-        self.vals
-            .insert(constant.name.clone(), EnvVal::Constant(constant));
+        self.vals.insert(
+            constant.name.clone(),
+            Rc::new(RefCell::new(EnvVal::Constant(constant))),
+        );
 
         Ok(())
     }
@@ -234,12 +241,15 @@ impl Env {
             ));
         }
 
-        self.vals.insert(func.name.clone(), EnvVal::Function(func));
+        self.vals.insert(
+            func.name.clone(),
+            Rc::new(RefCell::new(EnvVal::Function(func))),
+        );
 
         Ok(())
     }
 
-    pub fn get(&mut self, name: Token) -> Result<EnvVal> {
+    pub fn get(&mut self, name: Token) -> Result<Rc<RefCell<EnvVal>>> {
         if self.vals.contains_key(&name.lexeme) {
             let val = self.vals.get(&name.lexeme);
 
@@ -247,7 +257,7 @@ impl Env {
                 Some(val) => Ok(val.clone()),
                 None => {
                     // unreachable
-                    Ok(EnvVal::NoValue)
+                    Ok(Rc::new(RefCell::new(EnvVal::NoValue)))
                 }
             };
         }
@@ -266,9 +276,10 @@ impl Env {
     pub fn assign(&mut self, name: Token, val: &Val) -> Result<()> {
         if self.vals.contains_key(&name.lexeme) {
             let env_val = self.get(name.clone())?;
-            let mut env_val = env_val.clone();
-
-            env_val.try_to_assign(val.clone(), name.clone())?;
+            let env_val = env_val.clone();
+            env_val
+                .borrow_mut()
+                .try_to_assign(val.clone(), name.clone())?;
 
             self.vals.insert(name.lexeme, env_val.clone());
 

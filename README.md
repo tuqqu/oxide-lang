@@ -61,14 +61,13 @@ fn calc_area(c: Circle) -> float {
 }
 
 let area = calc_area(circle);
+let message = match true {
+    area > 30000 => "The area is greater than 30k!",
+    30000 > area && area > 10000 => "The area is between 10k and 30k",
+    area <= 10000 => "The area is less or equal to 10k",
+};
 
-println(
-    match true {
-        area > 30000 => "The area is greater than 30k!",
-        30000 > area && area > 10000 => "The area is between 10k and 30k",
-        area <= 10000 => "The area is less or equal to 10k",
-    }
-);
+println(message);
 ```
 
 ```rust
@@ -135,13 +134,15 @@ There are eight types embodied in the language: `nil`, `num`, `int`, `float`, `b
 Each variable has a type associated with it, either explicitly declared with the variable itself:
 
 ```rust
-let x: num;
+let x: int;
 
 let mut y: str = "hello" + " world";
 
 let double: func = fn (x: num) -> num {
     return x * 2;
 };
+
+let human: Person = Person { name: "Jane" };
 ```
 
 or implicitly inferred by the interpreter the first time it is being assigned:
@@ -162,17 +163,15 @@ dog = Dog { name: "Good Boy"};
 Mutable variables cannot be assigned to a value of another type, unless they are of type `any`:
 
 ```rust
-//! type error
 let mut s: str = "string";
-s = 100;
+s = 100; //! type error
 
-//! type error
 let mut x = true;
-x = "string";
+x = "string"; //! type error
 
-// valid
 let mut a: any = Rectangle { height: 10, width: 10 };
-a = 45.34; 
+a.height = "string"; //! type error
+a = 45.34; // valid
 ```
 
 ### Mutable Variables vs Immutable ones
@@ -225,22 +224,22 @@ if x >= 100 {
 `match` expression returns the first matching arm evaluated value. Unlike other control flow statements, `match` is an expression and therefore must be terminated with semicolon. It can be used in any place an expression is expected.
 
 ```rust
-let result = match get_bearing(direction) {
+let result = match get_direction() {
     "north" => 0,
     "east" => 90,
     "south" => 180,
     "west" => 270,
-}
+};
 ```
 
 `match true` can be used to make more generalised comparisons.
 ```rust
-let x = 40;
+let age = 40;
 
-let age: str = match true {
-    x > 19 => "adult",
-    x >= 13 && x <= 19 => "teenager",
-    x < 13 => "kid",
+let description: str = match true {
+    age > 19 => "adult",
+    age >= 13 && x <= 19 => "teenager",
+    age < 13 => "kid",
 };
 ```
 
@@ -307,7 +306,7 @@ const MESSAGE = "hello world";
 
 const PI = 3.14159;
 
-const E = 2,71828;
+const E = 2.71828;
 ```
 
 ## Functions
@@ -414,14 +413,18 @@ All struct properties are mutable and public by default.
 struct Person {
     first_name: str,
     last_name: str,
+    country: Country,
     alive: bool,
     pet: Animal,
-    speak: func
 }
 
 struct Animal {
     kind: str,
-    fluffy: bool,
+    alive: bool,
+}
+
+struct Country {
+    name: str,
 }
 ```
 
@@ -430,26 +433,42 @@ You instantiate a struct creating it and initializing all its properties.
 ```rust
 let cat = Animal {
     kind: "cat",
-    fluffy: true
+    alive: true
 };
 
-let mut john: Person = Person {
+let john: Person = Person {
     first_name: "John",
     last_name: "Doe",
     alive: true,
-    pet: cat,
-    speak: fn () -> str {
-        return "hello!";
-    }
+    pet: cat,                          // via variable
+    country: Country { name: "UK" }    // via inlined struct instantiation
 };
 ```
 
-Immutable variables would not let you mutate the struct, so you ought to declare those you want to change in the future as `let mut`
+Dot syntax is used to access structs fields
 
 ```rust
-cat.fluffy = false; //! error, cat is not a mutable variable (and cannot be *not* fluffy)
+john.country = Country { name: "USA" };
+println(john.pet.kind); // cat
+```
 
-john.alive = false; // valid, John is dead now
+Immutable variable will let you change the struct's fields, it will prevent you from overwriting the variable itself. Similar to Javascript `const` that holds an object.
+
+```rust
+john.first_name = "Steven"; // valid, John is not a John anymore
+john.pet.kind = "dog"       // also valid, john's pet is changed
+john = Person { .. };       // invalid, "john" cannot point to another struct
+```
+
+Structs are always passed by reference, consider:
+
+```rust
+fn kill(person: Person) {
+    person.alive = false;     // oh, john is dead
+    person.pet.alive = false; // as well as its pet. RIP
+}
+
+kill(john);
 ```
 
 ## Operators
@@ -481,15 +500,31 @@ let x = 100; /* inlined multiline comment */ let y = x;
 
 ## Standard library
 
-A small set of built-in functionality is available anywhere in the code, so I dare call it a standard library.
+A small set of built-in functionality is available anywhere in the code.
 
 - `print(msg: str)` prints `msg` to the standard output stream (stdout).
+  
+
 - `println(msg: str)` same as `print`, but inserts a newline at the end of the string.
+  
+
 - `eprint(err: str)` prints `err` to the standard error (stderr).
+  
+
 - `eprintln(err: str)` you got the idea.
+  
+
 - `timestamp() -> int` returns current Unix Epoch timestamp in seconds
+  
+
 - `read_line() -> str` reads user input from standard input (stdin) and returns it as a `str`
+  
+
 - `file_write(file: str, content: str) -> str` write `content` to a file, creating it first, should it not exist
+  
+
 - `typeof(val: any) -> str` returns type of a given value or variable
+
+
 
 [latest-releases]: https://github.com/tuqqu/oxide-lang/releases/latest

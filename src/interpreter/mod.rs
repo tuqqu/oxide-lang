@@ -9,10 +9,16 @@ use crate::interpreter::val::StructInstance;
 use crate::interpreter::val::{PropFuncVal, StructCallable};
 
 use crate::lexer::token::{Token, TokenType};
-use crate::parser::expr::{Assignment, Binary, Block, BoolLiteral, Call, CallStruct, ConstDecl, Expr, FloatLiteral, FnDecl, GetProp, Grouping, If, IntLiteral, Lambda, Loop, NilLiteral, Return, Self_, SetProp, Stmt, StrLiteral, StructDecl, Unary, ValType, VarDecl, Variable, TYPE_BOOL, TYPE_FUNC, TYPE_NUM, TYPE_STR, Match};
+use crate::parser::expr::{
+    Assignment, Binary, Block, BoolLiteral, Call, CallStruct, ConstDecl, Expr, FloatLiteral,
+    FnDecl, GetProp, Grouping, If, IntLiteral, Lambda, Loop, Match, NilLiteral, Return, Self_,
+    SetProp, Stmt, StrLiteral, StructDecl, Unary, ValType, VarDecl, Variable, TYPE_BOOL, TYPE_FUNC,
+    TYPE_NUM, TYPE_STR, TYPE_STRUCT,
+};
 
 use self::env::{Env, EnvVal};
 use self::val::{Callable, Function, StmtVal, Val};
+use std::ops::Deref;
 
 pub mod env;
 pub mod stdlib;
@@ -89,7 +95,7 @@ impl Interpreter {
                         }
                     }
 
-                    let instance = Val::StructInstance(instance);
+                    let instance = Val::StructInstance(Rc::new(RefCell::new(instance)));
 
                     Ok(instance)
                 }),
@@ -217,10 +223,11 @@ impl Interpreter {
 
     fn eval_var_expr(&mut self, expr: &Variable) -> Result<Val> {
         let env_val = self.env.borrow_mut().get(expr.name.clone())?;
+        let env_val = env_val.borrow_mut();
 
         use EnvVal::*;
 
-        match env_val {
+        match env_val.deref() {
             NoValue => Err(RuntimeError::new(
                 expr.name.line,
                 format!(
@@ -245,10 +252,11 @@ impl Interpreter {
             | TokenType::SlashEqual
             | TokenType::ModulusEqual => {
                 let env_val = self.env.borrow_mut().get(expr.name.clone())?;
+                let env_val = env_val.borrow_mut();
 
-                match env_val {
+                match env_val.deref() {
                     EnvVal::Variable(v) => {
-                        Self::evaluate_two_operands(expr.operator.clone(), v.val, val)?
+                        Self::evaluate_two_operands(expr.operator.clone(), v.val.clone(), val)?
                     }
                     _ => {
                         return Err(RuntimeError::from_token(
@@ -466,7 +474,7 @@ impl Interpreter {
                 0,
                 format!(
                     "Callable value must be of type \"{}\", got \"{}\"",
-                    TYPE_FUNC,
+                    TYPE_STRUCT,
                     callee.get_type()
                 ),
             )),
@@ -485,7 +493,7 @@ impl Interpreter {
             }
         };
 
-        let val = instance.get_prop(&expr.prop_name)?;
+        let val = instance.borrow_mut().get_prop(&expr.prop_name)?;
         match val {
             PropFuncVal::Prop(val) => Ok(val),
             PropFuncVal::Func(func) => Ok(self.eval_fn_expr(&func)),
@@ -493,19 +501,14 @@ impl Interpreter {
     }
 
     fn eval_set_prop_expr(&mut self, expr: &SetProp) -> Result<Val> {
-        let instance = self.env.borrow_mut().get(expr.name.clone())?;
-
-        let mut instance = match instance {
-            EnvVal::Variable(env::Variable { val: Val::StructInstance(i), mutable: true, .. }) => i,
-            EnvVal::Variable(env::Variable { val: Val::StructInstance(_i), mutable: false, .. }) =>
-                return Err(RuntimeError::from_token(
-                expr.name.clone(),
-                "Cannot assign to an immutable variable. Consider declaring it with \"mut\" keyword.".to_string(),
-            )),
-            _ => return Err(RuntimeError::from_token(
-                expr.name.clone(),
+        let instance = self.evaluate(&expr.name)?;
+        let instance = if let Val::StructInstance(i) = instance {
+            i
+        } else {
+            return Err(RuntimeError::new(
+                0,
                 "Must be a struct instance.".to_string(),
-            ))
+            ));
         };
 
         let val = self.evaluate(&expr.expr)?;
@@ -516,7 +519,7 @@ impl Interpreter {
             | TokenType::AsteriskEqual
             | TokenType::SlashEqual
             | TokenType::ModulusEqual => {
-                let r_val = instance.get_prop(&expr.prop_name)?;
+                let r_val = instance.borrow_mut().get_prop(&expr.prop_name)?;
                 let r_val = match r_val {
                     PropFuncVal::Prop(val) => val,
                     _ => {
@@ -537,11 +540,9 @@ impl Interpreter {
             }
         };
 
-        instance.set_prop(&expr.prop_name, val.clone()).unwrap();
-
-        self.env
+        instance
             .borrow_mut()
-            .assign(expr.name.clone(), &Val::StructInstance(instance))?;
+            .set_prop(&expr.prop_name, val.clone())?;
 
         Ok(val)
     }

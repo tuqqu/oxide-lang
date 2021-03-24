@@ -97,7 +97,7 @@ impl ValType {
             Val::Nil => Some(Self::Nil),
             Val::Str(_) => Some(Self::Str),
             Val::Callable(_) => Some(Self::Func),
-            Val::StructInstance(i) => Some(Self::Struct(i.struct_name.clone())),
+            Val::StructInstance(i) => Some(Self::Struct(i.borrow_mut().struct_name.clone())),
             _ => None,
         }
     }
@@ -115,7 +115,7 @@ impl ValType {
             (Self::Float, Val::Float(_)) => true,
             (Self::Float, Val::Int(_)) => true,
             (Self::Str, Val::Str(_)) => true,
-            (Self::Struct(s), Val::StructInstance(i)) => i.struct_name == *s,
+            (Self::Struct(s), Val::StructInstance(i)) => i.borrow_mut().struct_name == *s,
             _ => false,
         }
     }
@@ -185,7 +185,7 @@ pub struct GetProp {
 
 #[derive(Debug, Clone)]
 pub struct SetProp {
-    pub name: Token,
+    pub name: Box<Expr>,
     pub prop_name: Token,
     pub operator: Token,
     pub expr: Box<Expr>,
@@ -340,7 +340,7 @@ impl GetProp {
 }
 
 impl SetProp {
-    pub fn new(name: Token, prop_name: Token, operator: Token, expr: Box<Expr>) -> Self {
+    pub fn new(name: Box<Expr>, prop_name: Token, operator: Token, expr: Box<Expr>) -> Self {
         Self {
             name,
             prop_name,
@@ -454,7 +454,12 @@ impl Loop {
 }
 
 impl Match {
-    pub fn new(keyword: Token, expr: Box<Expr>, arms: Vec<MatchArm>, default: Option<Box<Expr>>) -> Self {
+    pub fn new(
+        keyword: Token,
+        expr: Box<Expr>,
+        arms: Vec<MatchArm>,
+        default: Option<Box<Expr>>,
+    ) -> Self {
         Self {
             keyword,
             expr,
@@ -466,11 +471,6 @@ impl Match {
 
 impl MatchArm {
     pub fn new(expr: Box<Expr>, body: Box<Expr>) -> Self {
-        Self {
-            expr,
-            body,
-        }
+        Self { expr, body }
     }
 }
-
-
