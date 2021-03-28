@@ -1,4 +1,6 @@
-fn insertion_sort(input: vec) {
+/// Sort a vector of integers
+/// using insertion sort algorithm.
+fn insertion_sort(input: vec<int>) {
     for let mut i = 1; i < input.len(); i += 1 {
         let cur = input[i];
         let mut j = i - 1;
@@ -17,7 +19,7 @@ fn insertion_sort(input: vec) {
     }
 }
 
-let input = vec[4, 13, 0, 3, -3, 4, 19, 1];
+let input: vec<int> = vec[4, 13, 0, 3, -3, 4, 19, 1];
 
 insertion_sort(input);
 

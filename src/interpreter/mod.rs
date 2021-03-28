@@ -478,12 +478,43 @@ impl Interpreter {
 
     fn eval_vec_expr(&mut self, expr: &Vec_) -> Result<Val> {
         let mut values = vec![];
-        for val_expr in &expr.vals {
-            let val = self.evaluate(val_expr)?;
-            values.push(val);
-        }
+        let val_type = if expr.vals.len() == 0 {
+            expr.val_type.clone().unwrap_or(ValType::Any)
+        } else if expr.val_type.is_some() {
+            let val_type = expr.val_type.clone().unwrap();
+            for val_expr in &expr.vals {
+                let val = self.evaluate(val_expr)?;
+                if !val_type.conforms(&val)  {
+                    return Err(RuntimeError::new(
+                        0,
+                        format!("Expected values of type \"{}\", got \"{}\"", val_type.to_string(), ValType::try_from_val(&val).unwrap().to_string()),
+                    ));
+                }
 
-        let vec_val = Val::VecInstance(Rc::new(RefCell::new(VecInstance::new(values))));
+                values.push(val);
+            }
+
+            val_type
+        } else {
+            let mut val_type = None;
+            for val_expr in &expr.vals {
+                let val = self.evaluate(val_expr)?;
+
+                if val_type.is_none() {
+                    val_type = ValType::try_from_val(&val);
+                } else  {
+                    if !val_type.clone().unwrap().conforms(&val) {
+                        val_type = Some(ValType::Any);
+                    }
+                }
+
+                values.push(val);
+            }
+
+            val_type.unwrap()
+        };
+
+        let vec_val = Val::VecInstance(Rc::new(RefCell::new(VecInstance::new(values, val_type))));
 
         Ok(vec_val)
     }
@@ -591,10 +622,15 @@ impl Interpreter {
         let vec = self.evaluate(&expr.name)?;
         let vec = if let Val::VecInstance(v) = vec {
             v
+        } else if let Val::Uninit = vec {
+            return Err(RuntimeError::new(
+                0,
+                "Out of bounds.".to_string(),
+            ));
         } else {
             return Err(RuntimeError::new(
                 0,
-                "Must be a vec instance.".to_string(),
+                format!("Must be a vec instance, got \"{}\".", vec.to_string()),
             ));
         };
 

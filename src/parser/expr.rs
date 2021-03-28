@@ -43,7 +43,7 @@ pub enum Stmt {
     LoopStmt(Loop),
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum ValType {
     Uninit,
     Num,
@@ -52,11 +52,24 @@ pub enum ValType {
     Bool,
     Nil,
     Str,
-    Vec,
+    Vec(Generics),
     Map,
     Func,
     Struct(String),
     Any,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct Generics {
+    types: Vec<ValType>,
+}
+
+impl Generics {
+    pub fn new(types: Vec<ValType>) -> Self {
+        Self {
+            types
+        }
+    }
 }
 
 pub const TYPE_UNINIT: &str = "uninit";
@@ -74,7 +87,7 @@ pub const TYPE_STRUCT: &str = "struct";
 pub const TYPE_STRUCT_INSTANCE: &str = "struct";
 
 impl ValType {
-    pub fn try_from_token(token: &Token) -> Option<Self> {
+    pub fn try_from_token(token: &Token, generics: Option<Vec<Self>>) -> Option<Self> {
         match token.token_type {
             TokenType::Num => Some(Self::Num),
             TokenType::Int => Some(Self::Int),
@@ -82,7 +95,10 @@ impl ValType {
             TokenType::Bool => Some(Self::Bool),
             TokenType::Nil => Some(Self::Nil),
             TokenType::Str => Some(Self::Str),
-            TokenType::Vec => Some(Self::Vec),
+            TokenType::Vec => {
+                let generics = generics.unwrap_or(vec![Self::Any]);
+                Some(Self::Vec(Generics::new(generics)))
+            },
             TokenType::Map => Some(Self::Map),
             TokenType::Func => Some(Self::Func),
             TokenType::Any => Some(Self::Any),
@@ -94,14 +110,14 @@ impl ValType {
     pub fn try_from_val(val: &Val) -> Option<Self> {
         match val {
             Val::Uninit => Some(Self::Uninit),
-            Val::Float(_) => Some(Self::Num),
+            Val::Float(_) => Some(Self::Float),
             Val::Int(_) => Some(Self::Int),
             Val::Bool(_) => Some(Self::Bool),
             Val::Nil => Some(Self::Nil),
             Val::Str(_) => Some(Self::Str),
             Val::Callable(_) => Some(Self::Func),
             Val::StructInstance(i) => Some(Self::Struct(i.borrow_mut().struct_name.clone())),
-            Val::VecInstance(_) => Some(Self::Vec),
+            Val::VecInstance(v) => Some(Self::Vec(Generics::new(vec![v.borrow_mut().val_type.clone()]))),
             _ => None,
         }
     }
@@ -120,27 +136,31 @@ impl ValType {
             (Self::Float, Val::Int(_)) => true,
             (Self::Str, Val::Str(_)) => true,
             (Self::Struct(s), Val::StructInstance(i)) => i.borrow_mut().struct_name == *s,
-            (Self::Vec, Val::VecInstance(_)) => true,
+            (Self::Vec(g), Val::VecInstance(v)) => {
+                let v_g_type = g.types.first().unwrap();
+                let vi_g_type = v.borrow_mut().val_type.clone();
+
+                *v_g_type == vi_g_type
+            },
             _ => false,
         }
     }
 
     pub fn to_string(&self) -> String {
         match self {
-            Self::Uninit => TYPE_UNINIT,
-            Self::Any => TYPE_ANY,
-            Self::Bool => TYPE_BOOL,
-            Self::Func => TYPE_FUNC,
-            Self::Num => TYPE_NUM,
-            Self::Int => TYPE_INT,
-            Self::Float => TYPE_FLOAT,
-            Self::Str => TYPE_STR,
-            Self::Nil => TYPE_NIL,
-            Self::Vec => TYPE_VEC,
-            Self::Map => TYPE_MAP,
-            Self::Struct(s) => s,
+            Self::Uninit => TYPE_UNINIT.to_string(),
+            Self::Any => TYPE_ANY.to_string(),
+            Self::Bool => TYPE_BOOL.to_string(),
+            Self::Func => TYPE_FUNC.to_string(),
+            Self::Num => TYPE_NUM.to_string(),
+            Self::Int => TYPE_INT.to_string(),
+            Self::Float => TYPE_FLOAT.to_string(),
+            Self::Str => TYPE_STR.to_string(),
+            Self::Nil => TYPE_NIL.to_string(),
+            Self::Vec(g) => format!("{}<{}>", TYPE_VEC, g.types.first().unwrap().to_string()),
+            Self::Map => TYPE_MAP.to_string(),
+            Self::Struct(s) => s.to_string(),
         }
-        .to_string()
     }
 }
 
@@ -185,6 +205,7 @@ pub struct CallStruct {
 #[derive(Debug, Clone)]
 pub struct Vec_ {
     pub vals: Vec<Expr>,
+    pub val_type: Option<ValType>,
 }
 
 #[derive(Debug, Clone)]
@@ -358,8 +379,8 @@ impl CallStruct {
 }
 
 impl Vec_ {
-    pub fn new(vals: Vec<Expr>) -> Self {
-        Self { vals }
+    pub fn new(vals: Vec<Expr>, val_type: Option<ValType>) -> Self {
+        Self { vals, val_type }
     }
 }
 

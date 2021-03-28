@@ -1,4 +1,6 @@
-fn selection_sort(input: vec) {
+/// Sort a vector of integers
+/// using selection sort algorithm.
+fn selection_sort(input: vec<int>) {
     if input.len() == 0 {
         return;
     }
@@ -21,7 +23,7 @@ fn selection_sort(input: vec) {
     }
 }
 
-let vector = vec[10, 0, 45, 56, 12, -5, 19, 0];
+let vector: vec<int> = vec[10, 0, 45, 56, 12, -5, 19, 0];
 
 selection_sort(vector);
 

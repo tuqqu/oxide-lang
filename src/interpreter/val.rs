@@ -61,7 +61,8 @@ pub struct StructInstance {
 pub struct VecInstance {
     pub id: usize,
     pub fns: HashMap<String, Lambda>,
-    pub vals: Vec<Val>
+    pub vals: Vec<Val>,
+    pub val_type: ValType
 }
 
 #[derive(Clone)]
@@ -217,11 +218,12 @@ impl StructInstance {
 }
 
 impl VecInstance {
-    pub fn new(vals: Vec<Val>) -> Self {
+    pub fn new(vals: Vec<Val>, val_type: ValType) -> Self {
         Self {
             id: internal_id(),
             fns: HashMap::new(),
-            vals
+            vals,
+            val_type
         }
     }
 
@@ -264,6 +266,16 @@ impl VecInstance {
                 1,
                 Arc::new(move |_inter, args| {
                     for arg in args {
+                        if !vec.borrow_mut().val_type.conforms(arg) {
+                            return Err(RuntimeError::new(
+                                0,
+                                format!(
+                                    "Cannot push value of type \"{}\" to a vector of type \"{}\"",
+                                    ValType::try_from_val(arg).unwrap().to_string(), // FIXME: may be an unsuccessful transformation
+                                    vec.borrow_mut().val_type.to_string()
+                                ),
+                            ))
+                        }
                         vec.borrow_mut().vals.push(arg.clone());
                     }
 
@@ -324,7 +336,7 @@ impl Val {
                 }
 
                 format!(
-                    "[struct] {} {{ {} }}, ",
+                    "[struct] {} {{ {} }}",
                     i.borrow_mut().struct_name,
                     props.join(", ")
                 )
@@ -347,17 +359,16 @@ impl Val {
         use Val::*;
 
         match self {
-            Uninit => TYPE_UNINIT,
-            Nil => TYPE_NIL,
-            Bool(_bool) => TYPE_BOOL,
-            Str(_str) => TYPE_STR,
-            Int(_isize) => TYPE_INT,
-            Float(_f64) => TYPE_FLOAT,
-            Callable(_f) => TYPE_FUNC,
-            Struct(_c) => TYPE_STRUCT,
-            StructInstance(_i) => TYPE_STRUCT_INSTANCE,
-            VecInstance(_v) => TYPE_VEC,
+            Uninit => TYPE_UNINIT.to_string(),
+            Nil => TYPE_NIL.to_string(),
+            Bool(_bool) => TYPE_BOOL.to_string(),
+            Str(_str) => TYPE_STR.to_string(),
+            Int(_isize) => TYPE_INT.to_string(),
+            Float(_f64) => TYPE_FLOAT.to_string(),
+            Callable(_f) => TYPE_FUNC.to_string(),
+            Struct(_c) => TYPE_STRUCT.to_string(),
+            StructInstance(_i) => TYPE_STRUCT_INSTANCE.to_string(),
+            VecInstance(v) => format!("{}<{}>", TYPE_VEC, v.borrow_mut().val_type.to_string())
         }
-        .to_string()
     }
 }

@@ -4,3 +4,17 @@
 [vec] [1, 2]
 [vec] [1, 2, 10]
 3
+[vec] []
+vec<any>
+[vec] [1, 2, 3]
+vec<int>
+[vec] [[vec] [true, false], [vec] [true, false]]
+vec<vec<bool>>
+[vec] [[vec] [true], [vec] [true, false]]
+vec<vec<bool>>
+[vec] [[vec] [[vec] [[vec] [hello]]]]
+vec<vec<vec<vec<any>>>>
+[vec] [[struct] D {  }, [struct] D {  }]
+vec<D>
+[vec] [100, 2, 3]
+vec<int>

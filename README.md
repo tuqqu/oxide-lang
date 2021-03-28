@@ -15,7 +15,7 @@ fn fib(n: int) -> int {
     return fib(n - 2) + fib(n - 1);
 }
 
-let nums = vec[];
+let nums = vec<int>[];
 for let mut i = 0; i < 30; i += 1 {
     nums.push(fib(i));
 }
@@ -25,7 +25,7 @@ for let mut i = 0; i < 30; i += 1 {
 /// sorting a vector using
 /// insertion sort
 
-fn insertion_sort(input: vec) {
+fn insertion_sort(input: vec<int>) {
     for let mut i = 1; i < input.len(); i += 1 {
         let cur = input[i];
         let mut j = i - 1;
@@ -44,7 +44,7 @@ fn insertion_sort(input: vec) {
     }
 }
 
-let input = vec[4, 13, 0, 3, -3, 4, 19, 1];
+let input: vec<int> = vec[4, 13, 0, 3, -3, 4, 19, 1];
 
 insertion_sort(input);
 
@@ -73,6 +73,7 @@ println(add7(2)); // 9
 struct Circle {
     radius: float,
     center: Point,
+    tangents: vec<Tangent>,   // vector of structs
 }
 
 struct Point {
@@ -80,11 +81,19 @@ struct Point {
     y: int,
 }
 
+struct Tangent {
+    p: Point,
+}
+
 const PI = 3.14159;
 
-let circle = Circle { 
+let circle = Circle {                       // struct instantiation
     radius: 103.5,
-    center: Point { x: 1, y: 5 }
+    center: Point { x: 1, y: 5 }            // inner structs instantiation
+    tangents: vec[                          // inner vector of structs instantiation
+        Tangent { Point { x: 4, y: 3 } }    
+        Tangent { Point { x: 1, y: 0 } }
+    ],
 };
 
 fn calc_area(c: Circle) -> float {
@@ -171,32 +180,26 @@ let double: func = fn (x: num) -> num {
 
 let human: Person = Person { name: "Jane" };
 
-let names: vec = vec["Josh", "Carol", "Steven"];
+let names: vec<str> = vec["Josh", "Carol", "Steven"];
 ```
 
 or implicitly inferred by the interpreter the first time it is being assigned:
 
 ```rust
-// inferred as "bool";
-let x = true || false;
+let x = true || false; // inferred as "bool";
 
-// inferred as "vec";
 let mut y;
-y = vec[];
+y = vec<bool>[]; // inferred as "vec<bool>";
 
-// inferred as "Dog";
 let dog;
-dog = Dog { name: "Good Boy"};
+dog = Dog { name: "Good Boy"}; // inferred as "Dog";
 ```
 
 Mutable variables cannot be assigned to a value of another type, unless they are of type `any`:
 
 ```rust
 let mut s: str = "string";
-s = 100; //! type error
-
-let mut x = true;
-x = "string"; //! type error
+s = vec[]; //! type error
 
 let mut a: any = Rectangle { height: 10, width: 10 };
 a.height = "string"; //! type error
@@ -229,7 +232,7 @@ One important thing is that variables can be redeclared in other words, shadowed
 ```rust
 let x: int = 100;
 let x: str = "This was x value before: " + x;
-let x: vec = vec[];
+let x: vec<any> = vec[];
 ```
 
 ## Control Flow and Loops
@@ -290,8 +293,9 @@ while x != 100 {
 
 ```rust
 loop {
-    x *= 2;
-    if x > 150 {
+    i -= 1;
+    x[i] *= 2;
+    if x.len() == 0 {
         break;
     }
 }
@@ -301,26 +305,27 @@ loop {
 
 `for` loop is a ~~good~~ old C-like `for` statement, which comprises three parts. You should be familiar with it.
 ```rust
-for let mut i = 0; i <= 100; i += 1 {
-    println(i);
+for let mut i = v.len(); i >= 0; i -= 1 {
+    println(v[i]);
 }
 
 // the first or the last parts can be omitted
-let mut i = 0;
+let mut i = v.len();
 
-for ; i <= 100; {
-    println(i);
-    i += 1;
+for ; i >= 0; {
+    println(v[i]);
+    i -= 1;
 }
 
+// or all three of them
 // this is basically "while true" or "loop"
-let mut i = 0;
+let mut i = v.len();
 
 for ;; {
-    println(i);
-    i += 1;
+    println(v[i]);
+    i -= 1;
 
-    if i > 100 {
+    if i < 0 {
         break;
     }
 }
@@ -342,7 +347,8 @@ let sum = add(1, 100); // 101
 fn clone(c: Circle) -> Circle {
     return Circle {
         radius: c.radius,
-        center: c.center
+        center: c.center,
+        tangents: vec<Tangent>[],
     };
 }
 
@@ -383,10 +389,9 @@ counter(); // 3
 Functions are first-class citizens of the language, they can be stored in a variable, passed or/and returned from another function.
 
 ```rust
-fn str_concat(prefix: str, suffix: str) -> str {
+fn vec_concat(prefix: str, suffix: str) -> str {
     return prefix + suffix;
 }
-
 
 fn str_transform(callable: func, a: str, b: str) -> any {
     return callable(s1, s2);
@@ -414,10 +419,11 @@ fn inc(x: int) -> int {
 Immediately Invoked Function Expressions, short IIFE, are also supported for whatever reason.
 
 ```rust
-(fn (name: str) {
-    let message = "Hello there, dear " + name + ".";
-    println(message);
-}("friend")
+(fn (names: vec<str>) {
+    for let mut i = 0; i <= names.len(); i += 1 {
+        println(names[i]);
+    }
+})(vec["Rob", "Sansa", "Arya", "Jon"]);
 ```
 
 ## Structs
@@ -428,10 +434,10 @@ All struct properties are mutable and public by default.
 
 ```rust
 struct Person {
-    name: str,
-    country: Country,
+    name: str,          // property of type str
+    country: Country,   // property of type struct Country
     alive: bool,
-    pet: Animal,
+    pets: vec<Animal>,  // property of type vector of structs Animal
 }
 
 struct Animal {
@@ -444,7 +450,7 @@ struct Country {
 }
 ```
 
-You instantiate a struct creating it and initializing all its properties.
+You instantiate a struct creating it with curly braces and initializing all its properties `Animal { prop: value[, prop: value ...] }`.
 
 ```rust
 let cat = Animal {
@@ -455,7 +461,7 @@ let cat = Animal {
 let john: Person = Person {
     name: "John",
     alive: true,
-    pet: cat,                          // via variable
+    pets: vec[cat],                    // via variable
     country: Country { name: "UK" }    // via inlined struct instantiation
 };
 ```
@@ -463,11 +469,18 @@ let john: Person = Person {
 Dot syntax is used to access structs fields
 
 ```rust
+// set new value
 john.country = Country { name: "USA" };
-println(john.pet.kind); // cat
+john.pets.push( Animal {
+    kind: "dog",
+    alive: true
+});
+
+// get value
+println(john.pet[0].kind); // cat
 ```
 
-Immutable variable will let you change the struct's fields, it will prevent you from overwriting the variable itself. Similar to Javascript `const` that holds an object.
+Immutable variable will still let you change the struct's fields, but it will prevent you from overwriting the variable itself. Similar to Javascript `const` that holds an object.
 
 ```rust
 john.name = "Steven";    // valid, John is not a John anymore
@@ -487,12 +500,22 @@ kill(john);
 ```
 
 ## Vectors
-Vectors, values of type `vec`, represent arrays of values and can be created using `vec[]` syntax.
+
+Vectors, values of type `vec<type>`, represent arrays of values and can be created using `vec<type>[]` syntax, where `type` is any Oxide type.
+
+Vectors support following methods:
+* `vec.push(val: any)` push value to the end of the vector
+
+
+* `vec.pop() -> any` remove value from the end of the vector and return it
+
+
+* `vec.len() -> int` get vectors length
 
 ```rust
-let planets = vec["Mercury", "Venus", "Earth", "Mars"];
+let planets = vec<str>["Mercury", "Venus", "Earth", "Mars"];
 
-let mars = planets["Mars"];
+let mars = planets[3];
 
 planents.push("Jupiter");     // "Jupiter" is now the last value in a vector
 
@@ -501,16 +524,47 @@ let jupiter = planets.pop(); // "Jupiter" is no longer in a vector.
 planets[2] = "Uranus";       // "Earth" is gone. "Uranus" is on its place now
 
 planets.len();               // 3
+
+typeof(planets);             // vec<str>
 ```
 
-Vectors support following methods:
-* `vec.push(val: any)` push value to the end of the vector
-  
+When type is omitted it is inferred as `any` on type declaration, but on vector instantiation it is inferred as proper type **when possible**.
+Consider:
+```rust
+let v: vec = vec[];                     // typeof(v) = vec<any>
+let v = vec[];                          // typeof(v) = vec<any>
 
-* `vec.pop() -> any` remove value from the end of the vector and return it
-  
+let v: vec<int> = vec[1, 2, 3];         // typeof(v) = vec<int>
+let v = vec<int>[1, 2, 3];              // typeof(v) = vec<int>
+let v = vec[1, 2, 3];                   // typeof(v) = vec<int>, because all the initial values are of type "int"
 
-* `vec.len() -> int` get vectors length
+let v = vec<bool>[true];                // typeof(v) = vec<bool>
+
+let v: vec<Dog> = vec[                  // typeof(v) = vec<Dog>, type declaration can actually be omitted
+    Dog { name: "dog1" },
+    Dog { name: "dog2" },
+];
+
+let v = vec[                            // typeof(v) = vec<vec<Point>,
+    vec[                                // inferred by the initial values, despite the type being omitted
+        Point { x: 1, y: 1 }, 
+        Point { x: 0, y: 3 } 
+    ],
+    vec[ 
+        Point { x: 5, y: 2 }, 
+        Point { x: 3, y: 4 } 
+    ],
+];
+
+
+let matrix = vec[                       // typeof(v) = vec<vec<int>>
+    vec[1, 2, 3, 4, 5],
+    vec[3, 4, 5, 6, 7],
+    vec[3, 4, 5, 6, 7],
+];
+
+let things = vec[nil, false, Dog {}];   // typeof(v) = vec<any>
+```
 
 Like structs vectors are passed by reference. Consider this example of an in place sorting algorithm, selection sort, that accepts a vector and sorts it in place, without allocating memory for a new one.
 
@@ -518,7 +572,7 @@ Like structs vectors are passed by reference. Consider this example of an in pla
   <summary>Selection sort</summary>
 
 ```rust
-fn selection_sort(input: vec) {
+fn selection_sort(input: vec<int>) {
     if input.len() == 0 {
         return;
     }
@@ -549,7 +603,7 @@ let animals: vec = vec[
     Elephant { name: "Samuel" },
     Zebra { name: "Robert" },
     WolfPack { 
-        wolves: vec[
+        wolves: vec<Wolf>[
             Wolf { name: "Joe" },
             Wolf { name: "Mag" },
         ]

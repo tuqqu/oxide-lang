@@ -158,18 +158,10 @@ impl Parser {
         Ok(var_decl)
     }
 
-    /// Type declaration for anything: variable, argument, function return type etc
+    /// Type declaration for anything: variable, argument,
+    /// function return type, struct field.
     fn type_decl(&mut self) -> Result<ValType> {
-        let v_type_token: Token = self.consume_type()?;
-        let v_type = ValType::try_from_token(&v_type_token);
-        match v_type {
-            Some(v_type) => Ok(v_type),
-            None => {
-                self.err = true;
-                error_token(&v_type_token, "Unrecognised type.".to_string());
-                Err(ParserError)
-            }
-        }
+        self.consume_type()
     }
 
     fn const_decl(&mut self) -> Result<Stmt> {
@@ -264,7 +256,7 @@ impl Parser {
                         self.try_to_recover();
                     }
                 };
-            } else if self.match_token(TokenType::Fn) {
+            } else if self.match_token(TokenType::Fn) { // FIXME: methods ought to be handled differently
                 match self.fn_decl_inner() {
                     Ok(fn_decl) => {
                         fns.push(fn_decl);
@@ -904,6 +896,10 @@ impl Parser {
                 );
             }
 
+            if self.check(TokenType::RightCurlyBrace) {
+                break;
+            }
+
             let prop =
                 self.consume(TokenType::Identifier, "Property name expected.".to_string())?;
             self.consume(
@@ -914,10 +910,6 @@ impl Parser {
             args.push((prop, self.any_expr()?));
 
             if !self.match_token(TokenType::Comma) {
-                break;
-            }
-
-            if self.check(TokenType::RightCurlyBrace) {
                 break;
             }
         }
@@ -946,6 +938,8 @@ impl Parser {
     }
 
     fn vec_expr(&mut self) -> Result<Expr> {
+        let g_type = self.consume_generic_types(1, 1)?;
+        // eprintln!("\x1b[0;33mg_type {:#?}\x1b[0m", g_type);
         self.consume(
             TokenType::LeftBracket,
             "Square braket \"[\" expected after vec.".to_string(),
@@ -970,9 +964,49 @@ impl Parser {
             "Square braket \"]\" expected after vec.".to_string(),
         )?;
 
-        let call = Expr::VecExpr(Vec_::new(values));
+        let val_type = if g_type.first().is_some() {
+            Some(g_type.first().unwrap().clone())
+        } else {
+            None
+        };
+        let call = Expr::VecExpr(Vec_::new(values, val_type));
 
         Ok(call)
+    }
+
+    fn map_expr(&mut self) -> Result<Expr> {
+        unimplemented!()
+        // self.consume(
+        //     TokenType::LeftCurlyBrace,
+        //     "Square braket \"{\" expected after map.".to_string(),
+        // )?;
+        //
+        // let mut values: Vec<(String, Expr)> = vec![];
+        //
+        // loop {
+        //     if self.check(TokenType::RightCurlyBrace) {
+        //         break;
+        //     }
+        //
+        //     let consume(
+        //         TokenType::String,
+        //         "Square braket \"{\" expected after map.".to_string(),
+        //     )?;
+        //     values.push(self.any_expr()?);
+        //
+        //     if !self.match_token(TokenType::Comma) {
+        //         break;
+        //     }
+        // }
+        //
+        // self.consume(
+        //     TokenType::RightBracket,
+        //     "Square braket \"]\" expected after vec.".to_string(),
+        // )?;
+        //
+        // let call = Expr::VecExpr(Vec_::new(values));
+        //
+        // Ok(call)
     }
 
     fn primary_expr(&mut self) -> Result<Expr> {
@@ -998,6 +1032,10 @@ impl Parser {
 
         if self.match_token(TokenType::Vec) {
             return self.vec_expr();
+        }
+
+        if self.match_token(TokenType::Map) {
+            return self.map_expr();
         }
 
         if self.match_token(TokenType::LeftParen) {
@@ -1116,28 +1154,104 @@ impl Parser {
         self.tokens.get(self.current - 1).unwrap()
     }
 
-    fn consume_type(&mut self) -> Result<Token> {
+    fn consume_type(&mut self) -> Result<ValType> {
         use TokenType::*;
 
-        if !self.check(Num)
-            && !self.check(Float)
-            && !self.check(Int)
-            && !self.check(Nil)
-            && !self.check(Str)
-            && !self.check(Bool)
-            && !self.check(Vec)
-            && !self.check(Map)
-            && !self.check(Any)
-            && !self.check(Func)
-            && !self.check(Identifier)
+        if self.check(Num)
+            || self.check(Float)
+            || self.check(Int)
+            || self.check(Nil)
+            || self.check(Str)
+            || self.check(Bool)
+            || self.check(Map)
+            || self.check(Any)
+            || self.check(Func)
+            || self.check(Identifier)
         {
+            let v_type_token = self.advance().clone();
+            let v_type = ValType::try_from_token(&v_type_token, None);
+            return match v_type {
+                Some(v_type) => Ok(v_type),
+                None => {
+                    self.err = true;
+                    error_token(&v_type_token, "Unrecognised type.".to_string());
+                    Err(ParserError)
+                }
+            };
+        }
+
+        if self.check(Vec) {
+            let v_type_token = self.advance().clone();
+            let generics = self.consume_generic_types(1, 1)?;
+            let generics = if 0 == generics.len() {
+                None
+            } else {
+                Some(generics)
+            };
+
+            let v_type = ValType::try_from_token(&v_type_token, generics);
+            return match v_type {
+                Some(v_type) => Ok(v_type),
+                None => {
+                    self.err = true;
+                    error_token(&v_type_token, "Unrecognised type.".to_string());
+                    Err(ParserError)
+                }
+            };
+        }
+
+        self.err = true;
+        error_token(self.peek(), format!("Expected type, got \"{}\".", self.peek().lexeme));
+
+        Err(ParserError)
+    }
+
+    fn consume_generic_types(&mut self, min: usize, max: usize) -> Result<Vec<ValType>> {
+        if !self.check(TokenType::Less) {
+            return Ok(vec![]);
+        }
+
+        self.consume(
+            TokenType::Less,
+            "Braket \"<\" expected before generics type declaration.".to_string(),
+        )?;
+
+        let mut generics = vec![];
+
+        loop {
+            if self.check(TokenType::Greater) {
+                break;
+            }
+
+            let val_type = self.consume_type()?;
+
+            generics.push(val_type);
+
+            if generics.len() > max {
+                self.err = true;
+                error_token(&self.peek(), format!("Too many generic types, expected only {}", max));
+
+                return Err(ParserError);
+            }
+
+            if !self.match_token(TokenType::Comma) {
+                break;
+            }
+        }
+
+        if generics.len() < min {
             self.err = true;
-            error_token(self.peek(), "Type expected.".to_string());
+            error_token(&self.peek(), format!("Too few generic types, expected at least \"{}\"", min));
 
             return Err(ParserError);
         }
 
-        Ok(self.advance().clone())
+        self.consume(
+            TokenType::Greater,
+            "Braket \">\" expected after generics type declaration.".to_string(),
+        )?;
+
+        Ok(generics)
     }
 
     fn consume(&mut self, t_type: TokenType, msg: String) -> Result<Token> {
@@ -1150,6 +1264,16 @@ impl Parser {
 
         Ok(self.advance().clone())
     }
+
+    // #[allow(dead_code)]
+    // fn is_type(t_type: &Token) -> bool {
+    //     use TokenType::*;
+    //
+    //     match t_type {
+    //         Num | Float | Int | Nil | Str | Bool | Map | Func | Any | Identifier => true,
+    //         _ => false,
+    //     }
+    // }
 
     fn try_to_recover(&mut self) {
         use TokenType::*;
