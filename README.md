@@ -138,6 +138,11 @@ There is also a simplistic REPL mode available.
 oxide
 ```
 
+To print current Oxide version
+```shell
+oxide version
+```
+
 # Quick Overview
 
 * [Variables and Type System](#variables)

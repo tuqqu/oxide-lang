@@ -14,6 +14,12 @@ mod interpreter;
 mod lexer;
 mod parser;
 
+const VERSION: &'static str = env!("CARGO_PKG_VERSION");
+
+pub fn print_version() {
+    println!("Oxide {}", VERSION);
+}
+
 pub fn run_file(path: String) {
     run_file_with_streams(path, None, None, None)
 }
