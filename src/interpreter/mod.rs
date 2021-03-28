@@ -5,11 +5,16 @@ use std::sync::Arc;
 use std::{mem, result};
 
 use crate::interpreter::env::Struct;
-use crate::interpreter::val::{StructInstance, VecInstance};
 use crate::interpreter::val::{PropFuncVal, StructCallable};
+use crate::interpreter::val::{StructInstance, VecInstance};
 
 use crate::lexer::token::{Token, TokenType};
-use crate::parser::expr::{Assignment, Binary, Block, BoolLiteral, Call, CallStruct, ConstDecl, Expr, FloatLiteral, FnDecl, GetProp, Grouping, If, IntLiteral, Lambda, Loop, Match, NilLiteral, Return, Self_, SetProp, Stmt, StrLiteral, StructDecl, Unary, ValType, VarDecl, Variable, TYPE_BOOL, TYPE_FUNC, TYPE_NUM, TYPE_STR, TYPE_STRUCT, Vec_, VecIndex, TYPE_VEC, TYPE_INT, SetIndex};
+use crate::parser::expr::{
+    Assignment, Binary, Block, BoolLiteral, Call, CallStruct, ConstDecl, Expr, FloatLiteral,
+    FnDecl, GetProp, Grouping, If, IntLiteral, Lambda, Loop, Match, NilLiteral, Return, Self_,
+    SetIndex, SetProp, Stmt, StrLiteral, StructDecl, Unary, ValType, VarDecl, Variable, VecIndex,
+    Vec_, TYPE_BOOL, TYPE_FUNC, TYPE_INT, TYPE_NUM, TYPE_STR, TYPE_STRUCT, TYPE_VEC,
+};
 
 use self::env::{Env, EnvVal};
 use self::val::{Callable, Function, StmtVal, Val};
@@ -429,7 +434,7 @@ impl Interpreter {
                 }
 
                 (callee.call)(self, &args)
-            },
+            }
             _ => Err(RuntimeError::new(
                 0,
                 format!(
@@ -484,10 +489,14 @@ impl Interpreter {
             let val_type = expr.val_type.clone().unwrap();
             for val_expr in &expr.vals {
                 let val = self.evaluate(val_expr)?;
-                if !val_type.conforms(&val)  {
+                if !val_type.conforms(&val) {
                     return Err(RuntimeError::new(
                         0,
-                        format!("Expected values of type \"{}\", got \"{}\"", val_type.to_string(), ValType::try_from_val(&val).unwrap().to_string()),
+                        format!(
+                            "Expected values of type \"{}\", got \"{}\"",
+                            val_type.to_string(),
+                            ValType::try_from_val(&val).unwrap().to_string()
+                        ),
                     ));
                 }
 
@@ -502,7 +511,7 @@ impl Interpreter {
 
                 if val_type.is_none() {
                     val_type = ValType::try_from_val(&val);
-                } else  {
+                } else {
                     if !val_type.clone().unwrap().conforms(&val) {
                         val_type = Some(ValType::Any);
                     }
@@ -532,7 +541,7 @@ impl Interpreter {
                     TYPE_VEC,
                     TYPE_INT,
                     indx.get_type()
-                )
+                ),
             ));
         };
 
@@ -544,8 +553,8 @@ impl Interpreter {
                     "Indexing works with values of type \"{}\", got \"{}\"",
                     TYPE_VEC,
                     val.get_type()
-                )
-            ))
+                ),
+            )),
         }
     }
 
@@ -558,16 +567,12 @@ impl Interpreter {
                     PropFuncVal::Prop(val) => Ok(val),
                     PropFuncVal::Func(func) => Ok(self.eval_fn_expr(&func)),
                 }
-            },
-            Val::VecInstance(vec) => {
-                VecInstance::get_method(&expr.prop_name, vec.clone())
-            },
-            _ => {
-                Err(RuntimeError::new(
-                    0,
-                    format!("Must be a struct instance, got \"{}\"", instance.get_type()),
-                ))
             }
+            Val::VecInstance(vec) => VecInstance::get_method(&expr.prop_name, vec.clone()),
+            _ => Err(RuntimeError::new(
+                0,
+                format!("Must be a struct instance, got \"{}\"", instance.get_type()),
+            )),
         };
     }
 
@@ -623,10 +628,7 @@ impl Interpreter {
         let vec = if let Val::VecInstance(v) = vec {
             v
         } else if let Val::Uninit = vec {
-            return Err(RuntimeError::new(
-                0,
-                "Out of bounds.".to_string(),
-            ));
+            return Err(RuntimeError::new(0, "Out of bounds.".to_string()));
         } else {
             return Err(RuntimeError::new(
                 0,
@@ -645,7 +647,7 @@ impl Interpreter {
                     TYPE_VEC,
                     TYPE_INT,
                     index.get_type()
-                )
+                ),
             ));
         };
 
@@ -669,9 +671,7 @@ impl Interpreter {
             }
         };
 
-        vec
-            .borrow_mut()
-            .set(index, val.clone())?;
+        vec.borrow_mut().set(index, val.clone())?;
 
         Ok(val)
     }

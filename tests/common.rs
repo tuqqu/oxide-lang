@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 use oxide::run_file_with_streams;
 use std::cell::RefCell;
 use std::fs;

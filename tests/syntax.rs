@@ -1,6 +1,6 @@
-mod test;
+mod common;
 
-use test::test_script;
+use common::test_script;
 
 #[test]
 fn test_operator() {
@@ -96,4 +96,3 @@ fn test_vec() {
 fn test_struct_properties() {
     test_script("struct_properties");
 }
-

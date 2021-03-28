@@ -1,7 +1,12 @@
 use std::result;
 
-use crate::parser::expr::Expr::{GetPropExpr, IntLiteralExpr, SetPropExpr, VecIndexExpr, SetIndexExpr};
-use crate::parser::expr::{CallStruct, GetProp, IntLiteral, Lambda, Match, MatchArm, Self_, SetProp, StructDecl, ValType, Vec_, VecIndex, SetIndex};
+use crate::parser::expr::Expr::{
+    GetPropExpr, IntLiteralExpr, SetIndexExpr, SetPropExpr, VecIndexExpr,
+};
+use crate::parser::expr::{
+    CallStruct, GetProp, IntLiteral, Lambda, Match, MatchArm, Self_, SetIndex, SetProp, StructDecl,
+    ValType, VecIndex, Vec_,
+};
 use crate::{error, error_token, Token, TokenType};
 
 use self::expr::Expr::{
@@ -256,7 +261,8 @@ impl Parser {
                         self.try_to_recover();
                     }
                 };
-            } else if self.match_token(TokenType::Fn) { // FIXME: methods ought to be handled differently
+            } else if self.match_token(TokenType::Fn) {
+                // FIXME: methods ought to be handled differently
                 match self.fn_decl_inner() {
                     Ok(fn_decl) => {
                         fns.push(fn_decl);
@@ -1201,7 +1207,10 @@ impl Parser {
         }
 
         self.err = true;
-        error_token(self.peek(), format!("Expected type, got \"{}\".", self.peek().lexeme));
+        error_token(
+            self.peek(),
+            format!("Expected type, got \"{}\".", self.peek().lexeme),
+        );
 
         Err(ParserError)
     }
@@ -1229,7 +1238,10 @@ impl Parser {
 
             if generics.len() > max {
                 self.err = true;
-                error_token(&self.peek(), format!("Too many generic types, expected only {}", max));
+                error_token(
+                    &self.peek(),
+                    format!("Too many generic types, expected only {}", max),
+                );
 
                 return Err(ParserError);
             }
@@ -1241,7 +1253,10 @@ impl Parser {
 
         if generics.len() < min {
             self.err = true;
-            error_token(&self.peek(), format!("Too few generic types, expected at least \"{}\"", min));
+            error_token(
+                &self.peek(),
+                format!("Too few generic types, expected at least \"{}\"", min),
+            );
 
             return Err(ParserError);
         }

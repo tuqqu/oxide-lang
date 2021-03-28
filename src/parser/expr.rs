@@ -66,9 +66,7 @@ pub struct Generics {
 
 impl Generics {
     pub fn new(types: Vec<ValType>) -> Self {
-        Self {
-            types
-        }
+        Self { types }
     }
 }
 
@@ -98,7 +96,7 @@ impl ValType {
             TokenType::Vec => {
                 let generics = generics.unwrap_or(vec![Self::Any]);
                 Some(Self::Vec(Generics::new(generics)))
-            },
+            }
             TokenType::Map => Some(Self::Map),
             TokenType::Func => Some(Self::Func),
             TokenType::Any => Some(Self::Any),
@@ -117,7 +115,10 @@ impl ValType {
             Val::Str(_) => Some(Self::Str),
             Val::Callable(_) => Some(Self::Func),
             Val::StructInstance(i) => Some(Self::Struct(i.borrow_mut().struct_name.clone())),
-            Val::VecInstance(v) => Some(Self::Vec(Generics::new(vec![v.borrow_mut().val_type.clone()]))),
+            Val::VecInstance(v) => Some(Self::Vec(Generics::new(vec![v
+                .borrow_mut()
+                .val_type
+                .clone()]))),
             _ => None,
         }
     }
@@ -141,7 +142,7 @@ impl ValType {
                 let vi_g_type = v.borrow_mut().val_type.clone();
 
                 *v_g_type == vi_g_type
-            },
+            }
             _ => false,
         }
     }
@@ -386,10 +387,7 @@ impl Vec_ {
 
 impl VecIndex {
     pub fn new(callee: Box<Expr>, index: Box<Expr>) -> Self {
-        Self {
-            callee,
-            index
-        }
+        Self { callee, index }
     }
 }
 

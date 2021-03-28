@@ -1,6 +1,6 @@
-mod test;
+mod common;
 
-use test::test_example;
+use common::test_example;
 
 #[test]
 fn test_insertion_sort() {

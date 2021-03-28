@@ -3,7 +3,10 @@ use std::fmt;
 use std::rc::Rc;
 use std::sync::Arc;
 
-use crate::parser::expr::{Lambda, StructDecl, ValType, TYPE_BOOL, TYPE_FLOAT, TYPE_FUNC, TYPE_INT, TYPE_NIL, TYPE_STR, TYPE_STRUCT, TYPE_STRUCT_INSTANCE, TYPE_UNINIT, TYPE_VEC};
+use crate::parser::expr::{
+    Lambda, StructDecl, ValType, TYPE_BOOL, TYPE_FLOAT, TYPE_FUNC, TYPE_INT, TYPE_NIL, TYPE_STR,
+    TYPE_STRUCT, TYPE_STRUCT_INSTANCE, TYPE_UNINIT, TYPE_VEC,
+};
 
 use super::env::Env;
 use super::Interpreter;
@@ -62,7 +65,7 @@ pub struct VecInstance {
     pub id: usize,
     pub fns: HashMap<String, Lambda>,
     pub vals: Vec<Val>,
-    pub val_type: ValType
+    pub val_type: ValType,
 }
 
 #[derive(Clone)]
@@ -223,7 +226,7 @@ impl VecInstance {
             id: internal_id(),
             fns: HashMap::new(),
             vals,
-            val_type
+            val_type,
         }
     }
 
@@ -256,11 +259,10 @@ impl VecInstance {
             POP => Val::Callable(*Callable::new(
                 0,
                 Arc::new(move |_inter, _args| {
-
                     let poped = vec.borrow_mut().vals.pop().unwrap_or(Val::Uninit);
 
                     Ok(poped)
-                })
+                }),
             )),
             PUSH => Val::Callable(*Callable::new(
                 1,
@@ -274,25 +276,24 @@ impl VecInstance {
                                     ValType::try_from_val(arg).unwrap().to_string(), // FIXME: may be an unsuccessful transformation
                                     vec.borrow_mut().val_type.to_string()
                                 ),
-                            ))
+                            ));
                         }
                         vec.borrow_mut().vals.push(arg.clone());
                     }
 
                     Ok(Val::VecInstance(vec.clone()))
-                })
+                }),
             )),
             LEN => Val::Callable(*Callable::new(
                 0,
-                Arc::new(move |_inter, _args| {
-
-                    Ok(Val::Int(vec.borrow_mut().len() as isize))
-                })
+                Arc::new(move |_inter, _args| Ok(Val::Int(vec.borrow_mut().len() as isize))),
             )),
-            _ => return Err(RuntimeError::from_token(
-                name.clone(),
-                format!("Unknown vec method \"{}\"", name.lexeme),
-            ))
+            _ => {
+                return Err(RuntimeError::from_token(
+                    name.clone(),
+                    format!("Unknown vec method \"{}\"", name.lexeme),
+                ))
+            }
         };
 
         Ok(callable)
@@ -340,17 +341,14 @@ impl Val {
                     i.borrow_mut().struct_name,
                     props.join(", ")
                 )
-            },
+            }
             VecInstance(v) => {
                 let mut vals = vec![];
                 for val in &v.borrow_mut().vals {
                     vals.push(val.to_string());
                 }
 
-                format!(
-                    "[vec] [{}]",
-                    vals.join(", ")
-                )
+                format!("[vec] [{}]", vals.join(", "))
             }
         }
     }
@@ -368,7 +366,7 @@ impl Val {
             Callable(_f) => TYPE_FUNC.to_string(),
             Struct(_c) => TYPE_STRUCT.to_string(),
             StructInstance(_i) => TYPE_STRUCT_INSTANCE.to_string(),
-            VecInstance(v) => format!("{}<{}>", TYPE_VEC, v.borrow_mut().val_type.to_string())
+            VecInstance(v) => format!("{}<{}>", TYPE_VEC, v.borrow_mut().val_type.to_string()),
         }
     }
 }
