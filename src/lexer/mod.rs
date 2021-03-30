@@ -21,6 +21,9 @@ impl Lexer {
         let mut keywords = HashMap::new();
         keywords.insert("struct".to_string(), TokenType::Struct);
         keywords.insert("fn".to_string(), TokenType::Fn);
+        keywords.insert("impl".to_string(), TokenType::Impl);
+
+        keywords.insert("pub".to_string(), TokenType::Pub);
 
         keywords.insert("nil".to_string(), TokenType::Nil);
         keywords.insert("str".to_string(), TokenType::Str);

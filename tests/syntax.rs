@@ -96,3 +96,8 @@ fn test_vec() {
 fn test_struct_properties() {
     test_script("struct_properties");
 }
+
+#[test]
+fn test_struct_methods() {
+    test_script("struct_methods");
+}

@@ -12,7 +12,7 @@ use super::env::Env;
 use super::Interpreter;
 use super::Result;
 
-use crate::interpreter::env::internal_id;
+use crate::interpreter::env::{internal_id, Impl};
 use crate::interpreter::RuntimeError;
 use crate::lexer::token::Token;
 use std::collections::HashMap;
@@ -56,7 +56,7 @@ pub struct StructCallable {
 pub struct StructInstance {
     pub id: usize,
     pub props: HashMap<String, (Val, ValType)>,
-    pub fns: HashMap<String, Lambda>,
+    pub fns: HashMap<String, (Lambda, Rc<RefCell<Self>>)>,
     pub struct_name: String,
 }
 
@@ -143,28 +143,40 @@ impl StructCallable {
 
 pub enum PropFuncVal {
     Prop(Val),
-    Func(Lambda),
+    Func((Lambda, Rc<RefCell<StructInstance>>)),
 }
 
 impl StructInstance {
-    pub fn new(struct_: StructDecl) -> Self {
+    pub fn new(struct_: StructDecl, impl_: Option<Impl>) -> Rc<RefCell<Self>> {
         let mut props: HashMap<String, (Val, ValType)> = HashMap::new();
         for prop in struct_.props {
             // we can be sure that v_type is always present
             props.insert(prop.name.lexeme, (Val::Uninit, prop.v_type.unwrap()));
         }
 
-        let mut fns: HashMap<String, Lambda> = HashMap::new();
-        for fun in struct_.fns {
-            fns.insert(fun.name.lexeme, fun.lambda);
-        }
-
-        Self {
+        let instance = Self {
             id: internal_id(),
             props,
-            fns,
+            fns: HashMap::new(),
             struct_name: struct_.name.lexeme,
+        };
+
+        let self_ = Rc::new(RefCell::new(instance));
+
+        if impl_.is_some() {
+            let mut fns = HashMap::new();
+
+            let impl_ = impl_.unwrap();
+            for fun in impl_.fns {
+                fns.insert(fun.name.lexeme, (fun.lambda, self_.clone()));
+            }
+
+            self_.borrow_mut().fns = fns;
         }
+
+        // FIXME: add constant handling from impl
+
+        self_
     }
 
     pub fn get_prop(&self, name: &Token) -> Result<PropFuncVal> {

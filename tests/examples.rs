@@ -14,7 +14,7 @@ fn test_selection_sort() {
 
 #[test]
 fn test_matrix_multiplication() {
-    test_example("matrix_multiplication");
+    test_example("matrices");
 }
 
 #[test]

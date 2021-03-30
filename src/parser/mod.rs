@@ -4,8 +4,8 @@ use crate::parser::expr::Expr::{
     GetPropExpr, IntLiteralExpr, SetIndexExpr, SetPropExpr, VecIndexExpr,
 };
 use crate::parser::expr::{
-    CallStruct, GetProp, IntLiteral, Lambda, Match, MatchArm, Self_, SetIndex, SetProp, StructDecl,
-    ValType, VecIndex, Vec_,
+    CallStruct, GetProp, ImplDecl, IntLiteral, Lambda, Match, MatchArm, Self_, SetIndex, SetProp,
+    StructDecl, ValType, VecIndex, Vec_,
 };
 use crate::{error, error_token, Token, TokenType};
 
@@ -95,7 +95,15 @@ impl Parser {
             };
         } else if self.match_token(TokenType::Struct) {
             return match self.struct_decl() {
-                Ok(fn_decl) => Some(fn_decl),
+                Ok(struct_decl) => Some(struct_decl),
+                Err(_) => {
+                    self.try_to_recover();
+                    None
+                }
+            };
+        } else if self.match_token(TokenType::Impl) {
+            return match self.impl_decl() {
+                Ok(impl_decl) => Some(impl_decl),
                 Err(_) => {
                     self.try_to_recover();
                     None
@@ -152,12 +160,6 @@ impl Parser {
         )?;
 
         let v_type = self.type_decl()?;
-
-        self.consume(
-            TokenType::Comma,
-            "Comma \",\" expected after property declaration".to_string(),
-        )?;
-
         let var_decl = VarDecl::new(name, Box::new(None), true, Some(v_type));
 
         Ok(var_decl)
@@ -169,7 +171,17 @@ impl Parser {
         self.consume_type()
     }
 
+    /// Parses standalone constant declaration statement.
     fn const_decl(&mut self) -> Result<Stmt> {
+        let const_decl_stmt = Stmt::Const(self.const_decl_inner()?);
+
+        Ok(const_decl_stmt)
+    }
+
+    /// Used by both constant declaration and struct const declaration.
+    /// Returns the inner ConstDecl struct, which represents the declaration itself,
+    /// without it being a statement
+    fn const_decl_inner(&mut self) -> Result<ConstDecl> {
         let name: Token =
             self.consume(TokenType::Identifier, "Constant name expected.".to_string())?;
 
@@ -198,9 +210,9 @@ impl Parser {
             "Semicolon \";\" expected after const declaration".to_string(),
         )?;
 
-        let const_decl_stmt = Stmt::Const(ConstDecl::new(name, Box::new(init)));
+        let const_decl = ConstDecl::new(name, Box::new(init));
 
-        Ok(const_decl_stmt)
+        Ok(const_decl)
     }
 
     /// Parses the standalone function declaration statement.
@@ -236,9 +248,7 @@ impl Parser {
         Ok(fn_decl)
     }
 
-    /// Parses the struct declaration statement as well as all its members:
-    /// struct properties and its methods.
-    /// future scope: move methods to `impl` blocks
+    /// Parses the struct declaration statement as well as all its properties
     fn struct_decl(&mut self) -> Result<Stmt> {
         let name: Token =
             self.consume(TokenType::Identifier, "Struct name expected.".to_string())?;
@@ -248,7 +258,6 @@ impl Parser {
             "Curly brace \"{\" expected after struct name".to_string(),
         )?;
 
-        let mut fns = vec![];
         let mut props = vec![];
 
         while !self.check(TokenType::RightCurlyBrace) && !self.at_end() {
@@ -261,11 +270,68 @@ impl Parser {
                         self.try_to_recover();
                     }
                 };
-            } else if self.match_token(TokenType::Fn) {
-                // FIXME: methods ought to be handled differently
+                if !self.check(TokenType::Comma) {
+                    break;
+                } else {
+                    self.consume(
+                        TokenType::Comma,
+                        "Comma \",\" expected after property declaration".to_string(),
+                    )?;
+                }
+            } else {
+                self.err = true;
+                error_token(
+                    &self.tokens[self.current],
+                    format!("Unexpected token \"{}\".", self.peek().lexeme),
+                );
+                return Err(ParserError);
+            }
+        }
+
+        self.consume(
+            TokenType::RightCurlyBrace,
+            "Curly brace \"}\" expected after struct body".to_string(),
+        )?;
+
+        self.structs.push(name.lexeme.clone());
+        let struct_decl_stmt = Stmt::Struct(StructDecl::new(name, props));
+
+        Ok(struct_decl_stmt)
+    }
+
+    /// Parses the struct implementation block:
+    /// Struct methods
+    /// Future scope: add constants
+    /// Future scope: add types
+    /// Future scope: add static methods
+    fn impl_decl(&mut self) -> Result<Stmt> {
+        let name: Token = self.consume(
+            TokenType::Identifier,
+            "Implementation target name expected.".to_string(),
+        )?;
+
+        self.consume(
+            TokenType::LeftCurlyBrace,
+            "Curly brace \"{\" expected after impl".to_string(),
+        )?;
+
+        let mut fns = vec![];
+        let mut consts = vec![];
+
+        while !self.check(TokenType::RightCurlyBrace) && !self.at_end() {
+            if self.match_token(TokenType::Fn) {
                 match self.fn_decl_inner() {
                     Ok(fn_decl) => {
                         fns.push(fn_decl);
+                    }
+                    Err(_) => {
+                        self.try_to_recover();
+                    }
+                };
+            } else if self.match_token(TokenType::Const) {
+                match self.const_decl_inner() {
+                    Ok(const_decl) => {
+                        consts.push(const_decl);
                     }
                     Err(_) => {
                         self.try_to_recover();
@@ -276,13 +342,12 @@ impl Parser {
 
         self.consume(
             TokenType::RightCurlyBrace,
-            "Curly brace \"}\" expected after struct body".to_string(),
+            "Curly brace \"}\" expected after impl body".to_string(),
         )?;
 
-        self.structs.push(name.lexeme.clone());
-        let struct_decl_stmt = Stmt::Struct(StructDecl::new(name, props, fns));
+        let impl_decl_stmt = Stmt::Impl(ImplDecl::new(name, fns, consts));
 
-        Ok(struct_decl_stmt)
+        Ok(impl_decl_stmt)
     }
 
     /// Parses match expressions.
@@ -945,7 +1010,7 @@ impl Parser {
 
     fn vec_expr(&mut self) -> Result<Expr> {
         let g_type = self.consume_generic_types(1, 1)?;
-        // eprintln!("\x1b[0;33mg_type {:#?}\x1b[0m", g_type);
+
         self.consume(
             TokenType::LeftBracket,
             "Square braket \"[\" expected after vec.".to_string(),
@@ -981,38 +1046,8 @@ impl Parser {
     }
 
     fn map_expr(&mut self) -> Result<Expr> {
+        // FIXME: add map type
         unimplemented!()
-        // self.consume(
-        //     TokenType::LeftCurlyBrace,
-        //     "Square braket \"{\" expected after map.".to_string(),
-        // )?;
-        //
-        // let mut values: Vec<(String, Expr)> = vec![];
-        //
-        // loop {
-        //     if self.check(TokenType::RightCurlyBrace) {
-        //         break;
-        //     }
-        //
-        //     let consume(
-        //         TokenType::String,
-        //         "Square braket \"{\" expected after map.".to_string(),
-        //     )?;
-        //     values.push(self.any_expr()?);
-        //
-        //     if !self.match_token(TokenType::Comma) {
-        //         break;
-        //     }
-        // }
-        //
-        // self.consume(
-        //     TokenType::RightBracket,
-        //     "Square braket \"]\" expected after vec.".to_string(),
-        // )?;
-        //
-        // let call = Expr::VecExpr(Vec_::new(values));
-        //
-        // Ok(call)
     }
 
     fn primary_expr(&mut self) -> Result<Expr> {
@@ -1280,16 +1315,6 @@ impl Parser {
         Ok(self.advance().clone())
     }
 
-    // #[allow(dead_code)]
-    // fn is_type(t_type: &Token) -> bool {
-    //     use TokenType::*;
-    //
-    //     match t_type {
-    //         Num | Float | Int | Nil | Str | Bool | Map | Func | Any | Identifier => true,
-    //         _ => false,
-    //     }
-    // }
-
     fn try_to_recover(&mut self) {
         use TokenType::*;
 
@@ -1301,7 +1326,8 @@ impl Parser {
             }
 
             match self.peek().token_type {
-                Struct | Fn | Let | Const | For | If | Loop | While | Match | Return | Continue => {
+                Struct | Fn | Impl | Let | Const | For | If | Loop | While | Match | Return
+                | Continue => {
                     return;
                 }
                 _ => {}

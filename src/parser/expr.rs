@@ -40,6 +40,7 @@ pub enum Stmt {
     IfStmt(If),
     Fn(FnDecl),
     Struct(StructDecl),
+    Impl(ImplDecl),
     LoopStmt(Loop),
 }
 
@@ -309,8 +310,14 @@ pub struct FnDecl {
 #[derive(Debug, Clone)]
 pub struct StructDecl {
     pub name: Token,
-    pub fns: Vec<FnDecl>,
     pub props: Vec<VarDecl>,
+}
+
+#[derive(Debug, Clone)]
+pub struct ImplDecl {
+    pub for_struct: Token,
+    pub fns: Vec<FnDecl>,
+    pub consts: Vec<ConstDecl>,
 }
 
 #[derive(Debug, Clone)]
@@ -494,8 +501,18 @@ impl FnDecl {
 }
 
 impl StructDecl {
-    pub fn new(name: Token, props: Vec<VarDecl>, fns: Vec<FnDecl>) -> Self {
-        Self { name, fns, props }
+    pub fn new(name: Token, props: Vec<VarDecl>) -> Self {
+        Self { name, props }
+    }
+}
+
+impl ImplDecl {
+    pub fn new(for_struct: Token, fns: Vec<FnDecl>, consts: Vec<ConstDecl>) -> Self {
+        Self {
+            for_struct,
+            fns,
+            consts,
+        }
     }
 }
 
