@@ -1,0 +1,2 @@
+[struct] Matrix { m: [vec] [[vec] [10, -8, -23], [vec] [20, -5, -10], [vec] [-58, 10, 36]] }
+[struct] Matrix { m: [vec] [[vec] [11, 21, 13], [vec] [15, 10, 5], [vec] [16, 19, 29]] }

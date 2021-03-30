@@ -52,6 +52,52 @@ println(input); // [vec] [-3, 0, 1, 3, 4, 4, 13, 19]
 ```
 
 ```rust
+/// structs
+
+struct Circle {                 // struct declaration
+    radius: float,
+    center: Point,
+    tangents: vec<Tangent>,     // inner vector of structs
+}
+
+impl Circle {                   // struct implementation
+    fn calc_area() -> float {
+        return PI * self.radius * self.radius;
+    }
+  
+    fn add_tangent(t: Tangent) {      
+        self.tangents.push(t);
+    }
+}
+
+struct Point {
+    x: int,
+    y: int,
+}
+
+struct Tangent {
+    p: Point,
+}
+
+const PI = 3.14159;
+
+let circle = Circle {     // struct instantiation
+    radius: 103.5,
+    center: Point { x: 1, y: 5 } ,             // inner structs instantiation
+    tangents: vec[                             // inner vector of structs instantiation
+        Tangent { p: Point { x: 4, y: 3 } },
+        Tangent { p: Point { x: 1, y: 0 } },
+    ],
+};
+
+let area = circle.calc_area();  // 33653.4974775
+
+circle.add_tangent(
+    Tangent { p: Point { x: 11, y: 4 } }  // third tangent added
+);
+```
+
+```rust
 /// first-class functions
 
 let make_adder = fn (x: num) -> func {
@@ -68,44 +114,8 @@ println(add7(2)); // 9
 ```
 
 ```rust
-/// structs
-
-struct Circle {
-    radius: float,
-    center: Point,
-    tangents: vec<Tangent>,   // vector of structs
-}
-
-struct Point {
-    x: int,
-    y: int,
-}
-
-struct Tangent {
-    p: Point,
-}
-
-const PI = 3.14159;
-
-let circle = Circle {                       // struct instantiation
-    radius: 103.5,
-    center: Point { x: 1, y: 5 }            // inner structs instantiation
-    tangents: vec[                          // inner vector of structs instantiation
-        Tangent { Point { x: 4, y: 3 } }    
-        Tangent { Point { x: 1, y: 0 } }
-    ],
-};
-
-fn calc_area(c: Circle) -> float {
-    return PI * c.radius * c.radius;
-}
-
-let area = calc_area(circle); // 33653.4974775
-```
-
-```rust
 /// compute the greatest common divisor 
-/// of two integers using Euclid’s algorithm
+/// of two integers using Euclids algorithm
 
 fn gcd(mut n: int, mut m: int) -> int {
     while m != 0 {
@@ -160,7 +170,6 @@ oxide version
 * [Structs](#structs)
 * [Vectors](#vectors)
 * [Constants](#constants)
-* [Type System](#type-system)
 * [Operators](#operators)
     * [Unary](#unary)
     * [Binary](#binary)
@@ -261,7 +270,7 @@ if x >= 100 {
 `match` expression returns the first matching arm evaluated value. Unlike other control flow statements, `match` is an expression and therefore must be terminated with semicolon. It can be used in any place an expression is expected.
 
 ```rust
-let result = match get_direction() {
+let direction = match get_direction() {
     "north" => 0,
     "east" => 90,
     "south" => 180,
@@ -310,27 +319,27 @@ loop {
 
 `for` loop is a ~~good~~ old C-like `for` statement, which comprises three parts. You should be familiar with it.
 ```rust
-for let mut i = v.len(); i >= 0; i -= 1 {
+for let mut i = 0; i < v.len(); i += 1 {
     println(v[i]);
 }
 
 // the first or the last parts can be omitted
-let mut i = v.len();
+let mut i = 0;
 
-for ; i >= 0; {
+for ; i < v.len(); {
     println(v[i]);
-    i -= 1;
+    i += 0;
 }
 
 // or all three of them
 // this is basically "while true" or "loop"
-let mut i = v.len();
+let mut i = 0;
 
 for ;; {
     println(v[i]);
     i -= 1;
 
-    if i < 0 {
+    if i < v.len() {
         break;
     }
 }
@@ -433,8 +442,7 @@ Immediately Invoked Function Expressions, short IIFE, are also supported for wha
 
 ## Structs
 
-Structs represent the user-defined types. The struct declaration starts with `struct` keyword.
-
+Structs represent the user-defined types. Struct declaration starts with `struct` keyword.
 All struct properties are mutable and public by default.
 
 ```rust
@@ -455,6 +463,28 @@ struct Country {
 }
 ```
 
+### Impl blocks
+Struct implementation starts with `impl` keyword.
+While struct declaration defines its properties, struct implementation defines its methods.
+`self` keyword can be used inside methods and points to the current struct instance.
+
+```rust
+impl Person {
+    fn change_name(new_name: str) {
+        self.name = new_name;
+    }
+  
+    fn clone() -> Person {
+        return Person {
+            name: self.name,
+            country: self.country,
+            alive: self.alive,
+            pets: self.pets,
+        };
+    }
+}
+```
+
 You instantiate a struct creating it with curly braces and initializing all its properties `Animal { prop: value[, prop: value ...] }`.
 
 ```rust
@@ -471,7 +501,7 @@ let john: Person = Person {
 };
 ```
 
-Dot syntax is used to access structs fields
+Dot syntax is used to access structs fields and call its methods.
 
 ```rust
 // set new value
@@ -483,6 +513,10 @@ john.pets.push( Animal {
 
 // get value
 println(john.pet[0].kind); // cat
+
+// call method
+let cloned = john.clone();
+cloned.change_name("Jonathan");
 ```
 
 Immutable variable will still let you change the struct's fields, but it will prevent you from overwriting the variable itself. Similar to Javascript `const` that holds an object.
@@ -684,7 +718,7 @@ A small set of built-in functionality is available anywhere in the code.
 - `file_write(file: str, content: str) -> str` write `content` to a file, creating it first, should it not exist
   
 
-- `typeof(val: any) -> str` returns type of a given value or variable
+- `typeof(val: any) -> str` returns type of given value or variable
 
 
 

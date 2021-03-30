@@ -6,9 +6,10 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use crate::interpreter::Result;
 use crate::interpreter::RuntimeError;
 use crate::lexer::token::Token;
-use crate::parser::expr::ValType;
+use crate::parser::expr::{ConstDecl, FnDecl, ValType};
 
 use super::val::Val;
+use crate::interpreter::val::StructInstance;
 
 static COUNTER: AtomicUsize = AtomicUsize::new(1);
 
@@ -19,6 +20,8 @@ pub fn internal_id() -> usize {
 #[derive(Clone, Debug)]
 pub struct Env {
     pub vals: HashMap<String, Rc<RefCell<EnvVal>>>,
+    pub self_: Option<Rc<RefCell<StructInstance>>>,
+    pub impls: HashMap<String, Impl>,
     pub enclosing: Option<Rc<RefCell<Self>>>,
 }
 
@@ -61,6 +64,16 @@ pub struct Struct {
     pub val: Val,
 }
 
+/// The only env value, which is not wrapped in `EnvValue` enum value,
+/// because we store it separately to lookup called functions & etc.
+#[derive(Clone, Debug)]
+pub struct Impl {
+    pub id: usize,
+    pub for_struct: String,
+    pub fns: Vec<FnDecl>,
+    pub consts: Vec<ConstDecl>,
+}
+
 impl Variable {
     pub fn new(name: String, val: Val, mutable: bool, v_type: ValType) -> Self {
         Self {
@@ -99,6 +112,17 @@ impl Struct {
             id: internal_id(),
             name,
             val,
+        }
+    }
+}
+
+impl Impl {
+    pub fn new(for_struct: String, fns: Vec<FnDecl>, consts: Vec<ConstDecl>) -> Self {
+        Self {
+            id: internal_id(),
+            for_struct,
+            fns,
+            consts,
         }
     }
 }
@@ -180,6 +204,8 @@ impl Env {
     fn from_enclosing(enclosing: Option<Rc<RefCell<Self>>>) -> Self {
         Self {
             vals: HashMap::new(),
+            impls: HashMap::new(),
+            self_: None,
             enclosing,
         }
     }
@@ -215,6 +241,18 @@ impl Env {
             struct_.name.clone(),
             Rc::new(RefCell::new(EnvVal::Struct(struct_))),
         );
+    }
+
+    pub fn define_impl(&mut self, impl_: Impl) -> Result<()> {
+        self.impls.insert(impl_.for_struct.clone(), impl_);
+
+        Ok(())
+    }
+
+    pub fn define_self(&mut self, self_: Rc<RefCell<StructInstance>>) -> Result<()> {
+        self.self_ = Some(self_);
+
+        Ok(())
     }
 
     pub fn define_constant(&mut self, constant: Constant) -> Result<()> {
@@ -271,6 +309,35 @@ impl Env {
             name.line,
             format!("Trying to access undefined value \"{}\"", name.lexeme),
         ))
+    }
+
+    pub fn get_impl(&mut self, name: &Token) -> Option<Impl> {
+        if self.impls.contains_key(&name.lexeme) {
+            let impl_ = self.impls.get(&name.lexeme);
+
+            return match impl_ {
+                Some(impl_) => Some(impl_.clone()),
+                None => None,
+            };
+        }
+
+        if self.enclosing.is_some() {
+            return self.enclosing.as_ref().unwrap().borrow_mut().get_impl(name);
+        }
+
+        None
+    }
+
+    pub fn get_self(&self) -> Option<Rc<RefCell<StructInstance>>> {
+        if self.self_.is_some() {
+            return self.self_.clone();
+        }
+
+        if self.enclosing.is_some() {
+            return self.enclosing.as_ref().unwrap().borrow_mut().get_self();
+        }
+
+        None
     }
 
     pub fn assign(&mut self, name: Token, val: &Val) -> Result<()> {

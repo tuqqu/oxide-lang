@@ -94,6 +94,9 @@ pub enum TokenType {
 
     Struct,
     Fn,
+    Impl,
+
+    Pub,
 
     Return,
     Continue,

@@ -4,16 +4,15 @@ use std::rc::Rc;
 use std::sync::Arc;
 use std::{mem, result};
 
-use crate::interpreter::env::Struct;
 use crate::interpreter::val::{PropFuncVal, StructCallable};
 use crate::interpreter::val::{StructInstance, VecInstance};
 
 use crate::lexer::token::{Token, TokenType};
 use crate::parser::expr::{
     Assignment, Binary, Block, BoolLiteral, Call, CallStruct, ConstDecl, Expr, FloatLiteral,
-    FnDecl, GetProp, Grouping, If, IntLiteral, Lambda, Loop, Match, NilLiteral, Return, Self_,
-    SetIndex, SetProp, Stmt, StrLiteral, StructDecl, Unary, ValType, VarDecl, Variable, VecIndex,
-    Vec_, TYPE_BOOL, TYPE_FUNC, TYPE_INT, TYPE_NUM, TYPE_STR, TYPE_STRUCT, TYPE_VEC,
+    FnDecl, GetProp, Grouping, If, ImplDecl, IntLiteral, Lambda, Loop, Match, NilLiteral, Return,
+    Self_, SetIndex, SetProp, Stmt, StrLiteral, StructDecl, Unary, ValType, VarDecl, Variable,
+    VecIndex, Vec_, TYPE_BOOL, TYPE_FUNC, TYPE_INT, TYPE_NUM, TYPE_STR, TYPE_STRUCT, TYPE_VEC,
 };
 
 use self::env::{Env, EnvVal};
@@ -63,18 +62,20 @@ impl Interpreter {
 
     fn eval_struct_stmt(&mut self, stmt: &StructDecl) -> Result<StmtVal> {
         let decl = stmt.clone();
-        let strct = Struct::new(
+        let struct_ = env::Struct::new(
             stmt.name.lexeme.clone(),
             Val::Struct(*StructCallable::new(
                 decl.props.len(),
-                Arc::new(move |_inter, args| {
-                    let mut instance = StructInstance::new(decl.clone());
+                Arc::new(move |inter, args| {
+                    let impl_ = inter.env.borrow_mut().get_impl(&decl.name);
+                    let instance = StructInstance::new(decl.clone(), impl_);
 
                     for (prop, param) in args {
-                        if let Some((_, v_type)) = instance.props.get(&prop.lexeme) {
+                        let mut instance_borrowed = instance.borrow_mut();
+                        if let Some((_, v_type)) = instance_borrowed.props.get(&prop.lexeme) {
                             let v_type = v_type.clone();
                             if v_type.conforms(&param) {
-                                instance
+                                instance_borrowed
                                     .props
                                     .insert(prop.lexeme.clone(), (param.clone(), v_type));
                             } else {
@@ -95,14 +96,25 @@ impl Interpreter {
                         }
                     }
 
-                    let instance = Val::StructInstance(Rc::new(RefCell::new(instance)));
+                    let instance = Val::StructInstance(instance);
 
                     Ok(instance)
                 }),
             )),
         );
 
-        self.env.borrow_mut().define_struct(strct);
+        self.env.borrow_mut().define_struct(struct_);
+
+        Ok(StmtVal::None)
+    }
+
+    fn eval_impl_stmt(&mut self, stmt: &ImplDecl) -> Result<StmtVal> {
+        let decl = stmt.clone();
+        self.env.borrow_mut().define_impl(env::Impl::new(
+            decl.for_struct.lexeme.clone(),
+            decl.fns,
+            decl.consts,
+        ))?;
 
         Ok(StmtVal::None)
     }
@@ -287,7 +299,7 @@ impl Interpreter {
     fn eval_fn_stmt(&mut self, fn_decl: &FnDecl) -> Result<StmtVal> {
         let func: env::Function = env::Function::new(
             fn_decl.name.lexeme.clone(),
-            self.eval_fn_expr(&fn_decl.lambda.clone()),
+            self.eval_fn_expr(&fn_decl.lambda.clone(), None),
         );
 
         self.env.borrow_mut().define_function(func)?;
@@ -295,10 +307,10 @@ impl Interpreter {
         Ok(StmtVal::None)
     }
 
-    fn eval_fn_expr(&mut self, expr: &Lambda) -> Val {
+    fn eval_fn_expr(&mut self, expr: &Lambda, self_: Option<Rc<RefCell<StructInstance>>>) -> Val {
         let copy = Rc::clone(&self.env);
 
-        let func: Function = Function::new(
+        let func = Function::new(
             expr.clone(),
             Rc::new(RefCell::new(Env::with_enclosing(copy))),
         );
@@ -309,6 +321,10 @@ impl Interpreter {
                 let copy = Rc::clone(&func.env);
                 let glob = Rc::new(RefCell::new(Env::with_enclosing(copy)));
                 let mut env = Env::with_enclosing(glob);
+
+                if self_.is_some() {
+                    env.define_self(self_.clone().unwrap())?;
+                }
 
                 for (i, param) in func.lambda.params.iter().enumerate() {
                     let arg = args[i].clone();
@@ -421,7 +437,6 @@ impl Interpreter {
         match callee {
             Val::Callable(callee) => {
                 let mut args = vec![];
-
                 for arg in &expr.args {
                     args.push(self.evaluate(&arg)?);
                 }
@@ -447,7 +462,18 @@ impl Interpreter {
     }
 
     fn eval_self_expr(&mut self, _expr: &Self_) -> Result<Val> {
-        unimplemented!()
+        let self_ = self.env.borrow_mut().get_self();
+        let self_ = match self_ {
+            Some(s) => s,
+            None => {
+                return Err(RuntimeError::new(
+                    _expr.self_.line,
+                    "Value \"self\" can be used in methods only".to_string(),
+                ))
+            }
+        };
+
+        Ok(Val::StructInstance(self_))
     }
 
     fn eval_call_struct_expr(&mut self, expr: &CallStruct) -> Result<Val> {
@@ -565,7 +591,7 @@ impl Interpreter {
                 let val = i.borrow_mut().get_prop(&expr.prop_name)?;
                 match val {
                     PropFuncVal::Prop(val) => Ok(val),
-                    PropFuncVal::Func(func) => Ok(self.eval_fn_expr(&func)),
+                    PropFuncVal::Func((func, self_)) => Ok(self.eval_fn_expr(&func, Some(self_))),
                 }
             }
             Val::VecInstance(vec) => VecInstance::get_method(&expr.prop_name, vec.clone()),
@@ -963,7 +989,7 @@ impl Interpreter {
             GroupingExpr(grouping) => self.eval_grouping_expr(&grouping)?,
             VariableExpr(variable) => self.eval_var_expr(&variable)?,
             AssignmentExpr(assignment) => self.eval_assign_expr(&assignment)?,
-            FnExpr(lambda) => self.eval_fn_expr(&lambda),
+            FnExpr(lambda) => self.eval_fn_expr(&lambda, None),
             MatchExpr(match_expr) => self.eval_match_expr(match_expr)?,
         };
 
@@ -985,6 +1011,7 @@ impl Interpreter {
             Fn(f_decl) => self.eval_fn_stmt(f_decl),
             LoopStmt(loop_stmt) => self.eval_loop_stmt(loop_stmt),
             Struct(struct_decl) => self.eval_struct_stmt(struct_decl),
+            Impl(impl_decl) => self.eval_impl_stmt(impl_decl),
         };
 
         res
