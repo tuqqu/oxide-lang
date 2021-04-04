@@ -22,6 +22,52 @@ for let mut i = 0; i < 30; i += 1 {
 ```
 
 ```rust
+/// structs
+
+struct Circle {                 // struct declaration
+    pub radius: float,          // public field
+    center: Point,              // private field
+    tangents: vec<Tangent>,     // inner vector of structs
+}
+
+impl Circle {                   // struct implementation
+    fn calc_area() -> float {
+        return PI * self.radius * self.radius;
+    }
+  
+    fn add_tangent(t: Tangent) {      
+        self.tangents.push(t);
+    }
+}
+
+struct Point {
+    pub x: int,
+    pub y: int,
+}
+
+struct Tangent {
+    p: Point,
+}
+
+const PI = 3.14159;
+
+let circle = Circle {     // struct instantiation
+    radius: 103.5,
+    center: Point { x: 1, y: 5 } ,             // inner structs instantiation
+    tangents: vec[                             // inner vector of structs instantiation
+        Tangent { p: Point { x: 4, y: 3 } },
+        Tangent { p: Point { x: 1, y: 0 } },
+    ],
+};
+
+let area = circle.calc_area();  // 33653.4974775
+
+circle.add_tangent(
+    Tangent { p: Point { x: 11, y: 4 } }  // third tangent added
+);
+```
+
+```rust
 /// sorting a vector using
 /// insertion sort
 
@@ -49,52 +95,6 @@ let input: vec<int> = vec[4, 13, 0, 3, -3, 4, 19, 1];
 insertion_sort(input);
 
 println(input); // [vec] [-3, 0, 1, 3, 4, 4, 13, 19]
-```
-
-```rust
-/// structs
-
-struct Circle {                 // struct declaration
-    radius: float,
-    center: Point,
-    tangents: vec<Tangent>,     // inner vector of structs
-}
-
-impl Circle {                   // struct implementation
-    fn calc_area() -> float {
-        return PI * self.radius * self.radius;
-    }
-  
-    fn add_tangent(t: Tangent) {      
-        self.tangents.push(t);
-    }
-}
-
-struct Point {
-    x: int,
-    y: int,
-}
-
-struct Tangent {
-    p: Point,
-}
-
-const PI = 3.14159;
-
-let circle = Circle {     // struct instantiation
-    radius: 103.5,
-    center: Point { x: 1, y: 5 } ,             // inner structs instantiation
-    tangents: vec[                             // inner vector of structs instantiation
-        Tangent { p: Point { x: 4, y: 3 } },
-        Tangent { p: Point { x: 1, y: 0 } },
-    ],
-};
-
-let area = circle.calc_area();  // 33653.4974775
-
-circle.add_tangent(
-    Tangent { p: Point { x: 11, y: 4 } }  // third tangent added
-);
 ```
 
 ```rust
@@ -200,24 +200,27 @@ let names: vec<str> = vec["Josh", "Carol", "Steven"];
 or implicitly inferred by the interpreter the first time it is being assigned:
 
 ```rust
-let x = true || false; // inferred as "bool";
+let x;
+x = true || false;              // inferred as "bool";
 
-let mut y;
-y = vec<bool>[]; // inferred as "vec<bool>";
+let y = vec<bool>[];            // inferred as "vec<bool>";
 
 let dog;
-dog = Dog { name: "Good Boy"}; // inferred as "Dog";
+dog = Dog { name: "Good Boy"};  // inferred as "Dog";
 ```
 
 Mutable variables cannot be assigned to a value of another type, unless they are of type `any`:
 
 ```rust
 let mut s: str = "string";
-s = vec[]; //! type error
+s = vec[];                      //! type error
 
-let mut a: any = Rectangle { height: 10, width: 10 };
-a.height = "string"; //! type error
-a = 45.34; // valid
+let mut a: any = Rectangle { 
+    height: 10,                 // height is of type int
+    width: 10 
+};
+a.height = "string";            //! type error
+a = 45.34;                      // valid
 ```
 
 ### Mutable Variables vs Immutable ones
@@ -226,9 +229,7 @@ There are two possible ways of declaring a variable: immutable and mutable. Immu
 
 ```rust
 let x: str = "string";
-
-let y: num;
-y = 100;
+x = "another";                  //! type error
 ```
 
 However, mutable ones behave like you would expect a variable to behave in most other languages:
@@ -236,7 +237,7 @@ However, mutable ones behave like you would expect a variable to behave in most 
 ```rust
 let mut x: str = "hello";
 x += " world";
-x += "another string";
+x += "another string";          // ok
 ```
 
 ### Shadowing
@@ -291,7 +292,9 @@ let description: str = match true {
 
 ### While
 
-There are three loops in Oxide: `while`, `loop` and `for`. All loops support `break` and `continue` statements. Loop body must be enclosed in curly braces.
+There are three loops in Oxide: `while`, `loop` and `for`. 
+
+Loops support `break` and `continue` statements. Loop body must be enclosed in curly braces.
 
 `while` statement is rather usual.
 
@@ -349,7 +352,11 @@ for ;; {
 
 ### Declared functions
 
-Functions are declared with a `fn` keyword. Function signature must explicitly list all argument types as well as a return type. Functions that do not have a return value always return `nil` and the explicit return type can be omitted (same as declaring it with `-> nil`)
+Functions are declared with a `fn` keyword. 
+
+Function signature must explicitly list all argument types as well as a return type.
+
+Functions that do not have a `return` statement implicitly return `nil` and the explicit return type can be omitted (same as declaring it with `-> nil`)
 
 ```rust
 fn add(x: num, y: num) -> num {
@@ -374,46 +381,6 @@ fn log(level: str, msg: str) {
 }
 ```
 
-Redeclaring a function will result in a runtime error.
-
-### Closures and Lambdas
-
-Functions can also be assigned to variables of type `func`. As with other types, it can be inferred and therefore omitted when declaring a variable.
-
-```rust
-/// function returns closure
-/// which captures the internal value i
-/// each call to the closure increments the captured value
-fn create_counter() -> func {
-    let mut i = 0;
-
-    return fn () {
-        i += 1;
-        println(i);
-    };
-}
-
-let counter: func = create_counter();
-
-counter(); // 1
-counter(); // 2
-counter(); // 3
-```
-
-Functions are first-class citizens of the language, they can be stored in a variable, passed or/and returned from another function.
-
-```rust
-fn vec_concat(prefix: str, suffix: str) -> str {
-    return prefix + suffix;
-}
-
-fn str_transform(callable: func, a: str, b: str) -> any {
-    return callable(s1, s2);
-}
-
-str_transform(str_concat, "hello", " world");
-```
-
 Defining a function argument as `mut` lets you mutate it in the function body. By default, it is immutable.
 
 ```rust
@@ -430,6 +397,46 @@ fn inc(x: int) -> int {
 }
 ```
 
+Redeclaring a function results in a runtime error.
+
+### Closures and Lambdas
+
+Functions are first-class citizens of the language, they can be stored in a variable of type `func`, passed to or/and returned from another function.
+
+```rust
+/// function returns closure
+/// which captures the internal value i
+/// each call to the closure increments the captured value
+fn create_counter() -> func {
+    let mut i = 0;
+
+    return fn () {                  // returns closure
+        i += 1;
+        println(i);
+    };
+}
+
+let counter = create_counter();     // inferred as "func"
+
+counter(); // 1
+counter(); // 2
+counter(); // 3
+```
+
+Declared functions can be passed by their name directly
+
+```rust
+fn str_concat(prefix: str, suffix: str) -> str {
+    return prefix + suffix;
+}
+
+fn str_transform(callable: func, a: str, b: str) -> any {
+    return callable(a, b);
+}
+
+str_transform(str_concat, "hello", " world");
+```
+
 Immediately Invoked Function Expressions, short IIFE, are also supported for whatever reason.
 
 ```rust
@@ -443,19 +450,21 @@ Immediately Invoked Function Expressions, short IIFE, are also supported for wha
 ## Structs
 
 Structs represent the user-defined types. Struct declaration starts with `struct` keyword.
-All struct properties are mutable and public by default.
+All struct properties are mutable by default.
+
+To make property public you can declare it with `pub` keyword. Public fields can be accessed from outside scope.
 
 ```rust
 struct Person {
-    name: str,          // property of type str
-    country: Country,   // property of type struct Country
-    alive: bool,
+    pub name: str,          // property of type str
+    pub country: Country,   // property of type struct Country
+    pub alive: bool,
     pets: vec<Animal>,  // property of type vector of structs Animal
 }
 
 struct Animal {
+    pub alive: bool,
     kind: str,
-    alive: bool,
 }
 
 struct Country {
@@ -463,7 +472,6 @@ struct Country {
 }
 ```
 
-### Impl blocks
 Struct implementation starts with `impl` keyword.
 While struct declaration defines its properties, struct implementation defines its methods.
 `self` keyword can be used inside methods and points to the current struct instance.
@@ -483,12 +491,18 @@ impl Person {
         };
     }
 }
+
+impl Animal {
+    fn get_kind() -> str {
+        return self.kind;
+    }
+}
 ```
 
-You instantiate a struct creating it with curly braces and initializing all its properties `Animal { prop: value[, prop: value ...] }`.
+You need to initialize all structs properties on instantiation.
 
 ```rust
-let cat = Animal {
+let cat = Animal {                   
     kind: "cat",
     alive: true
 };
@@ -496,8 +510,8 @@ let cat = Animal {
 let john: Person = Person {
     name: "John",
     alive: true,
-    pets: vec[cat],                    // via variable
-    country: Country { name: "UK" }    // via inlined struct instantiation
+    pets: vec[cat],                   // via variable
+    country: Country { name: "UK" }   // via inlined struct instantiation
 };
 ```
 
@@ -524,7 +538,7 @@ Immutable variable will still let you change the struct's fields, but it will pr
 ```rust
 john.name = "Steven";    // valid, John is not a John anymore
 john.pet.kind = "dog"    // also valid, john's pet is changed
-john = Person { .. };    // invalid, "john" cannot point to another struct
+john = Person { .. };    //! error, "john" cannot point to another struct
 ```
 
 Structs are always passed by reference, consider:
@@ -542,24 +556,18 @@ kill(john);
 
 Vectors, values of type `vec<type>`, represent arrays of values and can be created using `vec<type>[]` syntax, where `type` is any Oxide type.
 
-Vectors support following methods:
+Vectors have built-in methods:
 * `vec.push(val: any)` push value to the end of the vector
-
-
 * `vec.pop() -> any` remove value from the end of the vector and return it
-
-
 * `vec.len() -> int` get vectors length
 
 ```rust
 let planets = vec<str>["Mercury", "Venus", "Earth", "Mars"];
 
-let mars = planets[3];
-
-planents.push("Jupiter");     // "Jupiter" is now the last value in a vector
-
+planents.push("Jupiter");    // "Jupiter" is now the last value in a vector
 let jupiter = planets.pop(); // "Jupiter" is no longer in a vector.
 
+let mars = planets[3];       // mars = "Mars"
 planets[2] = "Uranus";       // "Earth" is gone. "Uranus" is on its place now
 
 planets.len();               // 3
@@ -605,7 +613,9 @@ let matrix = vec[                       // typeof(v) = vec<vec<int>>
 let things = vec[nil, false, Dog {}];   // typeof(v) = vec<any>
 ```
 
-Like structs vectors are passed by reference. Consider this example of an in place sorting algorithm, selection sort, that accepts a vector and sorts it in place, without allocating memory for a new one.
+Like structs vectors are passed by reference. 
+
+Consider this example of an in place sorting algorithm, selection sort, that accepts a vector and sorts it in place, without allocating memory for a new one.
 
 <details>
   <summary>Selection sort</summary>
@@ -698,26 +708,12 @@ let x = 100; /* inlined multiline comment */ let y = x;
 A small set of built-in functionality is available anywhere in the code.
 
 - `print(msg: str)` prints `msg` to the standard output stream (stdout).
-  
-
 - `println(msg: str)` same as `print`, but inserts a newline at the end of the string.
-  
-
 - `eprint(err: str)` prints `err` to the standard error (stderr).
-  
-
 - `eprintln(err: str)` you got the idea.
-  
-
 - `timestamp() -> int` returns current Unix Epoch timestamp in seconds
-  
-
 - `read_line() -> str` reads user input from standard input (stdin) and returns it as a `str`
-  
-
 - `file_write(file: str, content: str) -> str` write `content` to a file, creating it first, should it not exist
-  
-
 - `typeof(val: any) -> str` returns type of given value or variable
 
 

@@ -249,6 +249,7 @@ impl Parser {
     }
 
     /// Parses the struct declaration statement as well as all its properties
+    /// whether they are `pub` and their type
     fn struct_decl(&mut self) -> Result<Stmt> {
         let name: Token =
             self.consume(TokenType::Identifier, "Struct name expected.".to_string())?;
@@ -261,10 +262,20 @@ impl Parser {
         let mut props = vec![];
 
         while !self.check(TokenType::RightCurlyBrace) && !self.at_end() {
+            let public = if self.check(TokenType::Pub) {
+                self.consume(
+                    TokenType::Pub,
+                    "Expected \"pub\" before property.".to_string(),
+                )?;
+                true
+            } else {
+                false
+            };
+
             if self.check(TokenType::Identifier) {
                 match self.prop_decl() {
                     Ok(var_decl) => {
-                        props.push(var_decl);
+                        props.push((var_decl, public));
                     }
                     Err(_) => {
                         self.try_to_recover();

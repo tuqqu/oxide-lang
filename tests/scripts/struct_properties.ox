@@ -1,6 +1,6 @@
 struct Person {
-    age: int,
-    name: str,
+    pub age: int,
+    pub name: str,
 }
 
 let mut john: Person = Person { age: 60, name: "John Doe" };
@@ -36,12 +36,12 @@ println(john.age);
 println(john.name);
 
 struct Dog {
-    name: str,
-    fur: Fur,
+    pub name: str,
+    pub fur: Fur,
 }
 
 struct Fur {
-    dense: bool,
+    pub dense: bool,
 }
 
 let d = Dog {

@@ -310,7 +310,8 @@ pub struct FnDecl {
 #[derive(Debug, Clone)]
 pub struct StructDecl {
     pub name: Token,
-    pub props: Vec<VarDecl>,
+    /// bool tells if property is public or not
+    pub props: Vec<(VarDecl, bool)>,
 }
 
 #[derive(Debug, Clone)]
@@ -501,7 +502,7 @@ impl FnDecl {
 }
 
 impl StructDecl {
-    pub fn new(name: Token, props: Vec<VarDecl>) -> Self {
+    pub fn new(name: Token, props: Vec<(VarDecl, bool)>) -> Self {
         Self { name, props }
     }
 }

@@ -72,12 +72,14 @@ impl Interpreter {
 
                     for (prop, param) in args {
                         let mut instance_borrowed = instance.borrow_mut();
-                        if let Some((_, v_type)) = instance_borrowed.props.get(&prop.lexeme) {
+                        if let Some((_, v_type, public)) = instance_borrowed.props.get(&prop.lexeme)
+                        {
+                            let public = public.clone();
                             let v_type = v_type.clone();
                             if v_type.conforms(&param) {
                                 instance_borrowed
                                     .props
-                                    .insert(prop.lexeme.clone(), (param.clone(), v_type));
+                                    .insert(prop.lexeme.clone(), (param.clone(), v_type, public));
                             } else {
                                 return Err(RuntimeError::from_token(
                                     prop.clone(),
@@ -586,9 +588,11 @@ impl Interpreter {
 
     fn eval_get_prop_expr(&mut self, expr: &GetProp) -> Result<Val> {
         let instance = self.evaluate(&expr.name)?;
-        return match instance {
+        match instance {
             Val::StructInstance(i) => {
-                let val = i.borrow_mut().get_prop(&expr.prop_name)?;
+                let struct_name = i.borrow().struct_name.clone();
+                let public_access = self.is_public_access(struct_name);
+                let val = i.borrow_mut().get_prop(&expr.prop_name, public_access)?;
                 match val {
                     PropFuncVal::Prop(val) => Ok(val),
                     PropFuncVal::Func((func, self_)) => Ok(self.eval_fn_expr(&func, Some(self_))),
@@ -599,7 +603,7 @@ impl Interpreter {
                 0,
                 format!("Must be a struct instance, got \"{}\"", instance.get_type()),
             )),
-        };
+        }
     }
 
     fn eval_set_prop_expr(&mut self, expr: &SetProp) -> Result<Val> {
@@ -621,7 +625,12 @@ impl Interpreter {
             | TokenType::AsteriskEqual
             | TokenType::SlashEqual
             | TokenType::ModulusEqual => {
-                let r_val = instance.borrow_mut().get_prop(&expr.prop_name)?;
+                let struct_name = instance.borrow().struct_name.clone();
+                let public_access = self.is_public_access(struct_name);
+
+                let r_val = instance
+                    .borrow_mut()
+                    .get_prop(&expr.prop_name, public_access)?;
                 let r_val = match r_val {
                     PropFuncVal::Prop(val) => val,
                     _ => {
@@ -642,9 +651,11 @@ impl Interpreter {
             }
         };
 
-        instance
-            .borrow_mut()
-            .set_prop(&expr.prop_name, val.clone())?;
+        let struct_name = instance.borrow().struct_name.clone();
+        let public_access = self.is_public_access(struct_name);
+        let mut instance = instance.borrow_mut();
+
+        instance.set_prop(&expr.prop_name, val.clone(), public_access)?;
 
         Ok(val)
     }
@@ -1055,6 +1066,16 @@ impl Interpreter {
         self.env = old_env;
 
         Ok(StmtVal::None)
+    }
+
+    fn is_public_access(&self, struct_name: String) -> bool {
+        let self_ = self.env.borrow().get_self();
+
+        if self_.is_none() {
+            true
+        } else {
+            self_.unwrap().borrow().struct_name != struct_name
+        }
     }
 
     fn is_true(val: &Val) -> Result<bool> {

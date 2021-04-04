@@ -1,9 +1,9 @@
 struct Person {
-    age: int,
-    first_name: str,
-    last_name: str,
-    alive: bool,
-    pet: Dog
+    pub age: int,
+    pub first_name: str,
+    pub last_name: str,
+    pub alive: bool,
+    pub pet: Dog
 }
 
 impl Person {
@@ -18,7 +18,7 @@ impl Person {
 
 
 struct Dog {
-    name: str,
+    pub name: str,
 }
 
 impl Dog {

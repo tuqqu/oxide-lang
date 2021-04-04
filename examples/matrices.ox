@@ -1,11 +1,11 @@
-/// Matrix multiplication
-/// Compute product of two matrices.
+/// Simple matrix operations
 
 struct Matrix {
-    m: vec<vec<int>>,
+    pub m: vec<vec<int>>,
 }
 
 impl Matrix {
+    /// Add number to matrix
     fn add(number: int) {
         for let mut i = 0; i < self.m.len(); i += 1 {
             for let mut j = 0; j < self.m[0].len(); j += 1 {
@@ -14,6 +14,8 @@ impl Matrix {
         }
     }
 
+    /// Matrix multiplication
+    /// Compute product of two matrices.
     fn multiply(b: Matrix) -> Matrix {
         let product = vec<vec<int>>[];
 

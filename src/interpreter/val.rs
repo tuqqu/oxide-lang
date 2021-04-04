@@ -55,7 +55,7 @@ pub struct StructCallable {
 #[derive(Debug, Clone)]
 pub struct StructInstance {
     pub id: usize,
-    pub props: HashMap<String, (Val, ValType)>,
+    pub props: HashMap<String, (Val, ValType, bool)>,
     pub fns: HashMap<String, (Lambda, Rc<RefCell<Self>>)>,
     pub struct_name: String,
 }
@@ -148,10 +148,13 @@ pub enum PropFuncVal {
 
 impl StructInstance {
     pub fn new(struct_: StructDecl, impl_: Option<Impl>) -> Rc<RefCell<Self>> {
-        let mut props: HashMap<String, (Val, ValType)> = HashMap::new();
-        for prop in struct_.props {
+        let mut props: HashMap<String, (Val, ValType, bool)> = HashMap::new();
+        for (prop, public) in struct_.props {
             // we can be sure that v_type is always present
-            props.insert(prop.name.lexeme, (Val::Uninit, prop.v_type.unwrap()));
+            props.insert(
+                prop.name.lexeme,
+                (Val::Uninit, prop.v_type.unwrap(), public),
+            );
         }
 
         let instance = Self {
@@ -179,7 +182,7 @@ impl StructInstance {
         self_
     }
 
-    pub fn get_prop(&self, name: &Token) -> Result<PropFuncVal> {
+    pub fn get_prop(&self, name: &Token, public_access: bool) -> Result<PropFuncVal> {
         if !self.props.contains_key(&name.lexeme) {
             if !self.fns.contains_key(&name.lexeme) {
                 Err(RuntimeError::from_token(
@@ -193,29 +196,53 @@ impl StructInstance {
             }
         } else {
             match self.props.get(&name.lexeme).unwrap() {
-                (Val::Uninit, _) => Err(RuntimeError::from_token(
-                    name.clone(),
-                    format!(
-                        "Property \"{}\" has not yet been initialized.",
-                        &name.lexeme
-                    ),
-                )),
-                (val, _) => Ok(PropFuncVal::Prop(val.clone())),
+                (Val::Uninit, _, pub_) => {
+                    let msg = if Self::is_access_err(*pub_, public_access) {
+                        format!(
+                            "Property \"{}\" has not yet been initialized.",
+                            &name.lexeme
+                        )
+                    } else {
+                        format!("Cannot access private property \"{}\"", &name.lexeme)
+                    };
+
+                    Err(RuntimeError::from_token(name.clone(), msg))
+                }
+                (val, _, pub_) => {
+                    if !Self::is_access_err(*pub_, public_access) {
+                        Ok(PropFuncVal::Prop(val.clone()))
+                    } else {
+                        Err(RuntimeError::from_token(
+                            name.clone(),
+                            format!("Cannot access private property \"{}\"", &name.lexeme),
+                        ))
+                    }
+                }
             }
         }
     }
 
-    pub fn set_prop(&mut self, name: &Token, val: Val) -> Result<()> {
+    pub fn set_prop(&mut self, name: &Token, val: Val, public_access: bool) -> Result<()> {
         if !self.props.contains_key(&name.lexeme) {
             Err(RuntimeError::from_token(
                 name.clone(),
                 format!("No struct property with name \"{}\"", &name.lexeme),
             ))
         } else {
-            let (_, v_type) = self.props.get(&name.lexeme).unwrap();
+            let (_, v_type, public) = self.props.get(&name.lexeme).unwrap();
+
+            if !*public && public_access {
+                return Err(RuntimeError::from_token(
+                    name.clone(),
+                    format!("Cannot access private property \"{}\"", &name.lexeme),
+                ));
+            }
+
+            let public = public.clone();
             let v_type = v_type.clone();
             if v_type.conforms(&val) {
-                self.props.insert(name.lexeme.clone(), (val, v_type));
+                self.props
+                    .insert(name.lexeme.clone(), (val, v_type, public));
 
                 Ok(())
             } else {
@@ -228,6 +255,14 @@ impl StructInstance {
                     ),
                 ))
             }
+        }
+    }
+
+    fn is_access_err(prop_pub: bool, access_pub: bool) -> bool {
+        if !prop_pub {
+            access_pub
+        } else {
+            false
         }
     }
 }
@@ -344,7 +379,7 @@ impl Val {
             Struct(_c) => "struct".to_string(),
             StructInstance(i) => {
                 let mut props = vec![];
-                for (prop, (val, _val_t)) in &i.borrow_mut().props {
+                for (prop, (val, _val_t, _pub)) in &i.borrow_mut().props {
                     props.push(format!("{}: {}", prop, val.to_string()));
                 }
 
