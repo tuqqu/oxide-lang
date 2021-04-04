@@ -288,9 +288,7 @@ impl Interpreter {
             }
         };
 
-        self.env
-            .borrow_mut()
-            .assign(expr.name.clone(), &val)?;
+        self.env.borrow_mut().assign(expr.name.clone(), &val)?;
 
         Ok(val)
     }
@@ -755,10 +753,16 @@ impl Interpreter {
         let val = match operator.token_type {
             //equality
             TokenType::BangEqual => match (left, right) {
-                (Val::Float(left), Val::Float(right)) => Val::Bool((left - right).abs() > Val::FLOAT_ERROR_MARGIN),
+                (Val::Float(left), Val::Float(right)) => {
+                    Val::Bool((left - right).abs() > Val::FLOAT_ERROR_MARGIN)
+                }
                 (Val::Int(left), Val::Int(right)) => Val::Bool(left != right),
-                (Val::Int(left), Val::Float(right)) => Val::Bool(((left as f64) - right).abs() > Val::FLOAT_ERROR_MARGIN),
-                (Val::Float(left), Val::Int(right)) => Val::Bool((left - (right as f64)).abs() > Val::FLOAT_ERROR_MARGIN),
+                (Val::Int(left), Val::Float(right)) => {
+                    Val::Bool(((left as f64) - right).abs() > Val::FLOAT_ERROR_MARGIN)
+                }
+                (Val::Float(left), Val::Int(right)) => {
+                    Val::Bool((left - (right as f64)).abs() > Val::FLOAT_ERROR_MARGIN)
+                }
 
                 (Val::Str(left), Val::Str(right)) => Val::Bool(left != right),
                 (Val::Bool(left), Val::Bool(right)) => Val::Bool(left != right),
@@ -772,10 +776,16 @@ impl Interpreter {
                 }
             },
             TokenType::EqualEqual => match (left, right) {
-                (Val::Float(left), Val::Float(right)) => Val::Bool((left - right).abs() < Val::FLOAT_ERROR_MARGIN),
+                (Val::Float(left), Val::Float(right)) => {
+                    Val::Bool((left - right).abs() < Val::FLOAT_ERROR_MARGIN)
+                }
                 (Val::Int(left), Val::Int(right)) => Val::Bool(left == right),
-                (Val::Float(left), Val::Int(right)) => Val::Bool((left - (right as f64)).abs() < Val::FLOAT_ERROR_MARGIN),
-                (Val::Int(left), Val::Float(right)) => Val::Bool(((left as f64) - right).abs() < Val::FLOAT_ERROR_MARGIN),
+                (Val::Float(left), Val::Int(right)) => {
+                    Val::Bool((left - (right as f64)).abs() < Val::FLOAT_ERROR_MARGIN)
+                }
+                (Val::Int(left), Val::Float(right)) => {
+                    Val::Bool(((left as f64) - right).abs() < Val::FLOAT_ERROR_MARGIN)
+                }
 
                 (Val::Str(left), Val::Str(right)) => Val::Bool(left == right),
                 (Val::Bool(left), Val::Bool(right)) => Val::Bool(left == right),

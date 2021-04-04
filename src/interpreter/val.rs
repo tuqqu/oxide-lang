@@ -401,7 +401,12 @@ impl fmt::Display for Val {
                     props.push(format!("{}: {}", prop, val));
                 }
 
-                write!(f, "[struct] {} {{ {} }}", i.borrow_mut().struct_name, props.join(", "))
+                write!(
+                    f,
+                    "[struct] {} {{ {} }}",
+                    i.borrow_mut().struct_name,
+                    props.join(", ")
+                )
             }
             VecInstance(v) => {
                 let mut vals = vec![];
