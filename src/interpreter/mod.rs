@@ -588,7 +588,9 @@ impl Interpreter {
                 let val = i.borrow_mut().get_prop(&expr.prop_name, public_access)?;
                 match val {
                     PropFuncVal::Prop(val) => Ok(val),
-                    PropFuncVal::Func((func, self_)) => Ok(self.eval_fn_expr(&func, Some(self_))),
+                    PropFuncVal::Func((func, self_, _pub)) => {
+                        Ok(self.eval_fn_expr(&func, Some(self_)))
+                    }
                 }
             }
             Val::VecInstance(vec) => VecInstance::get_method(&expr.prop_name, vec),

@@ -56,7 +56,7 @@ pub struct StructCallable {
 pub struct StructInstance {
     pub id: usize,
     pub props: HashMap<String, (Val, ValType, bool)>,
-    pub fns: HashMap<String, (Lambda, Rc<RefCell<Self>>)>,
+    pub fns: HashMap<String, (Lambda, Rc<RefCell<Self>>, bool)>,
     pub struct_name: String,
 }
 
@@ -143,7 +143,7 @@ impl StructCallable {
 
 pub enum PropFuncVal {
     Prop(Val),
-    Func((Lambda, Rc<RefCell<StructInstance>>)),
+    Func((Lambda, Rc<RefCell<StructInstance>>, bool)),
 }
 
 impl StructInstance {
@@ -168,8 +168,8 @@ impl StructInstance {
 
         if let Some(impl_) = impl_ {
             let mut fns = HashMap::new();
-            for fun in impl_.fns {
-                fns.insert(fun.name.lexeme, (fun.lambda, self_.clone()));
+            for (fun, pub_) in impl_.fns {
+                fns.insert(fun.name.lexeme, (fun.lambda, self_.clone(), pub_));
             }
 
             self_.borrow_mut().fns = fns;
@@ -189,25 +189,31 @@ impl StructInstance {
                 ))
             } else {
                 let func = self.fns.get(&name.lexeme).unwrap();
-
-                Ok(PropFuncVal::Func(func.clone()))
+                if Self::can_access(func.2, public_access) {
+                    Ok(PropFuncVal::Func(func.clone()))
+                } else {
+                    Err(RuntimeError::from_token(
+                        name.clone(),
+                        format!("Cannot access private method \"{}\"", &name.lexeme),
+                    ))
+                }
             }
         } else {
             match self.props.get(&name.lexeme).unwrap() {
                 (Val::Uninit, _, pub_) => {
-                    let msg = if Self::is_access_err(*pub_, public_access) {
+                    let msg = if Self::can_access(*pub_, public_access) {
+                        format!("Cannot access private property \"{}\"", &name.lexeme)
+                    } else {
                         format!(
                             "Property \"{}\" has not yet been initialized.",
                             &name.lexeme
                         )
-                    } else {
-                        format!("Cannot access private property \"{}\"", &name.lexeme)
                     };
 
                     Err(RuntimeError::from_token(name.clone(), msg))
                 }
                 (val, _, pub_) => {
-                    if !Self::is_access_err(*pub_, public_access) {
+                    if Self::can_access(*pub_, public_access) {
                         Ok(PropFuncVal::Prop(val.clone()))
                     } else {
                         Err(RuntimeError::from_token(
@@ -256,11 +262,11 @@ impl StructInstance {
         }
     }
 
-    fn is_access_err(prop_pub: bool, access_pub: bool) -> bool {
-        if !prop_pub {
-            access_pub
+    fn can_access(prop_pub: bool, access_pub: bool) -> bool {
+        if prop_pub {
+            true
         } else {
-            false
+            !access_pub
         }
     }
 }
@@ -384,7 +390,7 @@ impl Val {
 }
 
 impl fmt::Display for Val {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result where {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         use Val::*;
         match self {
             Uninit => write!(f, "{}", TYPE_UNINIT),

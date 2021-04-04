@@ -320,8 +320,8 @@ pub struct StructDecl {
 #[derive(Debug, Clone)]
 pub struct ImplDecl {
     pub for_struct: Token,
-    pub fns: Vec<FnDecl>,
-    pub consts: Vec<ConstDecl>,
+    pub fns: Vec<(FnDecl, bool)>,
+    pub consts: Vec<(ConstDecl, bool)>,
 }
 
 #[derive(Debug, Clone)]
@@ -506,7 +506,11 @@ impl StructDecl {
 }
 
 impl ImplDecl {
-    pub fn new(for_struct: Token, fns: Vec<FnDecl>, consts: Vec<ConstDecl>) -> Self {
+    pub fn new(
+        for_struct: Token,
+        fns: Vec<(FnDecl, bool)>,
+        consts: Vec<(ConstDecl, bool)>,
+    ) -> Self {
         Self {
             for_struct,
             fns,

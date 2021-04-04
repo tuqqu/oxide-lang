@@ -101,3 +101,8 @@ fn test_struct_properties() {
 fn test_struct_methods() {
     test_script("struct_methods");
 }
+
+#[test]
+fn test_struct_public_access() {
+    test_script("struct_public_access");
+}

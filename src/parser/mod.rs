@@ -261,15 +261,7 @@ impl Parser {
         let mut props = vec![];
 
         while !self.check(TokenType::RightCurlyBrace) && !self.at_end() {
-            let public = if self.check(TokenType::Pub) {
-                self.consume(
-                    TokenType::Pub,
-                    "Expected \"pub\" before property.".to_string(),
-                )?;
-                true
-            } else {
-                false
-            };
+            let public = self.consume_pub()?;
 
             if self.check(TokenType::Identifier) {
                 match self.prop_decl() {
@@ -329,10 +321,12 @@ impl Parser {
         let mut consts = vec![];
 
         while !self.check(TokenType::RightCurlyBrace) && !self.at_end() {
+            let public = self.consume_pub()?;
+
             if self.match_token(TokenType::Fn) {
                 match self.fn_decl_inner() {
                     Ok(fn_decl) => {
-                        fns.push(fn_decl);
+                        fns.push((fn_decl, public));
                     }
                     Err(_) => {
                         self.try_to_recover();
@@ -341,7 +335,7 @@ impl Parser {
             } else if self.match_token(TokenType::Const) {
                 match self.const_decl_inner() {
                     Ok(const_decl) => {
-                        consts.push(const_decl);
+                        consts.push((const_decl, public));
                     }
                     Err(_) => {
                         self.try_to_recover();
@@ -1302,10 +1296,19 @@ impl Parser {
 
         self.consume(
             TokenType::Greater,
-            "Braket \">\" expected after generics type declaration.".to_string(),
+            "Bracket \">\" expected after generics type declaration.".to_string(),
         )?;
 
         Ok(generics)
+    }
+
+    fn consume_pub(&mut self) -> Result<bool> {
+        if self.check(TokenType::Pub) {
+            self.consume(TokenType::Pub, "Expected \"pub\".".to_string())?;
+            Ok(true)
+        } else {
+            Ok(false)
+        }
     }
 
     fn consume(&mut self, t_type: TokenType, msg: String) -> Result<Token> {

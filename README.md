@@ -31,11 +31,11 @@ struct Circle {                 // struct declaration
 }
 
 impl Circle {                   // struct implementation
-    fn calc_area() -> float {
+    pub fn calc_area() -> float {
         return PI * self.radius * self.radius;
     }
   
-    fn add_tangent(t: Tangent) {      
+    pub fn add_tangent(t: Tangent) {      
         self.tangents.push(t);
     }
 }
@@ -155,8 +155,8 @@ oxide version
 
 # Quick Overview
 
-* [Variables and Type System](#variables)
-    * [Mutable Variables vs Immutable ones](#mutable-variables-vs-immutable-ones)
+* [Variables and Type System](#variables-and-type-system)
+    * [Mutability](#mutability)
     * [Shadowing](#shadowing)
 * [Control Flow and Loops](#control-flow-and-loops)
     * [If](#if)
@@ -165,8 +165,8 @@ oxide version
     * [Loop](#loop)
     * [For](#for)
 * [Functions](#functions)
-    * [Closures and Lambdas](#closures-and-lambdas)
     * [Declared functions](#declared-functions)
+    * [Closures and Lambdas](#closures-and-lambdas)
 * [Structs](#structs)
 * [Vectors](#vectors)
 * [Constants](#constants)
@@ -223,7 +223,7 @@ a.height = "string";            //! type error
 a = 45.34;                      // valid
 ```
 
-### Mutable Variables vs Immutable ones
+### Mutability
 
 There are two possible ways of declaring a variable: immutable and mutable. Immutable ones cannot be reassigned after having been assigned to a value.
 
@@ -452,19 +452,21 @@ Immediately Invoked Function Expressions, short IIFE, are also supported for wha
 Structs represent the user-defined types. Struct declaration starts with `struct` keyword.
 All struct properties are mutable by default.
 
-To make property public you can declare it with `pub` keyword. Public fields can be accessed from outside scope.
+You can make property public with a `pub` keyword. Public fields can be accessed from outside scope.
 
 ```rust
 struct Person {
-    pub name: str,          // property of type str
+    pub name: str,          // public property of type str
     pub country: Country,   // property of type struct Country
     pub alive: bool,
     pub pets: vec<Animal>,  // property of type vector of structs Animal
+    age: int,               // private property
 }
 
 struct Animal {
     pub alive: bool,
-    pub kind: str,
+    kind: str,
+    age: int,
 }
 
 struct Country {
@@ -476,24 +478,34 @@ Struct implementation starts with `impl` keyword.
 While struct declaration defines its properties, struct implementation defines its methods.
 `self` keyword can be used inside methods and points to the current struct instance.
 
+You can make method public with a `pub` keyword. Public methods can be accessed from outside scope.
+
 ```rust
 impl Person {
-    fn change_name(new_name: str) {
+    pub fn change_name(new_name: str) {     // public method
         self.name = new_name;
     }
   
-    fn clone() -> Person {
+    pub fn clone_with_age(age: int) -> Person {
+        let cloned = self.clone();          // can access private method here
+        cloned.age = age;
+      
+        return cloned;
+    }
+  
+    fn clone() -> Person {                  // private method         
         return Person {
             name: self.name,
             country: self.country,
             alive: self.alive,
             pets: self.pets,
+            age: self.age,
         };
     }
 }
 
 impl Animal {
-    fn get_kind() -> str {
+    pub fn get_kind() -> str {              // getter for a private property
         return self.kind;
     }
 }
@@ -504,14 +516,16 @@ You need to initialize all structs properties on instantiation.
 ```rust
 let cat = Animal {                   
     kind: "cat",
-    alive: true
+    alive: true,
+    age: 2,
 };
 
 let john: Person = Person {
     name: "John",
     alive: true,
     pets: vec[cat],                   // via variable
-    country: Country { name: "UK" }   // via inlined struct instantiation
+    country: Country { name: "UK" },  // via inlined struct instantiation
+    age: 21,
 };
 ```
 
@@ -522,23 +536,24 @@ Dot syntax is used to access structs fields and call its methods.
 john.country = Country { name: "USA" };
 john.pets.push( Animal {
     kind: "dog",
-    alive: true
+    alive: true,
+    age: 2,
 });
 
 // get value
-println(john.pet[0].kind); // cat
+println(john.pets[0].get_kind()); // cat
 
 // call method
-let cloned = john.clone();
+let cloned = john.clone_with_age(33);
 cloned.change_name("Jonathan");
 ```
 
 Immutable variable will still let you change the struct's fields, but it will prevent you from overwriting the variable itself. Similar to Javascript `const` that holds an object.
 
 ```rust
-john.name = "Steven";    // valid, John is not a John anymore
-john.pet.kind = "dog"    // also valid, john's pet is changed
-john = Person { .. };    //! error, "john" cannot point to another struct
+john.name = "Steven";         // valid, John is not a John anymore
+john.pets[0].alive = false;   // also valid, john's pet is changed
+john = Person { .. };         //! error, "john" cannot point to another struct
 ```
 
 Structs are always passed by reference, consider:
@@ -551,6 +566,16 @@ fn kill(person: Person) {
 
 kill(john);
 ```
+### Public and Private
+
+Only public properties and methods can be accessed from outside code.
+
+```rust
+john.age = 100; //! access error, "age" is private
+john.pet.kind;  //! access error, "kind" is private
+john.clone();   //! access error, "clone()" is private
+```
+
 
 ## Vectors
 

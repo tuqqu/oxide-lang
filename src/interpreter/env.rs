@@ -70,8 +70,8 @@ pub struct Struct {
 pub struct Impl {
     pub id: usize,
     pub for_struct: String,
-    pub fns: Vec<FnDecl>,
-    pub consts: Vec<ConstDecl>,
+    pub fns: Vec<(FnDecl, bool)>,
+    pub consts: Vec<(ConstDecl, bool)>,
 }
 
 impl Variable {
@@ -117,7 +117,11 @@ impl Struct {
 }
 
 impl Impl {
-    pub fn new(for_struct: String, fns: Vec<FnDecl>, consts: Vec<ConstDecl>) -> Self {
+    pub fn new(
+        for_struct: String,
+        fns: Vec<(FnDecl, bool)>,
+        consts: Vec<(ConstDecl, bool)>,
+    ) -> Self {
         Self {
             id: internal_id(),
             for_struct,
