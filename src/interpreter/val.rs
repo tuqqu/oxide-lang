@@ -166,10 +166,8 @@ impl StructInstance {
 
         let self_ = Rc::new(RefCell::new(instance));
 
-        if impl_.is_some() {
+        if let Some(impl_) = impl_ {
             let mut fns = HashMap::new();
-
-            let impl_ = impl_.unwrap();
             for fun in impl_.fns {
                 fns.insert(fun.name.lexeme, (fun.lambda, self_.clone()));
             }
@@ -238,7 +236,7 @@ impl StructInstance {
                 ));
             }
 
-            let public = public.clone();
+            let public = *public;
             let v_type = v_type.clone();
             if v_type.conforms(&val) {
                 self.props
@@ -250,7 +248,7 @@ impl StructInstance {
                     name.clone(),
                     format!(
                         "Trying to assign to a variable of type \"{}\" value of type \"{}\"",
-                        v_type.to_string(),
+                        v_type,
                         val.get_type()
                     ),
                 ))
@@ -320,8 +318,8 @@ impl VecInstance {
                                 0,
                                 format!(
                                     "Cannot push value of type \"{}\" to a vector of type \"{}\"",
-                                    ValType::try_from_val(arg).unwrap().to_string(), // FIXME: may be an unsuccessful transformation
-                                    vec.borrow_mut().val_type.to_string()
+                                    ValType::try_from_val(arg).unwrap(), // FIXME: may be an unsuccessful transformation
+                                    vec.borrow_mut().val_type
                                 ),
                             ));
                         }
@@ -348,6 +346,8 @@ impl VecInstance {
 }
 
 impl Val {
+    pub const FLOAT_ERROR_MARGIN: f64 = f64::EPSILON;
+
     pub fn equal(a: &Self, b: &Self) -> bool {
         use Val::*;
 
@@ -356,47 +356,12 @@ impl Val {
             (Bool(a), Bool(b)) => a == b,
             (Str(a), Str(b)) => a == b,
             (Int(a), Int(b)) => a == b,
-            (Float(a), Float(b)) => a == b,
-            (Float(a), Int(b)) => *a == *b as f64,
-            (Int(a), Float(b)) => *a as f64 == *b,
+            (Float(a), Float(b)) => (a - b).abs() < Self::FLOAT_ERROR_MARGIN,
+            (Float(a), Int(b)) => (*a - *b as f64).abs() < Self::FLOAT_ERROR_MARGIN,
+            (Int(a), Float(b)) => (*a as f64 - *b).abs() < Self::FLOAT_ERROR_MARGIN,
             _ => false,
             // FIXME: add struct comparisons
             // FIXME: add vec comparisons
-        }
-    }
-
-    pub fn to_string(&self) -> String {
-        use Val::*;
-
-        match self {
-            Uninit => TYPE_UNINIT.to_string(),
-            Nil => TYPE_NIL.to_string(),
-            Bool(b) => if *b { "true" } else { "false" }.to_string(),
-            Str(s) => s.clone(),
-            Int(n) => n.to_string(),
-            Float(n) => n.to_string(),
-            Callable(_f) => TYPE_FUNC.to_string(),
-            Struct(_c) => "struct".to_string(),
-            StructInstance(i) => {
-                let mut props = vec![];
-                for (prop, (val, _val_t, _pub)) in &i.borrow_mut().props {
-                    props.push(format!("{}: {}", prop, val.to_string()));
-                }
-
-                format!(
-                    "[struct] {} {{ {} }}",
-                    i.borrow_mut().struct_name,
-                    props.join(", ")
-                )
-            }
-            VecInstance(v) => {
-                let mut vals = vec![];
-                for val in &v.borrow_mut().vals {
-                    vals.push(val.to_string());
-                }
-
-                format!("[vec] [{}]", vals.join(", "))
-            }
         }
     }
 
@@ -413,7 +378,39 @@ impl Val {
             Callable(_f) => TYPE_FUNC.to_string(),
             Struct(_c) => TYPE_STRUCT.to_string(),
             StructInstance(_i) => TYPE_STRUCT_INSTANCE.to_string(),
-            VecInstance(v) => format!("{}<{}>", TYPE_VEC, v.borrow_mut().val_type.to_string()),
+            VecInstance(v) => format!("{}<{}>", TYPE_VEC, v.borrow_mut().val_type),
+        }
+    }
+}
+
+impl fmt::Display for Val {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result where {
+        use Val::*;
+        match self {
+            Uninit => write!(f, "{}", TYPE_UNINIT),
+            Nil => write!(f, "{}", TYPE_NIL),
+            Bool(b) => write!(f, "{}", if *b { "true" } else { "false" }),
+            Str(s) => write!(f, "{}", s),
+            Int(n) => write!(f, "{}", n),
+            Float(n) => write!(f, "{}", n),
+            Callable(_f) => write!(f, "{}", TYPE_FUNC),
+            Struct(_c) => write!(f, "struct"),
+            StructInstance(i) => {
+                let mut props = vec![];
+                for (prop, (val, _val_t, _pub)) in &i.borrow_mut().props {
+                    props.push(format!("{}: {}", prop, val));
+                }
+
+                write!(f, "[struct] {} {{ {} }}", i.borrow_mut().struct_name, props.join(", "))
+            }
+            VecInstance(v) => {
+                let mut vals = vec![];
+                for val in &v.borrow_mut().vals {
+                    vals.push(val.to_string());
+                }
+
+                write!(f, "[vec] [{}]", vals.join(", "))
+            }
         }
     }
 }

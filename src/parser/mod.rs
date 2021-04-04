@@ -52,9 +52,8 @@ impl Parser {
 
         while !self.at_end() {
             let decl = self.decl_stmt();
-            match decl {
-                Some(decl) => stmts.push(decl),
-                None => {}
+            if let Some(decl) = decl {
+                stmts.push(decl)
             }
         }
 
@@ -111,13 +110,13 @@ impl Parser {
             };
         }
 
-        return match self.any_stmt() {
+        match self.any_stmt() {
             Ok(stmt) => Some(stmt),
             Err(_) => {
                 self.try_to_recover();
                 None
             }
-        };
+        }
     }
 
     /// Parses variable mutable and immutable declaration syntax,
@@ -622,15 +621,13 @@ impl Parser {
         let inc = Box::new(if self.check(TokenType::LeftCurlyBrace) {
             Expr::EmptyExpr
         } else {
-            let expr = match self.any_expr() {
+            match self.any_expr() {
                 Ok(expr) => expr,
                 Err(e) => {
                     self.loop_depth -= 1;
                     return Err(e);
                 }
-            };
-
-            expr
+            }
         });
 
         let block = match self.block_stmt() {
@@ -746,9 +743,8 @@ impl Parser {
         let mut stmts = Vec::<Stmt>::new();
 
         while !self.check(TokenType::RightCurlyBrace) && !self.at_end() {
-            match self.decl_stmt() {
-                Some(decl) => stmts.push(decl),
-                None => {}
+            if let Some(decl) = self.decl_stmt() {
+                stmts.push(decl)
             }
         }
 
@@ -906,13 +902,10 @@ impl Parser {
         let mut expr = self.primary_expr()?;
 
         if self.structs.contains(&self.previous().lexeme.clone()) {
-            match expr {
-                VariableExpr(_) => {
-                    if self.match_token(TokenType::LeftCurlyBrace) {
-                        expr = self.finish_struct_call_expr(expr)?
-                    }
+            if let VariableExpr(_) = expr {
+                if self.match_token(TokenType::LeftCurlyBrace) {
+                    expr = self.finish_struct_call_expr(expr)?
                 }
-                _ => {}
             }
         }
 
@@ -1235,7 +1228,7 @@ impl Parser {
         if self.check(Vec) {
             let v_type_token = self.advance().clone();
             let generics = self.consume_generic_types(1, 1)?;
-            let generics = if 0 == generics.len() {
+            let generics = if generics.is_empty() {
                 None
             } else {
                 Some(generics)

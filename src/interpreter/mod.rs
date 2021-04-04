@@ -60,7 +60,7 @@ impl Interpreter {
         Ok(())
     }
 
-    fn eval_struct_stmt(&mut self, stmt: &StructDecl) -> Result<StmtVal> {
+    fn eval_struct_stmt(&mut self, stmt: &StructDecl) -> StmtVal {
         let decl = stmt.clone();
         let struct_ = env::Struct::new(
             stmt.name.lexeme.clone(),
@@ -74,7 +74,7 @@ impl Interpreter {
                         let mut instance_borrowed = instance.borrow_mut();
                         if let Some((_, v_type, public)) = instance_borrowed.props.get(&prop.lexeme)
                         {
-                            let public = public.clone();
+                            let public = *public;
                             let v_type = v_type.clone();
                             if v_type.conforms(&param) {
                                 instance_borrowed
@@ -85,7 +85,7 @@ impl Interpreter {
                                     prop.clone(),
                                     format!(
                                         "Expected argument \"{}\" of type \"{}\"",
-                                        v_type.to_string(),
+                                        v_type,
                                         param.get_type()
                                     ),
                                 ));
@@ -107,7 +107,7 @@ impl Interpreter {
 
         self.env.borrow_mut().define_struct(struct_);
 
-        Ok(StmtVal::None)
+        StmtVal::None
     }
 
     fn eval_impl_stmt(&mut self, stmt: &ImplDecl) -> Result<StmtVal> {
@@ -143,7 +143,7 @@ impl Interpreter {
                     stmt.name.clone(),
                     format!(
                         "Trying to initialise variable of type \"{}\" with value of type \"{}\"",
-                        v_type.to_string(),
+                        v_type,
                         val.get_type()
                     ),
                 ));
@@ -185,16 +185,13 @@ impl Interpreter {
 
     fn eval_if_stmt(&mut self, stmt: &If) -> Result<StmtVal> {
         let truth: bool = Self::is_true(&self.evaluate(&stmt.condition)?)?;
-
-        let stmt = if truth {
+        if truth {
             self.evaluate_stmt(&stmt.then_stmt)
         } else if let Some(else_stmt) = &stmt.else_stmt {
             self.evaluate_stmt(else_stmt)
         } else {
             Ok(StmtVal::None)
-        };
-
-        stmt
+        }
     }
 
     fn eval_loop_stmt(&mut self, stmt: &Loop) -> Result<StmtVal> {
@@ -259,7 +256,7 @@ impl Interpreter {
     fn eval_assign_expr(&mut self, expr: &Assignment) -> Result<Val> {
         let val = self.evaluate(&expr.expr)?;
         let val = match expr.operator.token_type {
-            TokenType::Equal => val.clone(),
+            TokenType::Equal => val,
             TokenType::PlusEqual
             | TokenType::MinusEqual
             | TokenType::AsteriskEqual
@@ -293,7 +290,7 @@ impl Interpreter {
 
         self.env
             .borrow_mut()
-            .assign(expr.name.clone(), &val.clone())?;
+            .assign(expr.name.clone(), &val)?;
 
         Ok(val)
     }
@@ -337,7 +334,7 @@ impl Interpreter {
                             format!(
                                 "Expected argument \"{}\" of type \"{}\", got\"{}\"",
                                 i,
-                                param.1.to_string(),
+                                param.1,
                                 arg.get_type()
                             ),
                         ));
@@ -369,7 +366,7 @@ impl Interpreter {
                         0,
                         format!(
                             "Function must return \"{}\", got \"{}\"",
-                            func.lambda.ret_type.to_string(),
+                            func.lambda.ret_type,
                             val.get_type()
                         ),
                     ))
@@ -382,12 +379,12 @@ impl Interpreter {
         self.evaluate_block(&stmt.stmts, None)
     }
 
-    fn eval_break_stmt(&mut self) -> Result<StmtVal> {
-        Ok(StmtVal::Break)
+    fn eval_break_stmt(&mut self) -> StmtVal {
+        StmtVal::Break
     }
 
-    fn eval_continue_stmt(&mut self) -> Result<StmtVal> {
-        Ok(StmtVal::Continue)
+    fn eval_continue_stmt(&mut self) -> StmtVal {
+        StmtVal::Continue
     }
 
     fn eval_return_stmt(&mut self, expr: &Return) -> Result<StmtVal> {
@@ -511,7 +508,7 @@ impl Interpreter {
 
     fn eval_vec_expr(&mut self, expr: &Vec_) -> Result<Val> {
         let mut values = vec![];
-        let val_type = if expr.vals.len() == 0 {
+        let val_type = if expr.vals.is_empty() {
             expr.val_type.clone().unwrap_or(ValType::Any)
         } else if expr.val_type.is_some() {
             let val_type = expr.val_type.clone().unwrap();
@@ -522,8 +519,8 @@ impl Interpreter {
                         0,
                         format!(
                             "Expected values of type \"{}\", got \"{}\"",
-                            val_type.to_string(),
-                            ValType::try_from_val(&val).unwrap().to_string()
+                            val_type,
+                            ValType::try_from_val(&val).unwrap()
                         ),
                     ));
                 }
@@ -539,10 +536,8 @@ impl Interpreter {
 
                 if val_type.is_none() {
                     val_type = ValType::try_from_val(&val);
-                } else {
-                    if !val_type.clone().unwrap().conforms(&val) {
-                        val_type = Some(ValType::Any);
-                    }
+                } else if !val_type.clone().unwrap().conforms(&val) {
+                    val_type = Some(ValType::Any);
                 }
 
                 values.push(val);
@@ -598,7 +593,7 @@ impl Interpreter {
                     PropFuncVal::Func((func, self_)) => Ok(self.eval_fn_expr(&func, Some(self_))),
                 }
             }
-            Val::VecInstance(vec) => VecInstance::get_method(&expr.prop_name, vec.clone()),
+            Val::VecInstance(vec) => VecInstance::get_method(&expr.prop_name, vec),
             _ => Err(RuntimeError::new(
                 0,
                 format!("Must be a struct instance, got \"{}\"", instance.get_type()),
@@ -619,7 +614,7 @@ impl Interpreter {
 
         let val = self.evaluate(&expr.expr)?;
         let val = match expr.operator.token_type {
-            TokenType::Equal => val.clone(),
+            TokenType::Equal => val,
             TokenType::PlusEqual
             | TokenType::MinusEqual
             | TokenType::AsteriskEqual
@@ -669,7 +664,7 @@ impl Interpreter {
         } else {
             return Err(RuntimeError::new(
                 0,
-                format!("Must be a vec instance, got \"{}\".", vec.to_string()),
+                format!("Must be a vec instance, got \"{}\".", vec),
             ));
         };
 
@@ -690,7 +685,7 @@ impl Interpreter {
 
         let val = self.evaluate(&expr.expr)?;
         let val = match expr.operator.token_type {
-            TokenType::Equal => val.clone(),
+            TokenType::Equal => val,
             TokenType::PlusEqual
             | TokenType::MinusEqual
             | TokenType::AsteriskEqual
@@ -720,10 +715,8 @@ impl Interpreter {
                 if l_val {
                     return Ok(left);
                 }
-            } else {
-                if !l_val {
-                    return Ok(left);
-                }
+            } else if !l_val {
+                return Ok(left);
             }
         } else {
             return Err(RuntimeError::new(
@@ -762,34 +755,34 @@ impl Interpreter {
         let val = match operator.token_type {
             //equality
             TokenType::BangEqual => match (left, right) {
-                (Val::Float(left), Val::Float(right)) => Val::Bool(left != right),
+                (Val::Float(left), Val::Float(right)) => Val::Bool((left - right).abs() > Val::FLOAT_ERROR_MARGIN),
                 (Val::Int(left), Val::Int(right)) => Val::Bool(left != right),
-                (Val::Int(left), Val::Float(right)) => Val::Bool((left as f64) != right),
-                (Val::Float(left), Val::Int(right)) => Val::Bool(left != (right as f64)),
+                (Val::Int(left), Val::Float(right)) => Val::Bool(((left as f64) - right).abs() > Val::FLOAT_ERROR_MARGIN),
+                (Val::Float(left), Val::Int(right)) => Val::Bool((left - (right as f64)).abs() > Val::FLOAT_ERROR_MARGIN),
 
                 (Val::Str(left), Val::Str(right)) => Val::Bool(left != right),
                 (Val::Bool(left), Val::Bool(right)) => Val::Bool(left != right),
                 (Val::Nil, Val::Nil) => Val::Bool(true),
                 (l, r) => {
                     return Err(equal_types_expected_error(
-                        operator.clone(),
+                        operator,
                         &r.get_type(),
                         &l.get_type(),
                     ))
                 }
             },
             TokenType::EqualEqual => match (left, right) {
-                (Val::Float(left), Val::Float(right)) => Val::Bool(left == right),
+                (Val::Float(left), Val::Float(right)) => Val::Bool((left - right).abs() < Val::FLOAT_ERROR_MARGIN),
                 (Val::Int(left), Val::Int(right)) => Val::Bool(left == right),
-                (Val::Float(left), Val::Int(right)) => Val::Bool(left == (right as f64)),
-                (Val::Int(left), Val::Float(right)) => Val::Bool((left as f64) == right),
+                (Val::Float(left), Val::Int(right)) => Val::Bool((left - (right as f64)).abs() < Val::FLOAT_ERROR_MARGIN),
+                (Val::Int(left), Val::Float(right)) => Val::Bool(((left as f64) - right).abs() < Val::FLOAT_ERROR_MARGIN),
 
                 (Val::Str(left), Val::Str(right)) => Val::Bool(left == right),
                 (Val::Bool(left), Val::Bool(right)) => Val::Bool(left == right),
                 (Val::Nil, Val::Nil) => Val::Bool(false),
                 (l, r) => {
                     return Err(equal_types_expected_error(
-                        operator.clone(),
+                        operator,
                         &r.get_type(),
                         &l.get_type(),
                     ))
@@ -803,7 +796,7 @@ impl Interpreter {
                 (Val::Int(left), Val::Float(right)) => Val::Bool((left as f64) > right),
                 (l, r) => {
                     return Err(incompatible_types_error(
-                        operator.clone(),
+                        operator,
                         TYPE_BOOL,
                         &r.get_type(),
                         &l.get_type(),
@@ -817,7 +810,7 @@ impl Interpreter {
                 (Val::Int(left), Val::Float(right)) => Val::Bool((left as f64) >= right),
                 (l, r) => {
                     return Err(incompatible_types_error(
-                        operator.clone(),
+                        operator,
                         TYPE_BOOL,
                         &r.get_type(),
                         &l.get_type(),
@@ -831,7 +824,7 @@ impl Interpreter {
                 (Val::Int(left), Val::Float(right)) => Val::Bool((left as f64) < right),
                 (l, r) => {
                     return Err(incompatible_types_error(
-                        operator.clone(),
+                        operator,
                         TYPE_BOOL,
                         &r.get_type(),
                         &l.get_type(),
@@ -845,7 +838,7 @@ impl Interpreter {
                 (Val::Int(left), Val::Float(right)) => Val::Bool((left as f64) <= right),
                 (l, r) => {
                     return Err(incompatible_types_error(
-                        operator.clone(),
+                        operator,
                         TYPE_BOOL,
                         &r.get_type(),
                         &l.get_type(),
@@ -860,7 +853,7 @@ impl Interpreter {
                 (Val::Int(left), Val::Float(right)) => Val::Float((left as f64) - right),
                 (l, r) => {
                     return Err(incompatible_types_error(
-                        operator.clone(),
+                        operator,
                         TYPE_NUM,
                         &r.get_type(),
                         &l.get_type(),
@@ -882,7 +875,7 @@ impl Interpreter {
                 (Val::Bool(left), Val::Str(right)) => Val::Str(format!("{}{}", left, right)),
                 (l, r) => {
                     return Err(incompatible_types_error(
-                        operator.clone(),
+                        operator,
                         &format!("{}, {}", TYPE_NUM, TYPE_STR),
                         &r.get_type(),
                         &l.get_type(),
@@ -896,7 +889,7 @@ impl Interpreter {
                 (Val::Int(left), Val::Float(right)) => Val::Float((left as f64) / right),
                 (l, r) => {
                     return Err(incompatible_types_error(
-                        operator.clone(),
+                        operator,
                         TYPE_NUM,
                         &r.get_type(),
                         &l.get_type(),
@@ -910,7 +903,7 @@ impl Interpreter {
                 (Val::Int(left), Val::Float(right)) => Val::Float((left as f64) % right),
                 (l, r) => {
                     return Err(incompatible_types_error(
-                        operator.clone(),
+                        operator,
                         TYPE_NUM,
                         &r.get_type(),
                         &l.get_type(),
@@ -924,7 +917,7 @@ impl Interpreter {
                 (Val::Int(left), Val::Float(right)) => Val::Float((left as f64) * right),
                 (l, r) => {
                     return Err(incompatible_types_error(
-                        operator.clone(),
+                        operator,
                         TYPE_NUM,
                         &r.get_type(),
                         &l.get_type(),
@@ -978,7 +971,6 @@ impl Interpreter {
 
     fn evaluate(&mut self, expr: &Expr) -> Result<Val> {
         use Expr::*;
-
         let val = match expr {
             EmptyExpr => Val::Nil,
             NilLiteralExpr(literal) => self.eval_nil_literal(&literal),
@@ -1009,23 +1001,20 @@ impl Interpreter {
 
     fn evaluate_stmt(&mut self, stmt: &Stmt) -> Result<StmtVal> {
         use Stmt::*;
-
-        let res = match stmt {
+        match stmt {
             Expr(expr_stmt) => self.eval_expr_stmt(expr_stmt),
             Let(var_decl) => self.eval_var_stmt(var_decl),
             Const(const_decl) => self.eval_const_stmt(const_decl),
-            Break => self.eval_break_stmt(),
-            Continue => self.eval_continue_stmt(),
+            Break => Ok(self.eval_break_stmt()),
+            Continue => Ok(self.eval_continue_stmt()),
             Return(return_stmt) => self.eval_return_stmt(return_stmt),
             BlockStmt(block) => self.eval_block_stmt(block),
             IfStmt(if_stmt) => self.eval_if_stmt(if_stmt),
             Fn(f_decl) => self.eval_fn_stmt(f_decl),
             LoopStmt(loop_stmt) => self.eval_loop_stmt(loop_stmt),
-            Struct(struct_decl) => self.eval_struct_stmt(struct_decl),
+            Struct(struct_decl) => Ok(self.eval_struct_stmt(struct_decl)),
             Impl(impl_decl) => self.eval_impl_stmt(impl_decl),
-        };
-
-        res
+        }
     }
 
     pub fn evaluate_block(
@@ -1033,8 +1022,8 @@ impl Interpreter {
         stmts: &[Stmt],
         env: Option<Rc<RefCell<Env>>>,
     ) -> Result<StmtVal> {
-        let new_env = if env.is_some() {
-            env.unwrap()
+        let new_env = if let Some(env) = env {
+            env
         } else {
             Rc::new(RefCell::new(Env::with_enclosing(Rc::clone(&self.env))))
         };
@@ -1069,12 +1058,10 @@ impl Interpreter {
     }
 
     fn is_public_access(&self, struct_name: String) -> bool {
-        let self_ = self.env.borrow().get_self();
-
-        if self_.is_none() {
-            true
+        if let Some(self_) = self.env.borrow().get_self() {
+            self_.borrow().struct_name != struct_name
         } else {
-            self_.unwrap().borrow().struct_name != struct_name
+            true
         }
     }
 

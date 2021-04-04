@@ -1,6 +1,7 @@
 use crate::interpreter::val::Val;
 use crate::lexer::token::TokenType;
 use crate::Token;
+use std::fmt;
 
 #[derive(Debug, Clone)]
 pub enum Expr {
@@ -95,7 +96,7 @@ impl ValType {
             TokenType::Nil => Some(Self::Nil),
             TokenType::Str => Some(Self::Str),
             TokenType::Vec => {
-                let generics = generics.unwrap_or(vec![Self::Any]);
+                let generics = generics.unwrap_or_else(|| vec![Self::Any]);
                 Some(Self::Vec(Generics::new(generics)))
             }
             TokenType::Map => Some(Self::Map),
@@ -147,21 +148,23 @@ impl ValType {
             _ => false,
         }
     }
+}
 
-    pub fn to_string(&self) -> String {
+impl fmt::Display for ValType {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            Self::Uninit => TYPE_UNINIT.to_string(),
-            Self::Any => TYPE_ANY.to_string(),
-            Self::Bool => TYPE_BOOL.to_string(),
-            Self::Func => TYPE_FUNC.to_string(),
-            Self::Num => TYPE_NUM.to_string(),
-            Self::Int => TYPE_INT.to_string(),
-            Self::Float => TYPE_FLOAT.to_string(),
-            Self::Str => TYPE_STR.to_string(),
-            Self::Nil => TYPE_NIL.to_string(),
-            Self::Vec(g) => format!("{}<{}>", TYPE_VEC, g.types.first().unwrap().to_string()),
-            Self::Map => TYPE_MAP.to_string(),
-            Self::Struct(s) => s.to_string(),
+            Self::Uninit => write!(f, "{}", TYPE_UNINIT),
+            Self::Any => write!(f, "{}", TYPE_ANY),
+            Self::Bool => write!(f, "{}", TYPE_BOOL),
+            Self::Func => write!(f, "{}", TYPE_FUNC),
+            Self::Num => write!(f, "{}", TYPE_NUM),
+            Self::Int => write!(f, "{}", TYPE_INT),
+            Self::Float => write!(f, "{}", TYPE_FLOAT),
+            Self::Str => write!(f, "{}", TYPE_STR),
+            Self::Nil => write!(f, "{}", TYPE_NIL),
+            Self::Vec(g) => write!(f, "{}<{}>", TYPE_VEC, g.types.first().unwrap()),
+            Self::Map => write!(f, "{}", TYPE_MAP),
+            Self::Struct(s) => write!(f, "{}", s),
         }
     }
 }
@@ -344,12 +347,7 @@ pub struct MatchArm {
 
 impl Expr {
     pub fn is_empty(&self) -> bool {
-        use Expr::*;
-
-        match self {
-            EmptyExpr => true,
-            _ => false,
-        }
+        matches!(self, Expr::EmptyExpr)
     }
 }
 

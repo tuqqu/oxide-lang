@@ -147,7 +147,11 @@ impl EnvVal {
             Variable(v) => {
                 if let ValType::Uninit = v.v_type {
                     let v_type = ValType::try_from_val(&val);
-                    if v_type.is_none() {
+                    if let Some(v_type) = v_type {
+                        v.v_type = v_type;
+                        v.val = val;
+                        Ok(())
+                    } else {
                         Err(RuntimeError::from_token(
                             name,
                             format!(
@@ -155,33 +159,27 @@ impl EnvVal {
                                 val.get_type()
                             ),
                         ))
-                    } else {
-                        v.v_type = v_type.unwrap();
-                        v.val = val;
-                        Ok(())
                     }
                 } else if !v.v_type.conforms(&val) {
                     Err(RuntimeError::from_token(
                         name,
                         format!(
                             "Trying to assign to a variable of type \"{}\" value of type \"{}\"",
-                            v.v_type.to_string(),
+                            v.v_type,
                             val.get_type()
                         ),
                     ))
+                } else if v.mutable {
+                    v.val = val;
+                    Ok(())
+                } else if let Val::Uninit = v.val {
+                    v.val = val;
+                    Ok(())
                 } else {
-                    if v.mutable {
-                        v.val = val;
-                        Ok(())
-                    } else if let Val::Uninit = v.val {
-                        v.val = val;
-                        Ok(())
-                    } else {
-                        Err(RuntimeError::from_token(
-                            name,
-                            "Trying to assign to an immutable variable.".to_string(),
-                        ))
-                    }
+                    Err(RuntimeError::from_token(
+                        name,
+                        "Trying to assign to an immutable variable.".to_string(),
+                    ))
                 }
             }
             Struct(_f) => Err(RuntimeError::from_token(
@@ -343,12 +341,11 @@ impl Env {
     pub fn assign(&mut self, name: Token, val: &Val) -> Result<()> {
         if self.vals.contains_key(&name.lexeme) {
             let env_val = self.get(name.clone())?;
-            let env_val = env_val.clone();
             env_val
                 .borrow_mut()
                 .try_to_assign(val.clone(), name.clone())?;
 
-            self.vals.insert(name.lexeme, env_val.clone());
+            self.vals.insert(name.lexeme, env_val);
 
             return Ok(());
         }

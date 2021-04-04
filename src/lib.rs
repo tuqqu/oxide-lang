@@ -14,7 +14,7 @@ mod interpreter;
 mod lexer;
 mod parser;
 
-const VERSION: &'static str = env!("CARGO_PKG_VERSION");
+const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 pub fn print_version() {
     println!("Oxide {}", VERSION);
@@ -30,9 +30,9 @@ pub fn run_file_with_streams(
     stderr: Option<Rc<RefCell<dyn Write>>>,
     stdin: Option<Rc<RefCell<dyn Read>>>,
 ) {
-    let stdout = stdout.unwrap_or(Rc::new(RefCell::new(std::io::stdout())));
-    let stderr = stderr.unwrap_or(Rc::new(RefCell::new(std::io::stderr())));
-    let stdin = stdin.unwrap_or(Rc::new(RefCell::new(std::io::stdin())));
+    let stdout = stdout.unwrap_or_else(|| Rc::new(RefCell::new(std::io::stdout())));
+    let stderr = stderr.unwrap_or_else(|| Rc::new(RefCell::new(std::io::stderr())));
+    let stdin = stdin.unwrap_or_else(|| Rc::new(RefCell::new(std::io::stdin())));
 
     let contents = fs::read_to_string(path).expect("Something went wrong reading the file");
     run(contents, stdout, stderr, stdin);

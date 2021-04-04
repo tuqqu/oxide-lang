@@ -459,16 +459,16 @@ struct Person {
     pub name: str,          // property of type str
     pub country: Country,   // property of type struct Country
     pub alive: bool,
-    pets: vec<Animal>,  // property of type vector of structs Animal
+    pub pets: vec<Animal>,  // property of type vector of structs Animal
 }
 
 struct Animal {
     pub alive: bool,
-    kind: str,
+    pub kind: str,
 }
 
 struct Country {
-    name: str,
+    pub name: str,
 }
 ```
 

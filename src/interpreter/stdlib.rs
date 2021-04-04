@@ -35,7 +35,7 @@ impl Stdlib {
                     .first()
                     .expect("Error while trying to retrieve function arguments.");
 
-                writeln!(inter.stdout.borrow_mut(), "{}", value.to_string())
+                writeln!(inter.stdout.borrow_mut(), "{}", value)
                     .expect("Error while trying to write to the output stream.");
                 Ok(Val::Nil)
             }),
@@ -50,7 +50,7 @@ impl Stdlib {
                     .first()
                     .expect("Error while trying to retrieve function arguments.");
 
-                write!(inter.stdout.borrow_mut(), "{}", value.to_string())
+                write!(inter.stdout.borrow_mut(), "{}", value)
                     .expect("Error while trying to write to the output stream.");
                 Ok(Val::Nil)
             }),
@@ -65,7 +65,7 @@ impl Stdlib {
                     .first()
                     .expect("Error while trying to retrieve function arguments.");
 
-                writeln!(inter.stderr.borrow_mut(), "{}", value.to_string())
+                writeln!(inter.stderr.borrow_mut(), "{}", value)
                     .expect("Error while trying to write to the output stream.");
                 Ok(Val::Nil)
             }),
@@ -78,7 +78,7 @@ impl Stdlib {
             Arc::new(|i, args| {
                 let value = args.first().unwrap();
 
-                writeln!(i.stderr.borrow_mut(), "{}", value.to_string())
+                writeln!(i.stderr.borrow_mut(), "{}", value)
                     .expect("Error while trying to write to the output stream.");
                 Ok(Val::Nil)
             }),
@@ -96,10 +96,10 @@ impl Stdlib {
                     };
 
                     let file = File::create(file_name);
-                    let mut file = if file.is_err() {
-                        return Ok(Val::Nil);
+                    let mut file = if let Ok(file) = file {
+                        file
                     } else {
-                        file.unwrap()
+                        return Ok(Val::Nil);
                     };
 
                     let res = file.write_all(content.as_bytes());
