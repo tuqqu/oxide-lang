@@ -27,12 +27,14 @@ for let mut i = 0; i < 30; i += 1 {
 struct Circle {                 // struct declaration
     pub radius: float,          // public field
     center: Point,              // private field
-    tangents: vec<Tangent>,     // inner vector of structs
+    tangents: vec<Tangent>,     
 }
 
 impl Circle {                   // struct implementation
+    const PI = 3.14159;         // associated constant
+  
     pub fn calc_area() -> float {
-        return PI * self.radius * self.radius;
+        return Circle::PI * self.radius * self.radius;
     }
   
     pub fn add_tangent(t: Tangent) {      
@@ -48,8 +50,6 @@ struct Point {
 struct Tangent {
     p: Point,
 }
-
-const PI = 3.14159;
 
 let circle = Circle {     // struct instantiation
     radius: 103.5,
@@ -455,22 +455,22 @@ All struct properties are mutable by default.
 You can make property public with a `pub` keyword. Public fields can be accessed from outside scope.
 
 ```rust
-struct Person {
-    pub name: str,          // public property of type str
-    pub country: Country,   // property of type struct Country
-    pub alive: bool,
-    pub pets: vec<Animal>,  // property of type vector of structs Animal
-    age: int,               // private property
+struct StellarSystem {           
+    pub name: str,               // public field
+    pub planets: vec<Planet>,    // public vector of structs
+    pub star: Star,         
+    age: int                     // private field
 }
 
-struct Animal {
-    pub alive: bool,
-    kind: str,
-    age: int,
-}
-
-struct Country {
+struct Star { 
     pub name: str,
+    mass: int,                  
+}
+
+struct Planet {
+    pub name: str,
+    mass: int,
+    belt: bool,
 }
 ```
 
@@ -481,32 +481,28 @@ While struct declaration defines its properties, struct implementation defines i
 You can make method public with a `pub` keyword. Public methods can be accessed from outside scope.
 
 ```rust
-impl Person {
-    pub fn change_name(new_name: str) {     // public method
-        self.name = new_name;
-    }
-  
-    pub fn clone_with_age(age: int) -> Person {
-        let cloned = self.clone();          // can access private method here
-        cloned.age = age;
-      
-        return cloned;
-    }
-  
-    fn clone() -> Person {                  // private method         
-        return Person {
-            name: self.name,
-            country: self.country,
-            alive: self.alive,
-            pets: self.pets,
-            age: self.age,
+impl Star {                      
+    const WHITE_DWARF = 123.3;   // associated constants
+    const NEUTRON_STAR = 335.2;
+    const BLACK_HOLE = 9349.02;  // lets pretend those values are real
+    
+    pub fn get_description() -> str {  // public method
+        return match true {
+            self.mass <= Star::WHITE_DWARF => "white dwarf",
+            self.mass > Star::WHITE_DWARF 
+            && self.mass <= Star::BLACK_HOLE => "neutron star",
+            self.mass >= Star::BLACK_HOLE => "black hole",
         };
     }
 }
 
-impl Animal {
-    pub fn get_kind() -> str {              // getter for a private property
-        return self.kind;
+impl Planet {
+    pub fn set_new_mass(mass: int) {
+        self.mass = mass;
+    }
+
+    fn is_heavier(p: Planet) -> bool {      // private method
+        return self.mass > p.mass;
     }
 }
 ```
@@ -514,68 +510,73 @@ impl Animal {
 You need to initialize all structs properties on instantiation.
 
 ```rust
-let cat = Animal {                   
-    kind: "cat",
-    alive: true,
-    age: 2,
+let planet_mars: Planet = Planet {                   
+    name: "Mars",
+    mass: 100,
+    belt: false,
 };
 
-let john: Person = Person {
-    name: "John",
-    alive: true,
-    pets: vec[cat],                   // via variable
-    country: Country { name: "UK" },  // via inlined struct instantiation
-    age: 21,
+let system = StellarSystem {
+    name: "Solar System",
+    star: Star { name: "Sun", mass: 9999 },
+    planets: vec[
+        planet_mars,                                        // via variable
+        Planet { name: "Earth", belt: false, mass: 120 }    // via inlined struct instantiation
+    ],    
+    age: 8934,
 };
 ```
 
-Dot syntax is used to access structs fields and call its methods.
+Dot syntax `.` is used to access structs fields and call its methods.
 
 ```rust
 // set new value
-john.country = Country { name: "USA" };
-john.pets.push( Animal {
-    kind: "dog",
-    alive: true,
-    age: 2,
+system.name = "new name";
+system.planets.push( Planet {
+    name: "Venus",
+    belt: false,
+    mass: 90,
 });
 
 // get value
-println(john.pets[0].get_kind()); // cat
+let mars_name: str = system.planets[0].name;
 
 // call method
-let cloned = john.clone_with_age(33);
-cloned.change_name("Jonathan");
+let star_descr: str = system.star.get_description();
+system.planets[0].set_new_mass(200);
+```
+
+`::` is used to access constants
+```rust
+let dwarf_mass: int = Star::WHITE_DWARF;
 ```
 
 Immutable variable will still let you change the struct's fields, but it will prevent you from overwriting the variable itself. Similar to Javascript `const` that holds an object.
 
 ```rust
-john.name = "Steven";         // valid, John is not a John anymore
-john.pets[0].alive = false;   // also valid, john's pet is changed
-john = Person { .. };         //! error, "john" cannot point to another struct
+system.name = "new name";              // valid
+system.planets[0].name = "new name";   // also valid
+system = StellarSystem { .. };         //! error, "system" cannot point to another struct
 ```
 
 Structs are always passed by reference, consider:
 
 ```rust
-fn kill(person: Person) {
-    person.alive = false;     // oh, john is dead
-    person.pet.alive = false; // as well as its pet. RIP
+fn remove_planets(s: StellarSystem) {
+    s.planets = vec<Planet>[];  // oh, all planets are removed
 }
 
-kill(john);
+remove_planets(system);
 ```
 ### Public and Private
 
 Only public properties and methods can be accessed from outside code.
 
 ```rust
-john.age = 100; //! access error, "age" is private
-john.pet.kind;  //! access error, "kind" is private
-john.clone();   //! access error, "clone()" is private
+system.age = 100;                //! access error, "age" is private
+system.planets[0].mass;          //! access error, "mass" is private
+system.planets[0].is_heavier(p); //! access error, "is_heavier()" is private
 ```
-
 
 ## Vectors
 

@@ -84,9 +84,7 @@ impl Lexer {
     }
 
     fn token(&mut self) {
-        let c: char = self.advance();
-
-        match c {
+        match self.advance() {
             '{' => self.add_token(TokenType::LeftCurlyBrace),
             '}' => self.add_token(TokenType::RightCurlyBrace),
             '(' => self.add_token(TokenType::LeftParen),
@@ -96,7 +94,14 @@ impl Lexer {
             ',' => self.add_token(TokenType::Comma),
             '.' => self.add_token(TokenType::Dot),
             ';' => self.add_token(TokenType::Semicolon),
-            ':' => self.add_token(TokenType::Colon),
+            ':' => {
+                let t_type = if self.match_char(':') {
+                    TokenType::ColonColon
+                } else {
+                    TokenType::Colon
+                };
+                self.add_token(t_type);
+            }
             '-' => {
                 let t_type = if self.match_char('=') {
                     TokenType::MinusEqual
@@ -222,7 +227,7 @@ impl Lexer {
                 self.line += 1;
             }
             '"' => self.string(),
-            _ => {
+            c => {
                 if self.is_digit(c) {
                     self.number();
                 } else if self.is_alphabetic(c) {

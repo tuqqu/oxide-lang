@@ -48,6 +48,7 @@ pub struct Constant {
     pub id: usize,
     pub name: String,
     pub val: Val,
+    pub for_struct: Option<(String, bool)>,
 }
 
 #[derive(Clone, Debug)]
@@ -87,11 +88,32 @@ impl Variable {
 }
 
 impl Constant {
-    pub fn new(name: String, val: Val) -> Self {
+    pub fn with_struct(name: String, val: Val, for_struct: (String, bool)) -> Self {
+        Self::new(name, val, Some(for_struct))
+    }
+
+    pub fn without_struct(name: String, val: Val) -> Self {
+        Self::new(name, val, None)
+    }
+
+    pub fn construct_name(struct_name: &str, const_name: &str) -> String {
+        format!("{}::{}", struct_name, const_name)
+    }
+
+    fn new(name: String, val: Val, for_struct: Option<(String, bool)>) -> Self {
         Self {
             id: internal_id(),
             name,
             val,
+            for_struct,
+        }
+    }
+
+    pub fn get_name(&self) -> String {
+        if let Some((for_struct, _)) = &self.for_struct {
+            Self::construct_name(for_struct, &self.name)
+        } else {
+            self.name.clone()
         }
     }
 }
@@ -246,6 +268,10 @@ impl Env {
     }
 
     pub fn define_impl(&mut self, impl_: Impl) -> Result<()> {
+        // for (const_, pub_) in impl_.consts {
+        //     self.define_constant(Constant::new(stmt.name.lexeme.clone(), val))
+        // }
+
         self.impls.insert(impl_.for_struct.clone(), impl_);
 
         Ok(())
@@ -258,15 +284,15 @@ impl Env {
     }
 
     pub fn define_constant(&mut self, constant: Constant) -> Result<()> {
-        if self.vals.contains_key(&constant.name) {
+        if self.vals.contains_key(&constant.get_name()) {
             return Err(RuntimeError::new(
                 0,
-                format!("Trying to redefine constant \"{}\"", constant.name),
+                format!("Trying to redefine constant \"{}\"", constant.get_name()),
             ));
         }
 
         self.vals.insert(
-            constant.name.clone(),
+            constant.get_name(),
             Rc::new(RefCell::new(EnvVal::Constant(constant))),
         );
 
@@ -289,9 +315,14 @@ impl Env {
         Ok(())
     }
 
+    // FIXME: remove this function
     pub fn get(&mut self, name: Token) -> Result<Rc<RefCell<EnvVal>>> {
-        if self.vals.contains_key(&name.lexeme) {
-            let val = self.vals.get(&name.lexeme);
+        self.get_by_str(&name.lexeme, name.line)
+    }
+
+    pub fn get_by_str(&mut self, name: &str, pos: usize) -> Result<Rc<RefCell<EnvVal>>> {
+        if self.vals.contains_key(name) {
+            let val = self.vals.get(name);
 
             return match val {
                 Some(val) => Ok(val.clone()),
@@ -303,13 +334,18 @@ impl Env {
         }
 
         if self.enclosing.is_some() {
-            let val = self.enclosing.as_ref().unwrap().borrow_mut().get(name);
+            let val = self
+                .enclosing
+                .as_ref()
+                .unwrap()
+                .borrow_mut()
+                .get_by_str(name, pos);
             return val;
         }
 
         Err(RuntimeError::new(
-            name.line,
-            format!("Trying to access undefined value \"{}\"", name.lexeme),
+            pos,
+            format!("Trying to access undefined value \"{}\"", name),
         ))
     }
 

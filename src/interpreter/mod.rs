@@ -10,9 +10,10 @@ use crate::interpreter::val::{StructInstance, VecInstance};
 use crate::lexer::token::{Token, TokenType};
 use crate::parser::expr::{
     Assignment, Binary, Block, BoolLiteral, Call, CallStruct, ConstDecl, Expr, FloatLiteral,
-    FnDecl, GetProp, Grouping, If, ImplDecl, IntLiteral, Lambda, Loop, Match, NilLiteral, Return,
-    Self_, SetIndex, SetProp, Stmt, StrLiteral, StructDecl, Unary, ValType, VarDecl, Variable,
-    VecIndex, Vec_, TYPE_BOOL, TYPE_FUNC, TYPE_INT, TYPE_NUM, TYPE_STR, TYPE_STRUCT, TYPE_VEC,
+    FnDecl, GetProp, GetStaticProp, Grouping, If, ImplDecl, IntLiteral, Lambda, Loop, Match,
+    NilLiteral, Return, Self_, SetIndex, SetProp, Stmt, StrLiteral, StructDecl, Unary, ValType,
+    VarDecl, Variable, VecIndex, Vec_, TYPE_BOOL, TYPE_FUNC, TYPE_INT, TYPE_NUM, TYPE_STR,
+    TYPE_STRUCT, TYPE_VEC,
 };
 
 use self::env::{Env, EnvVal};
@@ -64,45 +65,50 @@ impl Interpreter {
         let decl = stmt.clone();
         let struct_ = env::Struct::new(
             stmt.name.lexeme.clone(),
-            Val::Struct(*StructCallable::new(
-                decl.props.len(),
-                Arc::new(move |inter, args| {
-                    let impl_ = inter.env.borrow_mut().get_impl(&decl.name);
-                    let instance = StructInstance::new(decl.clone(), impl_);
+            Val::Struct(
+                stmt.name.clone(),
+                *StructCallable::new(
+                    decl.props.len(),
+                    Arc::new(move |inter, args| {
+                        let impl_ = inter.env.borrow_mut().get_impl(&decl.name);
+                        let instance = StructInstance::new(decl.clone(), impl_);
 
-                    for (prop, param) in args {
-                        let mut instance_borrowed = instance.borrow_mut();
-                        if let Some((_, v_type, public)) = instance_borrowed.props.get(&prop.lexeme)
-                        {
-                            let public = *public;
-                            let v_type = v_type.clone();
-                            if v_type.conforms(&param) {
-                                instance_borrowed
-                                    .props
-                                    .insert(prop.lexeme.clone(), (param.clone(), v_type, public));
+                        for (prop, param) in args {
+                            let mut instance_borrowed = instance.borrow_mut();
+                            if let Some((_, v_type, public)) =
+                                instance_borrowed.props.get(&prop.lexeme)
+                            {
+                                let public = *public;
+                                let v_type = v_type.clone();
+                                if v_type.conforms(&param) {
+                                    instance_borrowed.props.insert(
+                                        prop.lexeme.clone(),
+                                        (param.clone(), v_type, public),
+                                    );
+                                } else {
+                                    return Err(RuntimeError::from_token(
+                                        prop.clone(),
+                                        format!(
+                                            "Expected argument \"{}\" of type \"{}\"",
+                                            v_type,
+                                            param.get_type()
+                                        ),
+                                    ));
+                                }
                             } else {
                                 return Err(RuntimeError::from_token(
                                     prop.clone(),
-                                    format!(
-                                        "Expected argument \"{}\" of type \"{}\"",
-                                        v_type,
-                                        param.get_type()
-                                    ),
+                                    format!("Unknown property name \"{}\"", prop.lexeme),
                                 ));
                             }
-                        } else {
-                            return Err(RuntimeError::from_token(
-                                prop.clone(),
-                                format!("Unknown property name \"{}\"", prop.lexeme),
-                            ));
                         }
-                    }
 
-                    let instance = Val::StructInstance(instance);
+                        let instance = Val::StructInstance(instance);
 
-                    Ok(instance)
-                }),
-            )),
+                        Ok(instance)
+                    }),
+                ),
+            ),
         );
 
         self.env.borrow_mut().define_struct(struct_);
@@ -112,6 +118,19 @@ impl Interpreter {
 
     fn eval_impl_stmt(&mut self, stmt: &ImplDecl) -> Result<StmtVal> {
         let decl = stmt.clone();
+
+        for (const_, pub_) in &decl.consts {
+            let val: Val = self.evaluate(&const_.init)?;
+
+            self.env
+                .borrow_mut()
+                .define_constant(env::Constant::with_struct(
+                    const_.name.lexeme.clone(),
+                    val,
+                    (stmt.for_struct.lexeme.clone(), *pub_),
+                ))?;
+        }
+
         self.env.borrow_mut().define_impl(env::Impl::new(
             decl.for_struct.lexeme.clone(),
             decl.fns,
@@ -178,7 +197,7 @@ impl Interpreter {
 
         self.env
             .borrow_mut()
-            .define_constant(env::Constant::new(stmt.name.lexeme.clone(), val))?;
+            .define_constant(env::Constant::without_struct(stmt.name.lexeme.clone(), val))?;
 
         Ok(StmtVal::None)
     }
@@ -264,7 +283,6 @@ impl Interpreter {
             | TokenType::ModulusEqual => {
                 let env_val = self.env.borrow_mut().get(expr.name.clone())?;
                 let env_val = env_val.borrow_mut();
-
                 match env_val.deref() {
                     EnvVal::Variable(v) => {
                         Self::evaluate_two_operands(expr.operator.clone(), v.val.clone(), val)?
@@ -477,7 +495,7 @@ impl Interpreter {
         let callee = self.evaluate(&expr.callee)?;
 
         match callee {
-            Val::Struct(callee) => {
+            Val::Struct(_token, callee) => {
                 let mut args = vec![];
 
                 for (token, arg) in &expr.args {
@@ -576,6 +594,30 @@ impl Interpreter {
                     val.get_type()
                 ),
             )),
+        }
+    }
+
+    fn eval_get_static_prop_expr(&mut self, expr: &GetStaticProp) -> Result<Val> {
+        let struct_ = self.evaluate(&expr.name)?;
+
+        if let Val::Struct(token, _) = struct_ {
+            let static_name = env::Constant::construct_name(&token.lexeme, &expr.prop_name.lexeme);
+            let static_val = self.env.borrow_mut().get_by_str(&static_name, token.line)?;
+            let env_val = static_val.borrow_mut();
+            match env_val.deref() {
+                EnvVal::Constant(c) => Ok(c.val.clone()),
+                // FIXME: add static methods here
+                // FIXME: visibility resolver
+                _ => Err(RuntimeError::from_token(
+                    token,
+                    "Must be a static access.".to_string(),
+                )),
+            }
+        } else {
+            Err(RuntimeError::new(
+                0,
+                format!("Must be a struct name, got \"{}\"", struct_.get_type()),
+            ))
         }
     }
 
@@ -996,6 +1038,7 @@ impl Interpreter {
             CallStructExpr(call_struct) => self.eval_call_struct_expr(&call_struct)?,
             VecExpr(call_vec) => self.eval_vec_expr(&call_vec)?,
             VecIndexExpr(vec_indx) => self.eval_vec_index(&vec_indx)?,
+            GetStaticExpr(get_static_prop) => self.eval_get_static_prop_expr(&get_static_prop)?,
             GetPropExpr(get_prop) => self.eval_get_prop_expr(&get_prop)?,
             SetPropExpr(set_prop) => self.eval_set_prop_expr(&set_prop)?,
             SetIndexExpr(set_index) => self.eval_set_index_expr(&set_index)?,

@@ -4,8 +4,8 @@ use crate::parser::expr::Expr::{
     GetPropExpr, IntLiteralExpr, SetIndexExpr, SetPropExpr, VecIndexExpr,
 };
 use crate::parser::expr::{
-    CallStruct, GetProp, ImplDecl, IntLiteral, Lambda, Match, MatchArm, Self_, SetIndex, SetProp,
-    StructDecl, ValType, VecIndex, Vec_,
+    CallStruct, GetProp, GetStaticProp, ImplDecl, IntLiteral, Lambda, Match, MatchArm, Self_,
+    SetIndex, SetProp, StructDecl, ValType, VecIndex, Vec_,
 };
 use crate::{error, error_token, Token, TokenType};
 
@@ -914,6 +914,12 @@ impl Parser {
                     "Property or method name expected after \".\".".to_string(),
                 )?;
                 expr = Expr::GetPropExpr(GetProp::new(Box::new(expr), name));
+            } else if self.match_token(TokenType::ColonColon) {
+                let name = self.consume(
+                    TokenType::Identifier,
+                    "Constant or static method name expected after \"::\".".to_string(),
+                )?;
+                expr = Expr::GetStaticExpr(GetStaticProp::new(Box::new(expr), name));
             } else {
                 break;
             }

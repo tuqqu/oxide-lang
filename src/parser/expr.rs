@@ -17,6 +17,7 @@ pub enum Expr {
     CallStructExpr(CallStruct),
     VecExpr(Vec_),
     VecIndexExpr(VecIndex),
+    GetStaticExpr(GetStaticProp),
     GetPropExpr(GetProp),
     SetPropExpr(SetProp),
     SetIndexExpr(SetIndex),
@@ -220,6 +221,12 @@ pub struct VecIndex {
 }
 
 #[derive(Debug, Clone)]
+pub struct GetStaticProp {
+    pub name: Box<Expr>,
+    pub prop_name: Token,
+}
+
+#[derive(Debug, Clone)]
 pub struct GetProp {
     pub name: Box<Expr>,
     pub prop_name: Token,
@@ -394,6 +401,12 @@ impl Vec_ {
 impl VecIndex {
     pub fn new(callee: Box<Expr>, index: Box<Expr>) -> Self {
         Self { callee, index }
+    }
+}
+
+impl GetStaticProp {
+    pub fn new(name: Box<Expr>, prop_name: Token) -> Self {
+        Self { name, prop_name }
     }
 }
 

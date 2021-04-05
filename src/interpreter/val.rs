@@ -26,7 +26,7 @@ pub enum Val {
     Int(isize),
     Float(f64),
     Callable(Callable),
-    Struct(StructCallable),
+    Struct(Token, StructCallable),
     StructInstance(Rc<RefCell<StructInstance>>),
     VecInstance(Rc<RefCell<VecInstance>>),
 }
@@ -174,8 +174,6 @@ impl StructInstance {
 
             self_.borrow_mut().fns = fns;
         }
-
-        // FIXME: add constant handling from impl
 
         self_
     }
@@ -382,7 +380,7 @@ impl Val {
             Int(_isize) => TYPE_INT.to_string(),
             Float(_f64) => TYPE_FLOAT.to_string(),
             Callable(_f) => TYPE_FUNC.to_string(),
-            Struct(_c) => TYPE_STRUCT.to_string(),
+            Struct(_t, _c) => TYPE_STRUCT.to_string(),
             StructInstance(_i) => TYPE_STRUCT_INSTANCE.to_string(),
             VecInstance(v) => format!("{}<{}>", TYPE_VEC, v.borrow_mut().val_type),
         }
@@ -400,7 +398,7 @@ impl fmt::Display for Val {
             Int(n) => write!(f, "{}", n),
             Float(n) => write!(f, "{}", n),
             Callable(_f) => write!(f, "{}", TYPE_FUNC),
-            Struct(_c) => write!(f, "struct"),
+            Struct(token, _c) => write!(f, "[struct {}]", token.lexeme),
             StructInstance(i) => {
                 let mut props = vec![];
                 for (prop, (val, _val_t, _pub)) in &i.borrow_mut().props {

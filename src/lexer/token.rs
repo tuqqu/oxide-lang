@@ -22,6 +22,7 @@ impl Token {
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub enum TokenType {
     Colon,
+    ColonColon,
     Semicolon,
     Arrow,
     FatArrow,
