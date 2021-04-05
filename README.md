@@ -153,6 +153,21 @@ To print current Oxide version
 oxide version
 ```
 
+## Building from source
+If your architecture is not supported by the pre-built binaries you can build the interpreter from the source code yourself. Make sure you have Rust installed.
+
+```shell
+git clone https://github.com/tuqqu/oxide-lang.git
+cd oxide-lang
+cargo install --path . # copies binary to /.cargo/bin/
+
+# you can now run it with
+oxide script.ox
+
+# to uninstall run
+cargo uninstall
+```
+
 # Quick Overview
 
 * [Variables and Type System](#variables-and-type-system)
