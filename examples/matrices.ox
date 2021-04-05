@@ -55,7 +55,7 @@ let matrix_a = Matrix {
 };
 
 
-let matrix_b = Matrix{
+let matrix_b = Matrix {
     m: vec[
         vec[0, 0, 1],
         vec[2, -1, -3],

@@ -31,7 +31,7 @@ struct Circle {                 // struct declaration
 }
 
 impl Circle {                   // struct implementation
-    const PI = 3.14159;         // associated constant
+    const PI = 3.14159;         // private associated constant
   
     pub fn calc_area() -> float {
         return Circle::PI * self.radius * self.radius;
@@ -478,13 +478,15 @@ Struct implementation starts with `impl` keyword.
 While struct declaration defines its properties, struct implementation defines its methods.
 `self` keyword can be used inside methods and points to the current struct instance.
 
-You can make method public with a `pub` keyword. Public methods can be accessed from outside scope.
+You can make method or constant public with a `pub` keyword. Public methods or constants can be accessed from outside scope.
 
 ```rust
 impl Star {                      
-    const WHITE_DWARF = 123.3;   // associated constants
-    const NEUTRON_STAR = 335.2;
-    const BLACK_HOLE = 9349.02;  // lets pretend those values are real
+    pub const WHITE_DWARF = 123.3;   // public associated constants
+    pub const NEUTRON_STAR = 335.2;  // lets pretend those values are real
+    pub const BLACK_HOLE = 9349.02;  
+  
+    const MAX_AGE = 99999;           // private constant
     
     pub fn get_description() -> str {  // public method
         return match true {
@@ -502,7 +504,7 @@ impl Planet {
     }
 
     fn is_heavier(p: Planet) -> bool {      // private method
-        return self.mass > p.mass;
+        return self.mass - p.mass > EPSILON;
     }
 }
 ```
@@ -570,12 +572,13 @@ remove_planets(system);
 ```
 ### Public and Private
 
-Only public properties and methods can be accessed from outside code.
+Only public properties, methods and constants can be accessed from outside code.
 
 ```rust
 system.age = 100;                //! access error, "age" is private
 system.planets[0].mass;          //! access error, "mass" is private
 system.planets[0].is_heavier(p); //! access error, "is_heavier()" is private
+Star::MAX_AGE;                   //! access error, "Star::MAX_AGE" is private
 ```
 
 ## Vectors
@@ -697,9 +700,26 @@ Constants unlike variables need not be declared with a type since it can always 
 ```rust
 const MESSAGE = "hello world";
 
-const PI = 3.14159;
+const SOME_THRESHOLD = 100;
 
-const E = 2.71828;
+const EPSILON = 0.004;
+```
+
+Struct implementations (`impl` blocks) can also define constants. Those constants can be either public or private.
+```rust
+struct Math {};
+
+impl Math {
+    pub const PI = 3.14159265;  // public const
+    const E = 2.71828182846;    // private const
+}
+```
+
+Accessing private consts from outer scope will result in an error.
+
+```rust
+let pi = Math::PI;  // ok
+let e = Math::E;   //! access error
 ```
 
 ## Operators

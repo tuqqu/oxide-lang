@@ -21,6 +21,7 @@ pub fn internal_id() -> usize {
 pub struct Env {
     pub vals: HashMap<String, Rc<RefCell<EnvVal>>>,
     pub self_: Option<Rc<RefCell<StructInstance>>>,
+    pub static_bind: Option<String>,
     pub impls: HashMap<String, Impl>,
     pub enclosing: Option<Rc<RefCell<Self>>>,
 }
@@ -96,10 +97,6 @@ impl Constant {
         Self::new(name, val, None)
     }
 
-    pub fn construct_name(struct_name: &str, const_name: &str) -> String {
-        format!("{}::{}", struct_name, const_name)
-    }
-
     fn new(name: String, val: Val, for_struct: Option<(String, bool)>) -> Self {
         Self {
             id: internal_id(),
@@ -111,7 +108,7 @@ impl Constant {
 
     pub fn get_name(&self) -> String {
         if let Some((for_struct, _)) = &self.for_struct {
-            Self::construct_name(for_struct, &self.name)
+            construct_static_name(for_struct, &self.name)
         } else {
             self.name.clone()
         }
@@ -230,6 +227,7 @@ impl Env {
             vals: HashMap::new(),
             impls: HashMap::new(),
             self_: None,
+            static_bind: None,
             enclosing,
         }
     }
@@ -268,10 +266,6 @@ impl Env {
     }
 
     pub fn define_impl(&mut self, impl_: Impl) -> Result<()> {
-        // for (const_, pub_) in impl_.consts {
-        //     self.define_constant(Constant::new(stmt.name.lexeme.clone(), val))
-        // }
-
         self.impls.insert(impl_.for_struct.clone(), impl_);
 
         Ok(())
@@ -279,6 +273,12 @@ impl Env {
 
     pub fn define_self(&mut self, self_: Rc<RefCell<StructInstance>>) -> Result<()> {
         self.self_ = Some(self_);
+
+        Ok(())
+    }
+
+    pub fn define_static_bind(&mut self, static_bind: String) -> Result<()> {
+        self.static_bind = Some(static_bind);
 
         Ok(())
     }
@@ -378,6 +378,18 @@ impl Env {
         None
     }
 
+    pub fn get_static_bind(&self) -> Option<String> {
+        if self.static_bind.is_some() {
+            return self.static_bind.clone();
+        }
+
+        if self.enclosing.is_some() {
+            return self.enclosing.as_ref().unwrap().borrow().get_static_bind();
+        }
+
+        None
+    }
+
     pub fn assign(&mut self, name: Token, val: &Val) -> Result<()> {
         if self.vals.contains_key(&name.lexeme) {
             let env_val = self.get(name.clone())?;
@@ -405,4 +417,8 @@ impl Env {
             format!("Trying to assign to an undefined value \"{}\"", name.lexeme),
         ))
     }
+}
+
+pub fn construct_static_name(struct_name: &str, static_field: &str) -> String {
+    format!("{}::{}", struct_name, static_field)
 }

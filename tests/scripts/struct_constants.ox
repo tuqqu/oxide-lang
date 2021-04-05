@@ -1,9 +1,9 @@
 struct Math {};
 
 impl Math {
-    const PI = 3.14159265359;
-    const E = 2.71828182846;
-    const TWO = 2;
+    pub const PI = 3.14159265359;
+    pub const E = 2.71828182846;
+    pub const TWO = 2;
 }
 
 println(Math::PI);
@@ -17,8 +17,8 @@ struct Point {
 }
 
 impl Point {
-    const DEFAULT_X = 0;
-    const DEFAULT_Y = 0;
+    pub const DEFAULT_X = 0;
+    pub const DEFAULT_Y = 0;
 
     pub fn equals(x: int, y: int) -> bool {
         return self.x == x && self.y == y;

@@ -18,6 +18,7 @@ use crate::parser::expr::{
 
 use self::env::{Env, EnvVal};
 use self::val::{Callable, Function, StmtVal, Val};
+use crate::interpreter::env::construct_static_name;
 use std::ops::Deref;
 
 pub mod env;
@@ -338,7 +339,9 @@ impl Interpreter {
                 let mut env = Env::with_enclosing(glob);
 
                 if self_.is_some() {
-                    env.define_self(self_.clone().unwrap())?;
+                    let cur_instance = self_.clone().unwrap();
+                    env.define_static_bind(cur_instance.borrow().struct_name.clone())?;
+                    env.define_self(cur_instance)?;
                 }
 
                 for (i, param) in func.lambda.params.iter().enumerate() {
@@ -601,13 +604,26 @@ impl Interpreter {
         let struct_ = self.evaluate(&expr.name)?;
 
         if let Val::Struct(token, _) = struct_ {
-            let static_name = env::Constant::construct_name(&token.lexeme, &expr.prop_name.lexeme);
+            let static_name = construct_static_name(&token.lexeme, &expr.prop_name.lexeme);
+            let public_access = self.is_public_static_access(token.lexeme.clone());
             let static_val = self.env.borrow_mut().get_by_str(&static_name, token.line)?;
             let env_val = static_val.borrow_mut();
             match env_val.deref() {
-                EnvVal::Constant(c) => Ok(c.val.clone()),
+                EnvVal::Constant(c) => {
+                    if let Some((_struct_name, pub_)) = c.for_struct.clone() {
+                        if StructInstance::can_access(pub_, public_access) {
+                            Ok(c.val.clone())
+                        } else {
+                            Err(RuntimeError::from_token(
+                                token,
+                                format!("Cannot access private static member \"{}\".", static_name),
+                            ))
+                        }
+                    } else {
+                        Ok(c.val.clone())
+                    }
+                }
                 // FIXME: add static methods here
-                // FIXME: visibility resolver
                 _ => Err(RuntimeError::from_token(
                     token,
                     "Must be a static access.".to_string(),
@@ -1115,6 +1131,14 @@ impl Interpreter {
     fn is_public_access(&self, struct_name: String) -> bool {
         if let Some(self_) = self.env.borrow().get_self() {
             self_.borrow().struct_name != struct_name
+        } else {
+            true
+        }
+    }
+
+    fn is_public_static_access(&self, struct_name: String) -> bool {
+        if let Some(static_bind) = self.env.borrow().get_static_bind() {
+            static_bind != struct_name
         } else {
             true
         }

@@ -260,7 +260,7 @@ impl StructInstance {
         }
     }
 
-    fn can_access(prop_pub: bool, access_pub: bool) -> bool {
+    pub fn can_access(prop_pub: bool, access_pub: bool) -> bool {
         if prop_pub {
             true
         } else {

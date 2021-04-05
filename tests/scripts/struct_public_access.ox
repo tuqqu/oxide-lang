@@ -4,6 +4,9 @@ struct Planet {
 }
 
 impl Planet {
+    pub const PUBLIC_CONST = 6;
+    const PRIVATE_CONST = 10;
+
     pub fn get_name() -> str {
         return self.private_get_name();
     }
@@ -15,6 +18,10 @@ impl Planet {
     pub fn set_name(new_name: str) -> nil {
         let new_name = self.private_fix_name(new_name);
         self.name = new_name;
+    }
+
+    pub fn get_private_const() -> int {
+        return Planet::PRIVATE_CONST;
     }
 
     fn private_fix_name(name: str) -> str {
@@ -35,3 +42,6 @@ println(earth.get_name());
 earth.set_name("Mars");
 
 println(earth.get_name());
+
+println(Planet::PUBLIC_CONST);
+println(earth.get_private_const());
