@@ -25,7 +25,7 @@ impl Point {
     }
 
     pub fn is_default() -> bool {
-        return self.x == Point::DEFAULT_X && self.y == Point::DEFAULT_Y;
+        return self.x == Self::DEFAULT_X && self.y == Point::DEFAULT_Y;
     }
 
     // checks if can access outside consts

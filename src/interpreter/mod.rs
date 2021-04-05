@@ -11,8 +11,8 @@ use crate::lexer::token::{Token, TokenType};
 use crate::parser::expr::{
     Assignment, Binary, Block, BoolLiteral, Call, CallStruct, ConstDecl, Expr, FloatLiteral,
     FnDecl, GetProp, GetStaticProp, Grouping, If, ImplDecl, IntLiteral, Lambda, Loop, Match,
-    NilLiteral, Return, Self_, SetIndex, SetProp, Stmt, StrLiteral, StructDecl, Unary, ValType,
-    VarDecl, Variable, VecIndex, Vec_, TYPE_BOOL, TYPE_FUNC, TYPE_INT, TYPE_NUM, TYPE_STR,
+    NilLiteral, Return, SelfStatic, Self_, SetIndex, SetProp, Stmt, StrLiteral, StructDecl, Unary,
+    ValType, VarDecl, Variable, VecIndex, Vec_, TYPE_BOOL, TYPE_FUNC, TYPE_INT, TYPE_NUM, TYPE_STR,
     TYPE_STRUCT, TYPE_VEC,
 };
 
@@ -479,13 +479,40 @@ impl Interpreter {
         }
     }
 
-    fn eval_self_expr(&mut self, _expr: &Self_) -> Result<Val> {
+    fn eval_self_static_expr(&mut self, expr: &SelfStatic) -> Result<Val> {
+        let self_static = self.env.borrow_mut().get_static_bind();
+
+        match self_static {
+            Some(s) => {
+                let struct_ = self
+                    .env
+                    .borrow_mut()
+                    .get_by_str(&s, expr.self_static.line)?;
+                let struct_ = struct_.borrow_mut().deref().clone();
+
+                if let EnvVal::Struct(s) = struct_ {
+                    Ok(s.val)
+                } else {
+                    Err(RuntimeError::new(
+                        expr.self_static.line,
+                        "Wrong static bind target".to_string(),
+                    ))
+                }
+            }
+            None => Err(RuntimeError::new(
+                expr.self_static.line,
+                "Value \"Self\" can be used in methods only".to_string(),
+            )),
+        }
+    }
+
+    fn eval_self_expr(&mut self, expr: &Self_) -> Result<Val> {
         let self_ = self.env.borrow_mut().get_self();
         let self_ = match self_ {
             Some(s) => s,
             None => {
                 return Err(RuntimeError::new(
-                    _expr.self_.line,
+                    expr.self_.line,
                     "Value \"self\" can be used in methods only".to_string(),
                 ))
             }
@@ -1050,6 +1077,7 @@ impl Interpreter {
             StrLiteralExpr(literal) => self.eval_str_literal(&literal),
             UnaryExpr(unary) => self.eval_unary_expr(&unary)?,
             CallExpr(call) => self.eval_call_expr(&call)?,
+            SelfStaticExpr(self_static) => self.eval_self_static_expr(&self_static)?,
             SelfExpr(self_) => self.eval_self_expr(&self_)?,
             CallStructExpr(call_struct) => self.eval_call_struct_expr(&call_struct)?,
             VecExpr(call_vec) => self.eval_vec_expr(&call_vec)?,

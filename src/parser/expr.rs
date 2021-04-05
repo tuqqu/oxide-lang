@@ -12,6 +12,7 @@ pub enum Expr {
     FloatLiteralExpr(FloatLiteral),
     StrLiteralExpr(StrLiteral),
     UnaryExpr(Unary),
+    SelfStaticExpr(SelfStatic),
     SelfExpr(Self_),
     CallExpr(Call),
     CallStructExpr(CallStruct),
@@ -189,6 +190,11 @@ pub struct StrLiteral(pub String);
 pub struct Unary {
     pub expr: Box<Expr>,
     pub operator: Token,
+}
+
+#[derive(Debug, Clone)]
+pub struct SelfStatic {
+    pub self_static: Token,
 }
 
 #[derive(Debug, Clone)]
@@ -377,6 +383,12 @@ impl Unary {
 impl Call {
     pub fn new(callee: Box<Expr>, args: Vec<Expr>) -> Self {
         Self { callee, args }
+    }
+}
+
+impl SelfStatic {
+    pub fn new(self_static: Token) -> Self {
+        Self { self_static }
     }
 }
 

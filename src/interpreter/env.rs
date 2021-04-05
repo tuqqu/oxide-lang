@@ -378,6 +378,7 @@ impl Env {
         None
     }
 
+    /// FIXME: return a whole struct reference here, not only the name
     pub fn get_static_bind(&self) -> Option<String> {
         if self.static_bind.is_some() {
             return self.static_bind.clone();

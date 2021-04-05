@@ -4,8 +4,8 @@ use crate::parser::expr::Expr::{
     GetPropExpr, IntLiteralExpr, SetIndexExpr, SetPropExpr, VecIndexExpr,
 };
 use crate::parser::expr::{
-    CallStruct, GetProp, GetStaticProp, ImplDecl, IntLiteral, Lambda, Match, MatchArm, Self_,
-    SetIndex, SetProp, StructDecl, ValType, VecIndex, Vec_,
+    CallStruct, GetProp, GetStaticProp, ImplDecl, IntLiteral, Lambda, Match, MatchArm, SelfStatic,
+    Self_, SetIndex, SetProp, StructDecl, ValType, VecIndex, Vec_,
 };
 use crate::{error, error_token, Token, TokenType};
 
@@ -1061,6 +1061,12 @@ impl Parser {
 
         if self.match_token(TokenType::Self_) {
             return Ok(Expr::SelfExpr(Self_::new(self.previous().clone())));
+        }
+
+        if self.match_token(TokenType::SelfStatic) {
+            return Ok(Expr::SelfStaticExpr(SelfStatic::new(
+                self.previous().clone(),
+            )));
         }
 
         if self.match_token(TokenType::Identifier) {

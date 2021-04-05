@@ -34,7 +34,7 @@ impl Circle {                   // struct implementation
     const PI = 3.14159;         // private associated constant
   
     pub fn calc_area() -> float {
-        return Circle::PI * self.radius * self.radius;
+        return Self::PI * self.radius * self.radius;
     }
   
     pub fn add_tangent(t: Tangent) {      
@@ -475,25 +475,27 @@ struct Planet {
 ```
 
 Struct implementation starts with `impl` keyword.
-While struct declaration defines its properties, struct implementation defines its methods.
-`self` keyword can be used inside methods and points to the current struct instance.
+While struct declaration defines its properties, struct implementation defines its methods and constants.
+
+* `self` keyword can be used inside methods and points to the current struct instance. i.e `self.field`
+* `Self` (capitalised) keyword can be used inside methods to point to the current struct name, i.e. `Self::CONSTANT`
 
 You can make method or constant public with a `pub` keyword. Public methods or constants can be accessed from outside scope.
 
 ```rust
 impl Star {                      
-    pub const WHITE_DWARF = 123.3;   // public associated constants
-    pub const NEUTRON_STAR = 335.2;  // lets pretend those values are real
+    pub const WHITE_DWARF = 123.3;     // public associated constants
+    pub const NEUTRON_STAR = 335.2;    // lets pretend those values are real
     pub const BLACK_HOLE = 9349.02;  
   
-    const MAX_AGE = 99999;           // private constant
+    const MAX_AGE = 99999;             // private constant
     
     pub fn get_description() -> str {  // public method
         return match true {
-            self.mass <= Star::WHITE_DWARF => "white dwarf",
-            self.mass > Star::WHITE_DWARF 
-            && self.mass <= Star::BLACK_HOLE => "neutron star",
-            self.mass >= Star::BLACK_HOLE => "black hole",
+            self.mass <= Self::WHITE_DWARF => "white dwarf",
+            self.mass > Self::WHITE_DWARF 
+            && self.mass <= Self::BLACK_HOLE => "neutron star",
+            self.mass >= Self::BLACK_HOLE => "black hole",
         };
     }
 }
@@ -504,7 +506,7 @@ impl Planet {
     }
 
     fn is_heavier(p: Planet) -> bool {      // private method
-        return self.mass - p.mass > EPSILON;
+        return self.mass > p.mass;
     }
 }
 ```
@@ -551,6 +553,15 @@ system.planets[0].set_new_mass(200);
 `::` is used to access constants
 ```rust
 let dwarf_mass: int = Star::WHITE_DWARF;
+
+impl Star {
+    const MAX_AGE = 99999; 
+    
+    // inside methods Self:: can be used instead
+    pub fn get_max_age() -> int {
+        return Self::MAX_AGE;
+    }
+}
 ```
 
 Immutable variable will still let you change the struct's fields, but it will prevent you from overwriting the variable itself. Similar to Javascript `const` that holds an object.
@@ -712,6 +723,10 @@ struct Math {};
 impl Math {
     pub const PI = 3.14159265;  // public const
     const E = 2.71828182846;    // private const
+  
+    pub fn get_e() -> float {
+        return Self::E;         // Self:: is the same as Math:: inside methods
+    }
 }
 ```
 
@@ -719,7 +734,7 @@ Accessing private consts from outer scope will result in an error.
 
 ```rust
 let pi = Math::PI;  // ok
-let e = Math::E;   //! access error
+let e = Math::E;    //! access error
 ```
 
 ## Operators

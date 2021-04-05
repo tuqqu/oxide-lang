@@ -42,6 +42,7 @@ impl Lexer {
         keywords.insert("break".to_string(), TokenType::Break);
         keywords.insert("return".to_string(), TokenType::Return);
 
+        keywords.insert("Self".to_string(), TokenType::SelfStatic);
         keywords.insert("self".to_string(), TokenType::Self_);
         keywords.insert("let".to_string(), TokenType::Let);
         keywords.insert("mut".to_string(), TokenType::Mut);

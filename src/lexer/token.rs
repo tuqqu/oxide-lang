@@ -108,6 +108,7 @@ pub enum TokenType {
 
     Super,
     Self_,
+    SelfStatic,
 
     Eof,
 }
