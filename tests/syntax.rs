@@ -111,3 +111,8 @@ fn test_struct_public_access() {
 fn test_struct_constants() {
     test_script("struct_constants");
 }
+
+#[test]
+fn test_struct_static_self() {
+    test_script("struct_static_self");
+}
