@@ -33,6 +33,7 @@ pub struct Parser {
     loop_depth: usize,
     fn_depth: usize,
     err: bool,
+    current_struct_name: Option<String>,
 }
 
 impl Parser {
@@ -44,6 +45,7 @@ impl Parser {
             loop_depth: 0,
             fn_depth: 0,
             err: false,
+            current_struct_name: None,
         }
     }
 
@@ -311,6 +313,8 @@ impl Parser {
             TokenType::Identifier,
             "Implementation target name expected.".to_string(),
         )?;
+
+        self.current_struct_name = Some(name.lexeme.clone());
 
         self.consume(
             TokenType::LeftCurlyBrace,
@@ -903,6 +907,13 @@ impl Parser {
             }
         }
 
+        // Check for: Self {...
+        if self.previous().token_type == TokenType::SelfStatic
+            && self.match_token(TokenType::LeftCurlyBrace)
+        {
+            expr = self.finish_struct_call_expr(expr)?;
+        }
+
         loop {
             if self.match_token(TokenType::LeftParen) {
                 expr = self.finish_call_expr(expr)?;
@@ -1249,6 +1260,15 @@ impl Parser {
                     Err(ParserError)
                 }
             };
+        }
+
+        if self.check(SelfStatic) {
+            if let Some(name) = self.current_struct_name.clone() {
+                self.advance();
+                return Ok(ValType::Struct(name));
+            } else {
+                panic!("`current_struct_name` not set inside an impl block")
+            }
         }
 
         self.err = true;
