@@ -150,7 +150,7 @@ impl Stdlib {
     }
 
     fn define_function(lib: &mut Env, name: &str, arity: usize, callable: Func) -> Result<()> {
-        lib.define_function(env::Function::new(
+        lib.define_function(env::Function::without_struct(
             name.to_string(),
             Val::Callable(*Callable::new(arity, callable)),
         ))?;

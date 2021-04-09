@@ -32,12 +32,20 @@ struct Circle {                 // struct declaration
 
 impl Circle {                   // struct implementation
     const PI = 3.14159;         // private associated constant
+
+    pub fn new(radius: float, center: Point) -> Self {    // public static method
+        return Self {
+            radius: radius,
+            center: center,
+            tangents: vec[],
+        }
+    }
   
-    pub fn calc_area() -> float {
+    pub fn calc_area(self) -> float {                     // public method
         return Self::PI * self.radius * self.radius;
     }
   
-    pub fn add_tangent(t: Tangent) {      
+    pub fn add_tangent(self, t: Tangent) {      
         self.tangents.push(t);
     }
 }
@@ -51,7 +59,12 @@ struct Tangent {
     p: Point,
 }
 
-let circle = Circle {     // struct instantiation
+let circle_a = Circle::new(  // instantiation via static constructor
+    200, 
+    Point { x: 1, y: 5 }
+);
+
+let circle_b = Circle {      // struct instantiation
     radius: 103.5,
     center: Point { x: 1, y: 5 } ,             // inner structs instantiation
     tangents: vec[                             // inner vector of structs instantiation
@@ -60,9 +73,9 @@ let circle = Circle {     // struct instantiation
     ],
 };
 
-let area = circle.calc_area();  // 33653.4974775
+let area = circle_a.calc_area();  // 33653.4974775
 
-circle.add_tangent(
+circle_a.add_tangent(
     Tangent { p: Point { x: 11, y: 4 } }  // third tangent added
 );
 ```
@@ -221,7 +234,7 @@ x = true || false;              // inferred as "bool";
 let y = vec<bool>[];            // inferred as "vec<bool>";
 
 let dog;
-dog = Dog { name: "Good Boy"};  // inferred as "Dog";
+dog = Dog::new("Good Boy");     // inferred as "Dog";
 ```
 
 Mutable variables cannot be assigned to a value of another type, unless they are of type `any`:
@@ -261,7 +274,7 @@ One important thing is that variables can be redeclared in other words, shadowed
 
 ```rust
 let x: int = 100;
-let x: str = "This was x value before: " + x;
+let x: Circle = Circle::new(10, Point { x: x, y: 5 });
 let x: vec<any> = vec[];
 ```
 
@@ -490,12 +503,14 @@ struct Planet {
 ```
 
 Struct implementation starts with `impl` keyword.
-While struct declaration defines its properties, struct implementation defines its methods and constants.
+While struct declaration defines its properties, struct implementation defines its methods, static methods and constants.
 
 * `self` keyword can be used inside methods and points to the current struct instance. i.e `self.field`
-* `Self` (capitalised) keyword can be used inside methods to point to the current struct name, i.e. `Self::CONSTANT`
+* `Self` (capitalised) keyword can be used inside methods to point to the current struct name, i.e. `Self::CONSTANT` or `Self::static_method(x)`, it can be used as a type as well `let p: Self = Self { .. };`
 
-You can make method or constant public with a `pub` keyword. Public methods or constants can be accessed from outside scope.
+You can make methods and constants public with a `pub` keyword. Public methods and constants can be accessed from outside scope.
+
+Methods with `self` as the first argument are instance methods. Methods without it are static methods. 
 
 ```rust
 impl Star {                      
@@ -504,23 +519,29 @@ impl Star {
     pub const BLACK_HOLE = 9349.02;  
   
     const MAX_AGE = 99999;             // private constant
+  
+    pub fn new(name: str, mass: int) -> Self {  // public static method
+        return Self {
+            name: name,
+            mass: mass,
+        }
+    }
     
-    pub fn get_description() -> str {  // public method
+    pub fn get_description(self) -> str {  // public instance method
         return match true {
             self.mass <= Self::WHITE_DWARF => "white dwarf",
-            self.mass > Self::WHITE_DWARF 
-            && self.mass <= Self::BLACK_HOLE => "neutron star",
+            self.mass > Self::WHITE_DWARF && self.mass <= Self::BLACK_HOLE => "neutron star",
             self.mass >= Self::BLACK_HOLE => "black hole",
         };
     }
 }
 
 impl Planet {
-    pub fn set_new_mass(mass: int) {
+    pub fn set_new_mass(self, mass: int) {
         self.mass = mass;
     }
 
-    fn is_heavier(p: Planet) -> bool {      // private method
+    fn is_heavier(self, p: Self) -> bool {      // private method
         return self.mass > p.mass;
     }
 }
@@ -544,6 +565,8 @@ let system = StellarSystem {
     ],    
     age: 8934,
 };
+
+let arcturus = Planet::new("Arcturus", 4444);  // creating instance via static method
 ```
 
 Dot syntax `.` is used to access structs fields and call its methods.
@@ -584,7 +607,7 @@ Immutable variable will still let you change the struct's fields, but it will pr
 ```rust
 system.name = "new name";              // valid
 system.planets[0].name = "new name";   // also valid
-system = StellarSystem { .. };         //! error, "system" cannot point to another struct
+system = StellarSystem { ... };         //! error, "system" cannot point to another struct
 ```
 
 Structs are always passed by reference, consider:
@@ -748,8 +771,9 @@ impl Math {
 Accessing private consts from outer scope will result in an error.
 
 ```rust
-let pi = Math::PI;  // ok
-let e = Math::E;    //! access error
+let pi = Math::PI;     // ok
+let e = Math::E;       //! access error
+let e = Math::get_e(); // ok
 ```
 
 ## Operators

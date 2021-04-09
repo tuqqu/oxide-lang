@@ -132,8 +132,25 @@ impl Interpreter {
                 ))?;
         }
 
+        for (fn_, pub_) in &decl.fns {
+            let val = self.eval_fn_expr(
+                &fn_.lambda.clone(),
+                None,
+                Some(stmt.for_struct.lexeme.clone()),
+            );
+
+            self.env
+                .borrow_mut()
+                .define_function(env::Function::with_struct(
+                    fn_.name.lexeme.clone(),
+                    val,
+                    (stmt.for_struct.lexeme.clone(), *pub_),
+                ))?;
+        }
+
         self.env.borrow_mut().define_impl(env::Impl::new(
             decl.for_struct.lexeme.clone(),
+            decl.methods,
             decl.fns,
             decl.consts,
         ))?;
@@ -313,9 +330,9 @@ impl Interpreter {
     }
 
     fn eval_fn_stmt(&mut self, fn_decl: &FnDecl) -> Result<StmtVal> {
-        let func: env::Function = env::Function::new(
+        let func: env::Function = env::Function::without_struct(
             fn_decl.name.lexeme.clone(),
-            self.eval_fn_expr(&fn_decl.lambda.clone(), None),
+            self.eval_fn_expr(&fn_decl.lambda.clone(), None, None),
         );
 
         self.env.borrow_mut().define_function(func)?;
@@ -323,7 +340,12 @@ impl Interpreter {
         Ok(StmtVal::None)
     }
 
-    fn eval_fn_expr(&mut self, expr: &Lambda, self_: Option<Rc<RefCell<StructInstance>>>) -> Val {
+    fn eval_fn_expr(
+        &mut self,
+        expr: &Lambda,
+        self_: Option<Rc<RefCell<StructInstance>>>,
+        self_static: Option<String>,
+    ) -> Val {
         let copy = Rc::clone(&self.env);
 
         let func = Function::new(
@@ -344,6 +366,11 @@ impl Interpreter {
                     env.define_self(cur_instance)?;
                 }
 
+                if self_static.is_some() {
+                    let static_bind = self_static.clone().unwrap();
+                    env.define_static_bind(static_bind)?;
+                }
+
                 for (i, param) in func.lambda.params.iter().enumerate() {
                     let arg = args[i].clone();
 
@@ -351,7 +378,7 @@ impl Interpreter {
                         return Err(RuntimeError::from_token(
                             param.0.clone(),
                             format!(
-                                "Expected argument \"{}\" of type \"{}\", got\"{}\"",
+                                "Expected argument \"{}\" of type \"{}\", got \"{}\"",
                                 i,
                                 param.1,
                                 arg.get_type()
@@ -651,6 +678,20 @@ impl Interpreter {
                     }
                 }
                 // FIXME: add static methods here
+                EnvVal::Function(f) => {
+                    if let Some((_struct_name, pub_)) = f.for_struct.clone() {
+                        if StructInstance::can_access(pub_, public_access) {
+                            Ok(f.val.clone())
+                        } else {
+                            Err(RuntimeError::from_token(
+                                token,
+                                format!("Cannot access private static member \"{}\".", static_name),
+                            ))
+                        }
+                    } else {
+                        Ok(f.val.clone())
+                    }
+                }
                 _ => Err(RuntimeError::from_token(
                     token,
                     "Must be a static access.".to_string(),
@@ -674,7 +715,7 @@ impl Interpreter {
                 match val {
                     PropFuncVal::Prop(val) => Ok(val),
                     PropFuncVal::Func((func, self_, _pub)) => {
-                        Ok(self.eval_fn_expr(&func, Some(self_)))
+                        Ok(self.eval_fn_expr(&func, Some(self_), None))
                     }
                 }
             }
@@ -1091,7 +1132,7 @@ impl Interpreter {
             GroupingExpr(grouping) => self.eval_grouping_expr(&grouping)?,
             VariableExpr(variable) => self.eval_var_expr(&variable)?,
             AssignmentExpr(assignment) => self.eval_assign_expr(&assignment)?,
-            FnExpr(lambda) => self.eval_fn_expr(&lambda, None),
+            FnExpr(lambda) => self.eval_fn_expr(&lambda, None, None),
             MatchExpr(match_expr) => self.eval_match_expr(match_expr)?,
         };
 
@@ -1160,7 +1201,7 @@ impl Interpreter {
         if let Some(self_) = self.env.borrow().get_self() {
             self_.borrow().struct_name != struct_name
         } else {
-            true
+            self.is_public_static_access(struct_name)
         }
     }
 

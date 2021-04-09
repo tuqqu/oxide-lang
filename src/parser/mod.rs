@@ -218,7 +218,8 @@ impl Parser {
 
     /// Parses the standalone function declaration statement.
     fn fn_decl(&mut self) -> Result<Stmt> {
-        let fn_decl_stmt = Stmt::Fn(self.fn_decl_inner()?);
+        let (fn_decl, _) = self.fn_decl_inner(false)?;
+        let fn_decl_stmt = Stmt::Fn(fn_decl);
 
         Ok(fn_decl_stmt)
     }
@@ -226,11 +227,11 @@ impl Parser {
     /// Used by both function declaration and struct method declaration.
     /// Returns the inner FnDecl struct, which represents the declaration itself,
     /// without it being a statement
-    fn fn_decl_inner(&mut self) -> Result<FnDecl> {
+    fn fn_decl_inner(&mut self, expect_method: bool) -> Result<(FnDecl, bool)> {
         let name: Token =
             self.consume(TokenType::Identifier, "Function name expected.".to_string())?; //handle err
 
-        let lambda = self.lambda_expr()?;
+        let (lambda, is_method) = self.lambda_expr(expect_method)?; // FIXME: rethink, maybe we need different methods for fn/method
 
         let lambda = match lambda {
             Expr::FnExpr(l) => l,
@@ -238,7 +239,7 @@ impl Parser {
                 self.err = true;
                 error_token(
                     &self.tokens[self.current],
-                    "Constant must have a value.".to_string(),
+                    "Unexpected expression type.".to_string(),
                 );
                 return Err(ParserError);
             }
@@ -246,7 +247,7 @@ impl Parser {
 
         let fn_decl = FnDecl::new(name, lambda);
 
-        Ok(fn_decl)
+        Ok((fn_decl, is_method))
     }
 
     /// Parses the struct declaration statement as well as all its properties
@@ -305,7 +306,6 @@ impl Parser {
 
     /// Parses the struct implementation block:
     /// Struct methods
-    /// Future scope: add constants
     /// Future scope: add types
     /// Future scope: add static methods
     fn impl_decl(&mut self) -> Result<Stmt> {
@@ -321,16 +321,21 @@ impl Parser {
             "Curly brace \"{\" expected after impl".to_string(),
         )?;
 
+        // static methods
         let mut fns = vec![];
+        let mut methods = vec![];
         let mut consts = vec![];
 
         while !self.check(TokenType::RightCurlyBrace) && !self.at_end() {
             let public = self.consume_pub()?;
 
             if self.match_token(TokenType::Fn) {
-                match self.fn_decl_inner() {
-                    Ok(fn_decl) => {
+                match self.fn_decl_inner(true) {
+                    Ok((fn_decl, false)) => {
                         fns.push((fn_decl, public));
+                    }
+                    Ok((fn_decl, true)) => {
+                        methods.push((fn_decl, public));
                     }
                     Err(_) => {
                         self.try_to_recover();
@@ -353,7 +358,8 @@ impl Parser {
             "Curly brace \"}\" expected after impl body".to_string(),
         )?;
 
-        let impl_decl_stmt = Stmt::Impl(ImplDecl::new(name, fns, consts));
+        let impl_decl_stmt = Stmt::Impl(ImplDecl::new(name, methods, fns, consts));
+        self.current_struct_name = None;
 
         Ok(impl_decl_stmt)
     }
@@ -397,7 +403,8 @@ impl Parser {
         Ok(match_expr)
     }
 
-    fn lambda_expr(&mut self) -> Result<Expr> {
+    // FIXME: rethink "expect_method". Do we need Lambda? Shouldn't we use trait FnDecl and its impls instead
+    fn lambda_expr(&mut self, expect_method: bool) -> Result<(Expr, bool)> {
         self.fn_depth += 1;
 
         self.consume(
@@ -406,39 +413,64 @@ impl Parser {
         )?;
 
         let mut params: Vec<(Token, ValType, bool)> = vec![];
+        let mut instance_method: bool = false;
 
         if !self.check(TokenType::RightParen) {
             loop {
-                if params.len() > FnDecl::MAX_ARGS {
-                    self.err = true;
-                    error_token(self.peek(), "Block statement expected.".to_string());
-                }
+                if self.check(TokenType::Self_) {
+                    if !expect_method {
+                        self.err = true;
+                        error_token(
+                            self.peek(),
+                            "Only methods can have \"self\" in parameter list.".to_string(),
+                        );
+                        return Err(ParserError);
+                    } else if !params.is_empty() {
+                        self.err = true;
+                        error_token(
+                            self.peek(),
+                            format!(
+                                "\"self\" must be first in parameter list, got \"{}\".",
+                                params.len()
+                            ),
+                        );
+                        return Err(ParserError);
+                    }
 
-                let mutable = self.check(TokenType::Mut);
-                if mutable {
+                    instance_method = true;
                     self.advance();
-                }
-
-                let id = self.consume(
-                    TokenType::Identifier,
-                    "Expected argument of a function".to_string(),
-                )?;
-
-                let v_type = if self.match_token(TokenType::Colon) {
-                    self.type_decl()?
                 } else {
-                    self.err = true;
-                    error_token(
-                        &id,
-                        format!(
-                            "Function argument \"{}\" must be explicitly typed.",
-                            id.lexeme
-                        ),
-                    );
-                    return Err(ParserError);
-                };
+                    if params.len() > FnDecl::MAX_ARGS {
+                        self.err = true;
+                        error_token(self.peek(), "Block statement expected.".to_string());
+                    }
 
-                params.push((id, v_type, mutable));
+                    let mutable = self.check(TokenType::Mut);
+                    if mutable {
+                        self.advance();
+                    }
+
+                    let id = self.consume(
+                        TokenType::Identifier,
+                        "Expected argument of a function".to_string(),
+                    )?;
+
+                    let v_type = if self.match_token(TokenType::Colon) {
+                        self.type_decl()?
+                    } else {
+                        self.err = true;
+                        error_token(
+                            &id,
+                            format!(
+                                "Function argument \"{}\" must be explicitly typed.",
+                                id.lexeme
+                            ),
+                        );
+                        return Err(ParserError);
+                    };
+
+                    params.push((id, v_type, mutable));
+                }
 
                 if !self.match_token(TokenType::Comma) {
                     break;
@@ -469,7 +501,8 @@ impl Parser {
         let lambda_expr = Expr::FnExpr(Lambda::new(params, ret_type, body.stmts));
 
         self.fn_depth -= 1;
-        Ok(lambda_expr)
+
+        Ok((lambda_expr, instance_method))
     }
 
     fn any_stmt(&mut self) -> Result<Stmt> {
@@ -1085,7 +1118,8 @@ impl Parser {
         }
 
         if self.match_token(TokenType::Fn) {
-            return self.lambda_expr();
+            let (lambda, _) = self.lambda_expr(false)?;
+            return Ok(lambda);
         }
 
         if self.match_token(TokenType::Match) {
@@ -1267,7 +1301,12 @@ impl Parser {
                 self.advance();
                 return Ok(ValType::Struct(name));
             } else {
-                panic!("`current_struct_name` not set inside an impl block")
+                self.err = true;
+                error_token(
+                    &self.advance().clone(),
+                    "Type \"Self\" can be used inside \"impl\" blocks only.".to_string(),
+                );
+                return Err(ParserError);
             }
         }
 

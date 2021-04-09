@@ -6,7 +6,7 @@ struct Matrix {
 
 impl Matrix {
     /// Add number to matrix
-    pub fn add(number: int) {
+    pub fn add(self, number: int) {
         for let mut i = 0; i < self.m.len(); i += 1 {
             for let mut j = 0; j < self.m[0].len(); j += 1 {
                 self.m[i][j] += number;
@@ -16,8 +16,8 @@ impl Matrix {
 
     /// Matrix multiplication
     /// Compute product of two matrices.
-    pub fn multiply(b: Matrix) -> Matrix {
-        let product = self.create_empty(self.m.len(), self.m[0].len());
+    pub fn multiply(self, b: Matrix) -> Matrix {
+        let product = Self::create_empty(self.m.len(), self.m[0].len());
 
         for let mut i = 0; i < self.m.len(); i += 1 {
             for let mut j = 0; j < b.m[0].len(); j += 1 {
@@ -31,7 +31,7 @@ impl Matrix {
         return Matrix { m: product };
     }
 
-    // Private: create empty matrix MxN
+    // Private static method: create empty matrix MxN
     fn create_empty(m: int, n: int) -> vec<vec<int>> {
         let matrix = vec<vec<int>>[];
 

@@ -20,17 +20,23 @@ impl Point {
     pub const DEFAULT_X = 0;
     pub const DEFAULT_Y = 0;
 
-    pub fn equals(x: int, y: int) -> bool {
+    const PRIVATE_X = 55;
+
+    pub fn equals(self, x: int, y: int) -> bool {
         return self.x == x && self.y == y;
     }
 
-    pub fn is_default() -> bool {
+    pub fn is_default(self) -> bool {
         return self.x == Self::DEFAULT_X && self.y == Point::DEFAULT_Y;
     }
 
     // checks if can access outside consts
-    pub fn compute() -> int {
+    pub fn compute(self) -> int {
         return self.x * RANDOM_NUMBER * Math::TWO;
+    }
+
+    pub fn get_private_const_x2() -> int {
+        return Self::PRIVATE_X * 2;
     }
 }
 
@@ -49,4 +55,6 @@ println(x.equals(5, 5));
 println(x.is_default());
 println(default.is_default());
 println(x.compute());
+
+println(Point::get_private_const_x2());
 

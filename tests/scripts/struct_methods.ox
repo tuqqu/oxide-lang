@@ -7,11 +7,11 @@ struct Person {
 }
 
 impl Person {
-    pub fn die() {
+    pub fn die(self) {
         self.alive = false;
     }
 
-    pub fn get_full_name() -> str {
+    pub fn get_full_name(self) -> str {
         return self.first_name + " " + self.last_name;
     }
 }
@@ -22,7 +22,7 @@ struct Dog {
 }
 
 impl Dog {
-    pub fn rename(new_name: str) {
+    pub fn rename(self, new_name: str) {
         self.name = new_name;
     }
 }

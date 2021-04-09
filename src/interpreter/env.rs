@@ -57,6 +57,7 @@ pub struct Function {
     pub id: usize,
     pub name: String,
     pub val: Val,
+    pub for_struct: Option<(String, bool)>,
 }
 
 #[derive(Clone, Debug)]
@@ -72,6 +73,7 @@ pub struct Struct {
 pub struct Impl {
     pub id: usize,
     pub for_struct: String,
+    pub methods: Vec<(FnDecl, bool)>,
     pub fns: Vec<(FnDecl, bool)>,
     pub consts: Vec<(ConstDecl, bool)>,
 }
@@ -116,11 +118,28 @@ impl Constant {
 }
 
 impl Function {
-    pub fn new(name: String, val: Val) -> Self {
+    pub fn with_struct(name: String, val: Val, for_struct: (String, bool)) -> Self {
+        Self::new(name, val, Some(for_struct))
+    }
+
+    pub fn without_struct(name: String, val: Val) -> Self {
+        Self::new(name, val, None)
+    }
+
+    pub fn new(name: String, val: Val, for_struct: Option<(String, bool)>) -> Self {
         Self {
             id: internal_id(),
             name,
             val,
+            for_struct,
+        }
+    }
+
+    pub fn get_name(&self) -> String {
+        if let Some((for_struct, _)) = &self.for_struct {
+            construct_static_name(for_struct, &self.name)
+        } else {
+            self.name.clone()
         }
     }
 }
@@ -138,12 +157,14 @@ impl Struct {
 impl Impl {
     pub fn new(
         for_struct: String,
+        methods: Vec<(FnDecl, bool)>,
         fns: Vec<(FnDecl, bool)>,
         consts: Vec<(ConstDecl, bool)>,
     ) -> Self {
         Self {
             id: internal_id(),
             for_struct,
+            methods,
             fns,
             consts,
         }
@@ -300,15 +321,15 @@ impl Env {
     }
 
     pub fn define_function(&mut self, func: Function) -> Result<()> {
-        if self.vals.contains_key(&func.name) {
+        if self.vals.contains_key(&func.get_name()) {
             return Err(RuntimeError::new(
                 0,
-                format!("Trying to redefine function \"{}\"", func.name),
+                format!("Trying to redefine function \"{}\"", func.get_name()),
             ));
         }
 
         self.vals.insert(
-            func.name.clone(),
+            func.get_name(),
             Rc::new(RefCell::new(EnvVal::Function(func))),
         );
 

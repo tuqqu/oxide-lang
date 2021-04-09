@@ -168,7 +168,7 @@ impl StructInstance {
 
         if let Some(impl_) = impl_ {
             let mut fns = HashMap::new();
-            for (fun, pub_) in impl_.fns {
+            for (fun, pub_) in impl_.methods {
                 fns.insert(fun.name.lexeme, (fun.lambda, self_.clone(), pub_));
             }
 

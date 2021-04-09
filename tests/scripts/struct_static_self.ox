@@ -3,13 +3,13 @@ struct Circle {
 }
 
 impl Circle {
-	pub fn larger_circle(by: float) -> Self {
+	pub fn larger_circle(self, by: float) -> Self {
 		return Self {
 			radius: self.radius + by
 		};
 	}
 
-	pub fn to_str() -> str {
+	pub fn to_str(self) -> str {
 		return ("Circle(radius: " + self.radius + ")");
 	}
 }
