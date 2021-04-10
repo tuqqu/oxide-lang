@@ -1,5 +1,6 @@
 use std::result;
 
+use crate::lexer::token::{Token, TokenType};
 use crate::parser::expr::Expr::{
     GetPropExpr, IntLiteralExpr, SetIndexExpr, SetPropExpr, VecIndexExpr,
 };
@@ -7,7 +8,7 @@ use crate::parser::expr::{
     CallStruct, GetProp, GetStaticProp, ImplDecl, IntLiteral, Lambda, Match, MatchArm, SelfStatic,
     Self_, SetIndex, SetProp, StructDecl, ValType, VecIndex, Vec_,
 };
-use crate::{error, error_token, Token, TokenType};
+use crate::{error_at, error_token};
 
 use self::expr::Expr::{
     AssignmentExpr, BinaryExpr, BoolLiteralExpr, EmptyExpr, FloatLiteralExpr, GroupingExpr,
@@ -84,7 +85,7 @@ impl Parser {
                 }
             };
         } else if self.check(TokenType::Fn) && self.check_next(TokenType::Identifier) {
-            self.consume(TokenType::Fn, "Keyword \"fn\" expected.".to_string())
+            self.consume(TokenType::Fn, "Keyword \"fn\" expected")
                 .unwrap();
 
             return match self.fn_decl() {
@@ -125,8 +126,7 @@ impl Parser {
     /// as well as variable type and initializer.
     fn var_decl(&mut self) -> Result<Stmt> {
         let mutable: bool = self.match_token(TokenType::Mut);
-        let name: Token =
-            self.consume(TokenType::Identifier, "Variable name expected.".to_string())?;
+        let name: Token = self.consume(TokenType::Identifier, "Variable name expected")?;
 
         let v_type = if self.match_token(TokenType::Colon) {
             Some(self.type_decl()?)
@@ -142,7 +142,7 @@ impl Parser {
 
         self.consume(
             TokenType::Semicolon,
-            "Semicolon \";\" expected after variable declaration".to_string(),
+            "Semicolon \";\" expected after variable declaration",
         )?;
         let var_decl_stmt = Stmt::Let(VarDecl::new(name, Box::new(init), mutable, v_type));
 
@@ -152,12 +152,11 @@ impl Parser {
     /// Struct properties have their own syntax which is different from usual vars,
     /// so they must be handled separately
     fn prop_decl(&mut self) -> Result<VarDecl> {
-        let name: Token =
-            self.consume(TokenType::Identifier, "Property name expected.".to_string())?;
+        let name: Token = self.consume(TokenType::Identifier, "Property name expected")?;
 
         self.consume(
             TokenType::Colon,
-            "Colon \":\" expected after after prop declaration".to_string(),
+            "Colon \":\" expected after after prop declaration",
         )?;
 
         let v_type = self.type_decl()?;
@@ -183,8 +182,7 @@ impl Parser {
     /// Returns the inner ConstDecl struct, which represents the declaration itself,
     /// without it being a statement
     fn const_decl_inner(&mut self) -> Result<ConstDecl> {
-        let name: Token =
-            self.consume(TokenType::Identifier, "Constant name expected.".to_string())?;
+        let name: Token = self.consume(TokenType::Identifier, "Constant name expected")?;
 
         let init = if self.match_token(TokenType::Equal) {
             if let Some(expr) = self.scalar_expr() {
@@ -193,22 +191,19 @@ impl Parser {
                 self.err = true;
                 error_token(
                     &self.tokens[self.current],
-                    "Constant must be initialized with a scalar value only.".to_string(),
+                    "Constant must be initialized with a scalar value only",
                 );
                 return Err(ParserError);
             }
         } else {
             self.err = true;
-            error_token(
-                &self.tokens[self.current],
-                "Constant must be initialized.".to_string(),
-            );
+            error_token(&self.tokens[self.current], "Constant must be initialized");
             return Err(ParserError);
         };
 
         self.consume(
             TokenType::Semicolon,
-            "Semicolon \";\" expected after const declaration".to_string(),
+            "Semicolon \";\" expected after const declaration",
         )?;
 
         let const_decl = ConstDecl::new(name, Box::new(init));
@@ -228,8 +223,7 @@ impl Parser {
     /// Returns the inner FnDecl struct, which represents the declaration itself,
     /// without it being a statement
     fn fn_decl_inner(&mut self, expect_method: bool) -> Result<(FnDecl, bool)> {
-        let name: Token =
-            self.consume(TokenType::Identifier, "Function name expected.".to_string())?; //handle err
+        let name: Token = self.consume(TokenType::Identifier, "Function name expected")?; //handle err
 
         let (lambda, is_method) = self.lambda_expr(expect_method)?; // FIXME: rethink, maybe we need different methods for fn/method
 
@@ -237,10 +231,7 @@ impl Parser {
             Expr::FnExpr(l) => l,
             _ => {
                 self.err = true;
-                error_token(
-                    &self.tokens[self.current],
-                    "Unexpected expression type.".to_string(),
-                );
+                error_token(&self.tokens[self.current], "Unexpected expression type");
                 return Err(ParserError);
             }
         };
@@ -253,12 +244,11 @@ impl Parser {
     /// Parses the struct declaration statement as well as all its properties
     /// whether they are `pub` and their type
     fn struct_decl(&mut self) -> Result<Stmt> {
-        let name: Token =
-            self.consume(TokenType::Identifier, "Struct name expected.".to_string())?;
+        let name: Token = self.consume(TokenType::Identifier, "Struct name expected")?;
 
         self.consume(
             TokenType::LeftCurlyBrace,
-            "Curly brace \"{\" expected after struct name".to_string(),
+            "Curly brace \"{\" expected after struct name",
         )?;
 
         let mut props = vec![];
@@ -280,22 +270,20 @@ impl Parser {
                 } else {
                     self.consume(
                         TokenType::Comma,
-                        "Comma \",\" expected after property declaration".to_string(),
+                        "Comma \",\" expected after property declaration",
                     )?;
                 }
             } else {
                 self.err = true;
-                error_token(
-                    &self.tokens[self.current],
-                    format!("Unexpected token \"{}\".", self.peek().lexeme),
-                );
+                let msg = format!("Unexpected token \"{}\"", self.peek().lexeme);
+                error_token(&self.tokens[self.current], &msg);
                 return Err(ParserError);
             }
         }
 
         self.consume(
             TokenType::RightCurlyBrace,
-            "Curly brace \"}\" expected after struct body".to_string(),
+            "Curly brace \"}\" expected after struct body",
         )?;
 
         self.structs.push(name.lexeme.clone());
@@ -309,16 +297,14 @@ impl Parser {
     /// Future scope: add types
     /// Future scope: add static methods
     fn impl_decl(&mut self) -> Result<Stmt> {
-        let name: Token = self.consume(
-            TokenType::Identifier,
-            "Implementation target name expected.".to_string(),
-        )?;
+        let name: Token =
+            self.consume(TokenType::Identifier, "Implementation target name expected")?;
 
         self.current_struct_name = Some(name.lexeme.clone());
 
         self.consume(
             TokenType::LeftCurlyBrace,
-            "Curly brace \"{\" expected after impl".to_string(),
+            "Curly brace \"{\" expected after impl",
         )?;
 
         // static methods
@@ -355,7 +341,7 @@ impl Parser {
 
         self.consume(
             TokenType::RightCurlyBrace,
-            "Curly brace \"}\" expected after impl body".to_string(),
+            "Curly brace \"}\" expected after impl body",
         )?;
 
         let impl_decl_stmt = Stmt::Impl(ImplDecl::new(name, methods, fns, consts));
@@ -371,16 +357,13 @@ impl Parser {
         let expr = Box::new(self.any_expr()?);
         self.consume(
             TokenType::LeftCurlyBrace,
-            "Curly brace \"{\" expected after match".to_string(),
+            "Curly brace \"{\" expected after match",
         )?;
         let mut branches = vec![];
 
         loop {
             let br_expr = Box::new(self.any_expr()?);
-            self.consume(
-                TokenType::FatArrow,
-                "Arrow \"=>\" in after match branch".to_string(),
-            )?;
+            self.consume(TokenType::FatArrow, "Arrow \"=>\" in after match branch")?;
             let br_body = Box::new(self.any_expr()?);
             branches.push(MatchArm::new(br_expr, br_body));
 
@@ -395,7 +378,7 @@ impl Parser {
 
         self.consume(
             TokenType::RightCurlyBrace,
-            "Curly brace \"}\" expected after match body".to_string(),
+            "Curly brace \"}\" expected after match body",
         )?;
         // FIXME: add default branch handling
         let match_expr = Expr::MatchExpr(Match::new(token, expr, branches, None));
@@ -409,7 +392,7 @@ impl Parser {
 
         self.consume(
             TokenType::LeftParen,
-            "Parenthesis \"(\" expected after function name".to_string(),
+            "Parenthesis \"(\" expected after function name",
         )?;
 
         let mut params: Vec<(Token, ValType, bool)> = vec![];
@@ -422,18 +405,16 @@ impl Parser {
                         self.err = true;
                         error_token(
                             self.peek(),
-                            "Only methods can have \"self\" in parameter list.".to_string(),
+                            "Only methods can have \"self\" in parameter list",
                         );
                         return Err(ParserError);
                     } else if !params.is_empty() {
                         self.err = true;
-                        error_token(
-                            self.peek(),
-                            format!(
-                                "\"self\" must be first in parameter list, got \"{}\".",
-                                params.len()
-                            ),
+                        let msg = format!(
+                            "\"self\" must be first in parameter list, got \"{}\"",
+                            params.len()
                         );
+                        error_token(self.peek(), &msg);
                         return Err(ParserError);
                     }
 
@@ -442,7 +423,7 @@ impl Parser {
                 } else {
                     if params.len() > FnDecl::MAX_ARGS {
                         self.err = true;
-                        error_token(self.peek(), "Block statement expected.".to_string());
+                        error_token(self.peek(), "Block statement expected");
                     }
 
                     let mutable = self.check(TokenType::Mut);
@@ -450,22 +431,18 @@ impl Parser {
                         self.advance();
                     }
 
-                    let id = self.consume(
-                        TokenType::Identifier,
-                        "Expected argument of a function".to_string(),
-                    )?;
+                    let id =
+                        self.consume(TokenType::Identifier, "Expected argument of a function")?;
 
                     let v_type = if self.match_token(TokenType::Colon) {
                         self.type_decl()?
                     } else {
                         self.err = true;
-                        error_token(
-                            &id,
-                            format!(
-                                "Function argument \"{}\" must be explicitly typed.",
-                                id.lexeme
-                            ),
+                        let msg = format!(
+                            "Function argument \"{}\" must be explicitly typed",
+                            id.lexeme
                         );
+                        error_token(&id, &msg);
                         return Err(ParserError);
                     };
 
@@ -479,7 +456,7 @@ impl Parser {
         }
         self.consume(
             TokenType::RightParen,
-            "Parenthesis \")\" expected after function name".to_string(),
+            "Parenthesis \")\" expected after function name",
         )?;
 
         let ret_type = if self.match_token(TokenType::Arrow) {
@@ -494,7 +471,7 @@ impl Parser {
             block
         } else {
             self.err = true;
-            error_token(self.peek(), "Function body error.".to_string());
+            error_token(self.peek(), "Function body error");
             return Err(ParserError);
         };
 
@@ -646,7 +623,7 @@ impl Parser {
 
         self.consume(
             TokenType::Semicolon,
-            "Semicolon \";\" expected after loop condition.".to_string(),
+            "Semicolon \";\" expected after loop condition",
         )?;
 
         let inc = Box::new(if self.check(TokenType::LeftCurlyBrace) {
@@ -689,16 +666,10 @@ impl Parser {
     fn break_stmt(&mut self) -> Result<Stmt> {
         if self.loop_depth == 0 {
             self.err = true;
-            error_token(
-                &self.previous(),
-                "Must be inside a loop to use \"break\".".to_string(),
-            );
+            error_token(&self.previous(), "Must be inside a loop to use \"break\"");
         }
 
-        self.consume(
-            TokenType::Semicolon,
-            "Semicolon \";\" expected after break.".to_string(),
-        )?;
+        self.consume(TokenType::Semicolon, "Semicolon \";\" expected after break")?;
 
         Ok(Stmt::Break)
     }
@@ -708,13 +679,13 @@ impl Parser {
             self.err = true;
             error_token(
                 &self.previous(),
-                "Must be inside a loop to use \"continue\".".to_string(),
+                "Must be inside a loop to use \"continue\"",
             );
         }
 
         self.consume(
             TokenType::Semicolon,
-            "Semicolon \";\" expected after continue.".to_string(),
+            "Semicolon \";\" expected after continue",
         )?;
 
         Ok(Stmt::Continue)
@@ -725,7 +696,7 @@ impl Parser {
             self.err = true;
             error_token(
                 &self.previous(),
-                "Must be inside a function to use \"return\".".to_string(),
+                "Must be inside a function to use \"return\"",
             );
         }
 
@@ -738,7 +709,7 @@ impl Parser {
 
         self.consume(
             TokenType::Semicolon,
-            "Semicolon \";\" expected after return.".to_string(),
+            "Semicolon \";\" expected after return",
         )?;
 
         Ok(Stmt::Return(Return::new(token, Box::new(expr))))
@@ -748,7 +719,7 @@ impl Parser {
         let expr = self.any_expr()?;
         self.consume(
             TokenType::Semicolon,
-            "Semicolon \";\" expected after expression".to_string(),
+            "Semicolon \";\" expected after expression",
         )?;
         let expr_stmt = Stmt::Expr(expr);
 
@@ -763,10 +734,7 @@ impl Parser {
         }
 
         self.err = true;
-        error_token(
-            &self.tokens[self.current],
-            "Block statement expected.".to_string(),
-        );
+        error_token(&self.tokens[self.current], "Block statement expected");
         Err(ParserError)
     }
 
@@ -781,7 +749,7 @@ impl Parser {
 
         self.consume(
             TokenType::RightCurlyBrace,
-            "Curly brace \"}\" expected after block.".to_string(),
+            "Curly brace \"}\" expected after block",
         )?;
 
         Ok(stmts)
@@ -827,7 +795,7 @@ impl Parser {
                 ))),
                 _ => {
                     self.err = true;
-                    error_token(&operator, "Invalid assignment target.".to_string());
+                    error_token(&operator, "Invalid assignment target");
                     Err(ParserError)
                 }
             };
@@ -955,13 +923,13 @@ impl Parser {
             } else if self.match_token(TokenType::Dot) {
                 let name = self.consume(
                     TokenType::Identifier,
-                    "Property or method name expected after \".\".".to_string(),
+                    "Property or method name expected after \".\"",
                 )?;
                 expr = Expr::GetPropExpr(GetProp::new(Box::new(expr), name));
             } else if self.match_token(TokenType::ColonColon) {
                 let name = self.consume(
                     TokenType::Identifier,
-                    "Constant or static method name expected after \"::\".".to_string(),
+                    "Constant or static method name expected after \"::\"",
                 )?;
                 expr = Expr::GetStaticExpr(GetStaticProp::new(Box::new(expr), name));
             } else {
@@ -979,10 +947,8 @@ impl Parser {
             loop {
                 if args.len() >= FnDecl::MAX_ARGS {
                     self.err = true;
-                    error(
-                        self.peek().line,
-                        format!("Cannot have more than {} arguments.", FnDecl::MAX_ARGS),
-                    );
+                    let msg = format!("Cannot have more than {} arguments", FnDecl::MAX_ARGS);
+                    error_at(self.peek().pos, &msg);
                 }
 
                 args.push(self.any_expr()?);
@@ -995,7 +961,7 @@ impl Parser {
 
         self.consume(
             TokenType::RightParen,
-            "Parenthesis \")\" expected after arguments.".to_string(),
+            "Parenthesis \")\" expected after arguments",
         )?;
 
         let call = Expr::CallExpr(Call::new(Box::new(callee), args));
@@ -1009,22 +975,16 @@ impl Parser {
         loop {
             if args.len() >= FnDecl::MAX_ARGS {
                 self.err = true;
-                error(
-                    self.peek().line,
-                    format!("Cannot have more than {} arguments.", FnDecl::MAX_ARGS),
-                );
+                let msg = format!("Cannot have more than {} arguments", FnDecl::MAX_ARGS);
+                error_at(self.peek().pos, &msg);
             }
 
             if self.check(TokenType::RightCurlyBrace) {
                 break;
             }
 
-            let prop =
-                self.consume(TokenType::Identifier, "Property name expected.".to_string())?;
-            self.consume(
-                TokenType::Colon,
-                "Colon \":\" expected after after prop.".to_string(),
-            )?;
+            let prop = self.consume(TokenType::Identifier, "Property name expected")?;
+            self.consume(TokenType::Colon, "Colon \":\" expected after after prop")?;
 
             args.push((prop, self.any_expr()?));
 
@@ -1035,7 +995,7 @@ impl Parser {
 
         let _cl_paren = self.consume(
             TokenType::RightCurlyBrace,
-            "Curly brace \"}\" expected after arguments.".to_string(),
+            "Curly brace \"}\" expected after arguments",
         );
 
         let call = Expr::CallStructExpr(CallStruct::new(Box::new(callee), args));
@@ -1046,10 +1006,7 @@ impl Parser {
     fn finish_vec_index_expr(&mut self, callee: Expr) -> Result<Expr> {
         let index_expr = self.any_expr()?;
 
-        self.consume(
-            TokenType::RightBracket,
-            "Square braket \"]\" expected.".to_string(),
-        )?;
+        self.consume(TokenType::RightBracket, "Bracket \"]\" expected")?;
 
         let call = Expr::VecIndexExpr(VecIndex::new(Box::new(callee), Box::new(index_expr)));
 
@@ -1057,12 +1014,10 @@ impl Parser {
     }
 
     fn vec_expr(&mut self) -> Result<Expr> {
+        let token = self.previous().clone();
         let g_type = self.consume_generic_types(1, 1)?;
 
-        self.consume(
-            TokenType::LeftBracket,
-            "Square braket \"[\" expected after vec.".to_string(),
-        )?;
+        self.consume(TokenType::LeftBracket, "Bracket \"[\" expected after vec")?;
 
         let mut values = vec![];
 
@@ -1078,17 +1033,15 @@ impl Parser {
             }
         }
 
-        self.consume(
-            TokenType::RightBracket,
-            "Square braket \"]\" expected after vec.".to_string(),
-        )?;
+        self.consume(TokenType::RightBracket, "Bracket \"]\" expected after vec")?;
 
         let val_type = if g_type.first().is_some() {
             Some(g_type.first().unwrap().clone())
         } else {
             None
         };
-        let call = Expr::VecExpr(Vec_::new(values, val_type));
+
+        let call = Expr::VecExpr(Vec_::new(values, val_type, token));
 
         Ok(call)
     }
@@ -1138,7 +1091,7 @@ impl Parser {
             let expr = self.any_expr()?;
             self.consume(
                 TokenType::RightParen,
-                "Parenthesis \")\" expected after expression.".to_string(),
+                "Parenthesis \")\" expected after expression",
             )?;
             let grouping_expr = GroupingExpr(Grouping::new(Box::new(expr)));
 
@@ -1150,7 +1103,7 @@ impl Parser {
         }
 
         self.err = true;
-        error_token(self.peek(), "Expression expected.".to_string());
+        error_token(self.peek(), "Expression expected");
         Err(ParserError)
     }
 
@@ -1270,7 +1223,7 @@ impl Parser {
                 Some(v_type) => Ok(v_type),
                 None => {
                     self.err = true;
-                    error_token(&v_type_token, "Unrecognised type.".to_string());
+                    error_token(&v_type_token, "Unrecognised type");
                     Err(ParserError)
                 }
             };
@@ -1290,7 +1243,7 @@ impl Parser {
                 Some(v_type) => Ok(v_type),
                 None => {
                     self.err = true;
-                    error_token(&v_type_token, "Unrecognised type.".to_string());
+                    error_token(&v_type_token, "Unrecognised type");
                     Err(ParserError)
                 }
             };
@@ -1304,17 +1257,15 @@ impl Parser {
                 self.err = true;
                 error_token(
                     &self.advance().clone(),
-                    "Type \"Self\" can be used inside \"impl\" blocks only.".to_string(),
+                    "Type \"Self\" can be used inside \"impl\" blocks only",
                 );
                 return Err(ParserError);
             }
         }
 
         self.err = true;
-        error_token(
-            self.peek(),
-            format!("Expected type, got \"{}\".", self.peek().lexeme),
-        );
+        let msg = format!("Expected type, got \"{}\"", self.peek().lexeme);
+        error_token(self.peek(), &msg);
 
         Err(ParserError)
     }
@@ -1326,7 +1277,7 @@ impl Parser {
 
         self.consume(
             TokenType::Less,
-            "Braket \"<\" expected before generics type declaration.".to_string(),
+            "Bracket \"<\" expected before generics type declaration",
         )?;
 
         let mut generics = vec![];
@@ -1342,10 +1293,8 @@ impl Parser {
 
             if generics.len() > max {
                 self.err = true;
-                error_token(
-                    &self.peek(),
-                    format!("Too many generic types, expected only {}", max),
-                );
+                let msg = format!("Too many generic types, expected only {}", max);
+                error_token(&self.peek(), &msg);
 
                 return Err(ParserError);
             }
@@ -1357,17 +1306,15 @@ impl Parser {
 
         if generics.len() < min {
             self.err = true;
-            error_token(
-                &self.peek(),
-                format!("Too few generic types, expected at least \"{}\"", min),
-            );
+            let msg = format!("Too few generic types, expected at least \"{}\"", min);
+            error_token(&self.peek(), &msg);
 
             return Err(ParserError);
         }
 
         self.consume(
             TokenType::Greater,
-            "Bracket \">\" expected after generics type declaration.".to_string(),
+            "Bracket \">\" expected after generics type declaration",
         )?;
 
         Ok(generics)
@@ -1375,14 +1322,14 @@ impl Parser {
 
     fn consume_pub(&mut self) -> Result<bool> {
         if self.check(TokenType::Pub) {
-            self.consume(TokenType::Pub, "Expected \"pub\".".to_string())?;
+            self.consume(TokenType::Pub, "Expected \"pub\"")?;
             Ok(true)
         } else {
             Ok(false)
         }
     }
 
-    fn consume(&mut self, t_type: TokenType, msg: String) -> Result<Token> {
+    fn consume(&mut self, t_type: TokenType, msg: &str) -> Result<Token> {
         if !self.check(t_type) {
             self.err = true;
             error_token(self.peek(), msg);

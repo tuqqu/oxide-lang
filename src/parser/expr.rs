@@ -216,6 +216,7 @@ pub struct CallStruct {
 
 #[derive(Debug, Clone)]
 pub struct Vec_ {
+    pub token: Token,
     pub vals: Vec<Expr>,
     pub val_type: Option<ValType>,
 }
@@ -325,20 +326,22 @@ pub struct FnDecl {
 
 #[derive(Debug, Clone)]
 pub struct StructDecl {
+    /// Struct name.
     pub name: Token,
-    /// bool tells if property is public or not
+    /// Vector of properties.
+    /// Bool tells if property is public or not
     pub props: Vec<(VarDecl, bool)>,
 }
 
 #[derive(Debug, Clone)]
 pub struct ImplDecl {
-    /// Struct name
+    /// Struct name.
     pub for_struct: Token,
-    /// Instance methods
+    /// Instance methods.
     pub methods: Vec<(FnDecl, bool)>,
     /// Static methods
     pub fns: Vec<(FnDecl, bool)>,
-    /// Associated constants
+    /// Associated constants.
     pub consts: Vec<(ConstDecl, bool)>,
 }
 
@@ -410,8 +413,12 @@ impl CallStruct {
 }
 
 impl Vec_ {
-    pub fn new(vals: Vec<Expr>, val_type: Option<ValType>) -> Self {
-        Self { vals, val_type }
+    pub fn new(vals: Vec<Expr>, val_type: Option<ValType>, token: Token) -> Self {
+        Self {
+            vals,
+            val_type,
+            token,
+        }
     }
 }
 

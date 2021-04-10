@@ -1,20 +1,20 @@
-#![allow(dead_code)]
+pub type Pos = (usize, usize);
 
 #[derive(Debug, Clone)]
 pub struct Token {
     pub token_type: TokenType,
     pub lexeme: String,
     pub literal: String,
-    pub line: usize,
+    pub pos: Pos,
 }
 
 impl Token {
-    pub fn new(token_type: TokenType, lexeme: String, literal: String, line: usize) -> Self {
+    pub fn new(token_type: TokenType, lexeme: String, literal: String, pos: Pos) -> Self {
         Self {
             token_type,
             lexeme,
             literal,
-            line,
+            pos,
         }
     }
 }
@@ -106,7 +106,6 @@ pub enum TokenType {
     False,
     True,
 
-    Super,
     Self_,
     SelfStatic,
 

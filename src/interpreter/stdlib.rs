@@ -7,6 +7,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use crate::interpreter::env::{self, Env};
 use crate::interpreter::val::{Callable, Func, Val};
 use crate::interpreter::Result;
+use crate::lexer::token::{Token, TokenType};
 
 pub struct Stdlib;
 
@@ -150,8 +151,14 @@ impl Stdlib {
     }
 
     fn define_function(lib: &mut Env, name: &str, arity: usize, callable: Func) -> Result<()> {
-        lib.define_function(env::Function::without_struct(
+        let token = Token::new(
+            TokenType::Identifier,
             name.to_string(),
+            "".to_string(),
+            (0, 0),
+        );
+        lib.define_function(env::Function::without_struct(
+            token,
             Val::Callable(*Callable::new(arity, callable)),
         ))?;
 

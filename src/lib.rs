@@ -5,8 +5,8 @@ use std::process;
 use std::rc::Rc;
 
 use crate::interpreter::stdlib::Stdlib;
-use crate::interpreter::Interpreter;
-use crate::lexer::token::{Token, TokenType};
+use crate::interpreter::{Interpreter, RuntimeError};
+use crate::lexer::token::{Pos, Token, TokenType};
 use crate::lexer::Lexer;
 use crate::parser::Parser;
 
@@ -14,16 +14,15 @@ mod interpreter;
 mod lexer;
 mod parser;
 
-const VERSION: &str = env!("CARGO_PKG_VERSION");
-
-pub fn print_version() {
-    println!("Oxide {}", VERSION);
-}
-
+/// Runs script from file.
 pub fn run_file(path: String) {
-    run_file_with_streams(path, None, None, None)
+    run_file_with_streams(path, None, None, None);
 }
 
+/// Runs file with changed std streams.
+///
+/// Primarily used by tests to capture output, although there is nothing specific
+/// to tests. Can be used to run scripts and prevent and/or capture output.
 pub fn run_file_with_streams(
     path: String,
     stdout: Option<Rc<RefCell<dyn Write>>>,
@@ -38,16 +37,19 @@ pub fn run_file_with_streams(
     run(contents, stdout, stderr, stdin);
 }
 
+/// Runs REPL mode from stdin.
 pub fn run_repl() {
     let stdin = io::stdin();
 
     loop {
         print!("> ");
-        io::stdout().flush().expect("Error while stdout flushing.");
+        io::stdout()
+            .flush()
+            .expect("Error while flushing output to stdout.");
         let mut line: String = String::new();
         stdin
             .read_line(&mut line)
-            .expect("Error while line reading.");
+            .expect("Error while reading a line.");
 
         if line == "\n" {
             break;
@@ -62,6 +64,7 @@ pub fn run_repl() {
     }
 }
 
+/// Runs code from string.
 fn run(
     src: String,
     stdout: Rc<RefCell<dyn Write>>,
@@ -87,11 +90,7 @@ fn run(
     let lib = match lib {
         Ok(env) => env,
         Err(e) => {
-            if e.token.is_some() {
-                error_token(&e.token.unwrap(), e.msg);
-            } else {
-                error(0, e.msg);
-            }
+            error_runtime(&e);
             process::exit(1);
         }
     };
@@ -102,35 +101,62 @@ fn run(
     match res {
         Ok(_) => {}
         Err(e) => {
-            if e.token.is_some() {
-                error_token(&e.token.unwrap(), e.msg);
-            } else {
-                error(0, e.msg);
-            }
+            error_runtime(&e);
             process::exit(1);
         }
     };
 }
 
-fn error(line: usize, msg: String) {
-    print_error(line, "".to_string(), msg);
+/// Language version is taken from Cargo.toml.
+const VERSION: &str = env!("CARGO_PKG_VERSION");
+
+/// Prints language version.
+pub fn print_version() {
+    println!("Oxide {}", VERSION);
 }
 
-fn error_token(token: &Token, msg: String) {
+/// Prints error at position, when there is no token.
+fn error_at(pos: Pos, msg: &str) {
+    print_error("", msg, Some(pos));
+}
+
+/// Prints error at token.
+fn error_token(token: &Token, msg: &str) {
     print_error(
-        token.line,
         if token.token_type != TokenType::Eof {
-            token.lexeme.clone()
+            &token.lexeme
         } else {
-            "".to_string()
+            ""
         },
         msg,
+        Some(token.pos),
     );
 }
 
-fn print_error(line: usize, err_token: String, message: String) {
-    eprintln!(
-        "\x1b[0;31mError {}: {} at line {}\x1b[0m",
-        err_token, message, line
-    );
+/// Prints error when no exact position is known.
+/// Ideally should be avoided, though at times is the only option.
+fn error(msg: &str) {
+    print_error("", msg, None);
+}
+
+/// Internal error printing, should not be used directly.
+fn error_runtime(rte: &RuntimeError) {
+    if rte.token.is_some() {
+        error_token(&rte.token.as_ref().unwrap(), &rte.msg);
+    } else if rte.pos.is_some() {
+        error_at(rte.pos.unwrap(), &rte.msg);
+    } else {
+        error(&rte.msg);
+    }
+}
+
+/// Internal error printing, should not be used directly.
+fn print_error(err_token: &str, message: &str, pos: Option<Pos>) {
+    let pos = if let Some(pos) = pos {
+        format!(" at [{}:{}]", pos.0, pos.1)
+    } else {
+        "".to_string()
+    };
+
+    eprintln!("\x1b[0;31mError {}: {}{}.\x1b[0m", err_token, message, pos);
 }

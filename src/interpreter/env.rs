@@ -5,7 +5,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 
 use crate::interpreter::Result;
 use crate::interpreter::RuntimeError;
-use crate::lexer::token::Token;
+use crate::lexer::token::{Pos, Token};
 use crate::parser::expr::{ConstDecl, FnDecl, ValType};
 
 use super::val::Val;
@@ -47,17 +47,17 @@ pub struct Variable {
 #[derive(Clone, Debug)]
 pub struct Constant {
     pub id: usize,
-    pub name: String,
+    pub name: Token,
     pub val: Val,
-    pub for_struct: Option<(String, bool)>,
+    pub for_struct: Option<(Token, bool)>,
 }
 
 #[derive(Clone, Debug)]
 pub struct Function {
     pub id: usize,
-    pub name: String,
+    pub name: Token,
     pub val: Val,
-    pub for_struct: Option<(String, bool)>,
+    pub for_struct: Option<(Token, bool)>,
 }
 
 #[derive(Clone, Debug)]
@@ -91,15 +91,15 @@ impl Variable {
 }
 
 impl Constant {
-    pub fn with_struct(name: String, val: Val, for_struct: (String, bool)) -> Self {
+    pub fn with_struct(name: Token, val: Val, for_struct: (Token, bool)) -> Self {
         Self::new(name, val, Some(for_struct))
     }
 
-    pub fn without_struct(name: String, val: Val) -> Self {
+    pub fn without_struct(name: Token, val: Val) -> Self {
         Self::new(name, val, None)
     }
 
-    fn new(name: String, val: Val, for_struct: Option<(String, bool)>) -> Self {
+    fn new(name: Token, val: Val, for_struct: Option<(Token, bool)>) -> Self {
         Self {
             id: internal_id(),
             name,
@@ -110,23 +110,23 @@ impl Constant {
 
     pub fn get_name(&self) -> String {
         if let Some((for_struct, _)) = &self.for_struct {
-            construct_static_name(for_struct, &self.name)
+            construct_static_name(&for_struct.lexeme, &self.name.lexeme)
         } else {
-            self.name.clone()
+            self.name.lexeme.clone()
         }
     }
 }
 
 impl Function {
-    pub fn with_struct(name: String, val: Val, for_struct: (String, bool)) -> Self {
+    pub fn with_struct(name: Token, val: Val, for_struct: (Token, bool)) -> Self {
         Self::new(name, val, Some(for_struct))
     }
 
-    pub fn without_struct(name: String, val: Val) -> Self {
+    pub fn without_struct(name: Token, val: Val) -> Self {
         Self::new(name, val, None)
     }
 
-    pub fn new(name: String, val: Val, for_struct: Option<(String, bool)>) -> Self {
+    pub fn new(name: Token, val: Val, for_struct: Option<(Token, bool)>) -> Self {
         Self {
             id: internal_id(),
             name,
@@ -137,9 +137,9 @@ impl Function {
 
     pub fn get_name(&self) -> String {
         if let Some((for_struct, _)) = &self.for_struct {
-            construct_static_name(for_struct, &self.name)
+            construct_static_name(&for_struct.lexeme, &self.name.lexeme)
         } else {
-            self.name.clone()
+            self.name.lexeme.clone()
         }
     }
 }
@@ -306,8 +306,8 @@ impl Env {
 
     pub fn define_constant(&mut self, constant: Constant) -> Result<()> {
         if self.vals.contains_key(&constant.get_name()) {
-            return Err(RuntimeError::new(
-                0,
+            return Err(RuntimeError::from_token(
+                constant.name.clone(),
                 format!("Trying to redefine constant \"{}\"", constant.get_name()),
             ));
         }
@@ -322,8 +322,8 @@ impl Env {
 
     pub fn define_function(&mut self, func: Function) -> Result<()> {
         if self.vals.contains_key(&func.get_name()) {
-            return Err(RuntimeError::new(
-                0,
+            return Err(RuntimeError::from_token(
+                func.name.clone(),
                 format!("Trying to redefine function \"{}\"", func.get_name()),
             ));
         }
@@ -338,10 +338,10 @@ impl Env {
 
     // FIXME: remove this function
     pub fn get(&mut self, name: Token) -> Result<Rc<RefCell<EnvVal>>> {
-        self.get_by_str(&name.lexeme, name.line)
+        self.get_by_str(&name.lexeme, name.pos)
     }
 
-    pub fn get_by_str(&mut self, name: &str, pos: usize) -> Result<Rc<RefCell<EnvVal>>> {
+    pub fn get_by_str(&mut self, name: &str, pos: Pos) -> Result<Rc<RefCell<EnvVal>>> {
         if self.vals.contains_key(name) {
             let val = self.vals.get(name);
 
@@ -364,7 +364,7 @@ impl Env {
             return val;
         }
 
-        Err(RuntimeError::new(
+        Err(RuntimeError::from_pos(
             pos,
             format!("Trying to access undefined value \"{}\"", name),
         ))
@@ -434,8 +434,8 @@ impl Env {
             return Ok(());
         }
 
-        Err(RuntimeError::new(
-            name.line,
+        Err(RuntimeError::from_token(
+            name.clone(),
             format!("Trying to assign to an undefined value \"{}\"", name.lexeme),
         ))
     }

@@ -318,14 +318,11 @@ impl VecInstance {
                 Arc::new(move |_inter, args| {
                     for arg in args {
                         if !vec.borrow_mut().val_type.conforms(arg) {
-                            return Err(RuntimeError::new(
-                                0,
-                                format!(
-                                    "Cannot push value of type \"{}\" to a vector of type \"{}\"",
-                                    ValType::try_from_val(arg).unwrap(), // FIXME: may be an unsuccessful transformation
-                                    vec.borrow_mut().val_type
-                                ),
-                            ));
+                            return Err(RuntimeError::new(format!(
+                                "Cannot push value of type \"{}\" to a vector of type \"{}\"",
+                                ValType::try_from_val(arg).unwrap(), // FIXME: may be an unsuccessful transformation
+                                vec.borrow_mut().val_type
+                            )));
                         }
                         vec.borrow_mut().vals.push(arg.clone());
                     }

@@ -1,8 +1,9 @@
 use std::collections::HashMap;
 
+use self::token::Pos;
 use self::token::Token;
 use self::token::TokenType;
-use crate::error;
+use crate::error_at;
 
 pub mod token;
 
@@ -12,6 +13,7 @@ pub struct Lexer {
     start: usize,
     current: usize,
     line: usize,
+    pos: usize,
     err: bool,
     keywords: HashMap<String, TokenType>,
 }
@@ -63,6 +65,7 @@ impl Lexer {
             start: 0,
             current: 0,
             line: 1,
+            pos: 1,
             keywords,
             err: false,
         }
@@ -78,7 +81,7 @@ impl Lexer {
             TokenType::Eof,
             "".to_string(),
             "".to_string(),
-            self.line,
+            self.pos(),
         ));
 
         (&self.tokens, self.err)
@@ -209,7 +212,7 @@ impl Lexer {
 
                         if count != 0 && self.is_at_end() {
                             self.err = true;
-                            error(self.line, "Unclosed comment.".to_string());
+                            error_at(self.pos(), "Unclosed comment");
                             return;
                         }
 
@@ -223,9 +226,12 @@ impl Lexer {
                     self.add_token(TokenType::Slash);
                 }
             }
-            ' ' | '\r' | '\t' => (),
+            ' ' | '\r' | '\t' => {
+                self.pos += 1;
+            }
             '\n' => {
                 self.line += 1;
+                self.pos = 0;
             }
             '"' => self.string(),
             c => {
@@ -235,7 +241,7 @@ impl Lexer {
                     self.identifier();
                 } else {
                     self.err = true;
-                    error(self.line, "Unknown character.".to_string());
+                    error_at(self.pos(), "Unknown character");
                 }
             }
         };
@@ -256,9 +262,12 @@ impl Lexer {
     }
 
     fn add_token_with_literal(&mut self, token_type: TokenType, literal: String) {
-        let text: String = self.src_substr(self.start, self.current);
+        let text = self.src_substr(self.start, self.current);
+        let len = text.len();
         self.tokens
-            .push(Token::new(token_type, text, literal, self.line));
+            .push(Token::new(token_type, text, literal, self.pos()));
+
+        self.pos += len;
     }
 
     fn match_char(&mut self, expected: char) -> bool {
@@ -287,13 +296,14 @@ impl Lexer {
         while self.peek() != '"' && !self.is_at_end() {
             if self.peek() == '\n' {
                 self.line += 1;
+                self.pos = 0;
             }
             self.advance();
         }
 
         if self.is_at_end() {
             self.err = true;
-            error(self.line, "Unterminated string.".to_string());
+            error_at(self.pos(), "Unterminated string");
             return;
         }
 
@@ -363,5 +373,9 @@ impl Lexer {
         }
 
         self.src.chars().nth(self.current + 1).unwrap()
+    }
+
+    fn pos(&self) -> Pos {
+        (self.line, self.pos)
     }
 }

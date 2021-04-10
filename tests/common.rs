@@ -1,31 +1,10 @@
-#![allow(dead_code)]
-
-use oxide::run_file_with_streams;
 use std::cell::RefCell;
 use std::fs;
 use std::rc::Rc;
 
-const SAMPLE_PATH: &str = "./tests/scripts";
-const OUTPUT_PATH: &str = "./tests/output";
+use oxide::run_file_with_streams;
 
-pub fn test_script(script: &str) {
-    let sample_file: String = format!("{}/{}.ox", SAMPLE_PATH, script);
-    let output_file: String = format!("{}/{}.output", OUTPUT_PATH, script);
-
-    compare_output(sample_file, output_file)
-}
-
-const EXAMPLES_PATH: &str = "./examples";
-const EXAMPLES_OUTPUT_PATH: &str = "./tests/examples_output";
-
-pub fn test_example(script: &str) {
-    let sample_file: String = format!("{}/{}.ox", EXAMPLES_PATH, script);
-    let output_file: String = format!("{}/{}.output", EXAMPLES_OUTPUT_PATH, script);
-
-    compare_output(sample_file, output_file);
-}
-
-fn compare_output(sample_file: String, output_file: String) {
+pub fn compare_output(sample_file: String, output_file: String) {
     let stdout = Rc::new(RefCell::new(Vec::<u8>::new()));
     let stderr = Rc::new(RefCell::new(Vec::<u8>::new()));
 
