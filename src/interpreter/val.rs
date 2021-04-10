@@ -4,15 +4,15 @@ use std::rc::Rc;
 use std::sync::Arc;
 
 use crate::parser::expr::{
-    Lambda, StructDecl, ValType, TYPE_BOOL, TYPE_FLOAT, TYPE_FUNC, TYPE_INT, TYPE_NIL, TYPE_STR,
-    TYPE_STRUCT, TYPE_STRUCT_INSTANCE, TYPE_UNINIT, TYPE_VEC,
+    Lambda, StructDecl, ValType, TYPE_BOOL, TYPE_ENUM, TYPE_ENUM_VALUE, TYPE_FLOAT, TYPE_FUNC,
+    TYPE_INT, TYPE_NIL, TYPE_STR, TYPE_STRUCT, TYPE_STRUCT_INSTANCE, TYPE_UNINIT, TYPE_VEC,
 };
 
 use super::env::Env;
 use super::Interpreter;
 use super::Result;
 
-use crate::interpreter::env::{internal_id, Impl};
+use crate::interpreter::env::{construct_static_name, internal_id, Impl};
 use crate::interpreter::RuntimeError;
 use crate::lexer::token::Token;
 use std::collections::HashMap;
@@ -28,6 +28,8 @@ pub enum Val {
     Callable(Callable),
     Struct(Token, StructCallable),
     StructInstance(Rc<RefCell<StructInstance>>),
+    Enum(Token),
+    EnumValue(String, String, usize),
     VecInstance(Rc<RefCell<VecInstance>>),
 }
 
@@ -349,6 +351,7 @@ impl VecInstance {
 impl Val {
     pub const FLOAT_ERROR_MARGIN: f64 = f64::EPSILON;
 
+    // FIXME: unify equality
     pub fn equal(a: &Self, b: &Self) -> bool {
         use Val::*;
 
@@ -360,9 +363,11 @@ impl Val {
             (Float(a), Float(b)) => (a - b).abs() < Self::FLOAT_ERROR_MARGIN,
             (Float(a), Int(b)) => (*a - *b as f64).abs() < Self::FLOAT_ERROR_MARGIN,
             (Int(a), Float(b)) => (*a as f64 - *b).abs() < Self::FLOAT_ERROR_MARGIN,
+            (EnumValue(e1, _, v1), EnumValue(e2, _, v2)) => e1 == e2 && v1 == v2,
             _ => false,
             // FIXME: add struct comparisons
             // FIXME: add vec comparisons
+            // FIXME: add enum comparisons
         }
     }
 
@@ -379,6 +384,8 @@ impl Val {
             Callable(_f) => TYPE_FUNC.to_string(),
             Struct(_t, _c) => TYPE_STRUCT.to_string(),
             StructInstance(_i) => TYPE_STRUCT_INSTANCE.to_string(),
+            Enum(_e) => TYPE_ENUM.to_string(),
+            EnumValue(e, _n, _v) => format!("{} {}", TYPE_ENUM_VALUE, e.clone()),
             VecInstance(v) => format!("{}<{}>", TYPE_VEC, v.borrow_mut().val_type),
         }
     }
@@ -409,6 +416,8 @@ impl fmt::Display for Val {
                     props.join(", ")
                 )
             }
+            Enum(e) => write!(f, "[enum {}]", e.lexeme),
+            EnumValue(s, n, _v) => write!(f, "[enum] {}", construct_static_name(s, n)),
             VecInstance(v) => {
                 let mut vals = vec![];
                 for val in &v.borrow_mut().vals {

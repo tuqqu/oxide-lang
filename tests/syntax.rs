@@ -126,3 +126,8 @@ fn test_struct_constants() {
 fn test_struct_static_self() {
     test_script("struct_static_self");
 }
+
+#[test]
+fn test_enums() {
+    test_script("enums");
+}

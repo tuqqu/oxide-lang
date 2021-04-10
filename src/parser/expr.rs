@@ -42,6 +42,7 @@ pub enum Stmt {
     BlockStmt(Block),
     IfStmt(If),
     Fn(FnDecl),
+    Enum(EnumDecl),
     Struct(StructDecl),
     Impl(ImplDecl),
     LoopStmt(Loop),
@@ -59,6 +60,7 @@ pub enum ValType {
     Vec(Generics),
     Map,
     Func,
+    /// Corresponds to both enum & struct
     Struct(String),
     Any,
 }
@@ -87,6 +89,8 @@ pub const TYPE_VEC: &str = "vec";
 pub const TYPE_MAP: &str = "map";
 pub const TYPE_STRUCT: &str = "struct";
 pub const TYPE_STRUCT_INSTANCE: &str = "struct";
+pub const TYPE_ENUM: &str = "enum";
+pub const TYPE_ENUM_VALUE: &str = "enum";
 
 impl ValType {
     pub fn try_from_token(token: &Token, generics: Option<Vec<Self>>) -> Option<Self> {
@@ -119,6 +123,7 @@ impl ValType {
             Val::Str(_) => Some(Self::Str),
             Val::Callable(_) => Some(Self::Func),
             Val::StructInstance(i) => Some(Self::Struct(i.borrow_mut().struct_name.clone())),
+            Val::EnumValue(e, _, _) => Some(Self::Struct(e.clone())),
             Val::VecInstance(v) => Some(Self::Vec(Generics::new(vec![v
                 .borrow_mut()
                 .val_type
@@ -141,6 +146,7 @@ impl ValType {
             (Self::Float, Val::Int(_)) => true,
             (Self::Str, Val::Str(_)) => true,
             (Self::Struct(s), Val::StructInstance(i)) => i.borrow_mut().struct_name == *s,
+            (Self::Struct(s), Val::EnumValue(e, _, _)) => s == e,
             (Self::Vec(g), Val::VecInstance(v)) => {
                 let v_g_type = g.types.first().unwrap();
                 let vi_g_type = v.borrow_mut().val_type.clone();
@@ -325,6 +331,14 @@ pub struct FnDecl {
 }
 
 #[derive(Debug, Clone)]
+pub struct EnumDecl {
+    /// Enum name.
+    pub name: Token,
+    /// Vector of values.
+    pub vals: Vec<Token>,
+}
+
+#[derive(Debug, Clone)]
 pub struct StructDecl {
     /// Struct name.
     pub name: Token,
@@ -339,7 +353,7 @@ pub struct ImplDecl {
     pub for_struct: Token,
     /// Instance methods.
     pub methods: Vec<(FnDecl, bool)>,
-    /// Static methods
+    /// Static methods.
     pub fns: Vec<(FnDecl, bool)>,
     /// Associated constants.
     pub consts: Vec<(ConstDecl, bool)>,
@@ -533,6 +547,12 @@ impl FnDecl {
 
     pub fn new(name: Token, lambda: Lambda) -> Self {
         Self { name, lambda }
+    }
+}
+
+impl EnumDecl {
+    pub fn new(name: Token, vals: Vec<Token>) -> Self {
+        Self { name, vals }
     }
 }
 

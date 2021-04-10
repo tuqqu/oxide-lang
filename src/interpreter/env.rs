@@ -32,6 +32,8 @@ pub enum EnvVal {
     Variable(Variable),
     Constant(Constant),
     Function(Function),
+    Enum(Enum),
+    EnumValue(EnumValue),
     Struct(Struct),
 }
 
@@ -58,6 +60,21 @@ pub struct Function {
     pub name: Token,
     pub val: Val,
     pub for_struct: Option<(Token, bool)>,
+}
+
+#[derive(Clone, Debug)]
+pub struct Enum {
+    pub id: usize,
+    pub name: Token,
+    pub val: Val,
+}
+
+#[derive(Clone, Debug)]
+pub struct EnumValue {
+    pub id: usize,
+    pub name: Token,
+    pub val: Val,
+    pub for_enum: Token,
 }
 
 #[derive(Clone, Debug)]
@@ -144,6 +161,31 @@ impl Function {
     }
 }
 
+impl Enum {
+    pub fn new(name: Token, val: Val) -> Self {
+        Self {
+            id: internal_id(),
+            name,
+            val,
+        }
+    }
+}
+
+impl EnumValue {
+    pub fn new(name: Token, val: Val, for_enum: Token) -> Self {
+        Self {
+            id: internal_id(),
+            name,
+            val,
+            for_enum,
+        }
+    }
+
+    pub fn get_name(&self) -> String {
+        construct_static_name(&self.for_enum.lexeme, &self.name.lexeme)
+    }
+}
+
 impl Struct {
     pub fn new(name: String, val: Val) -> Self {
         Self {
@@ -226,7 +268,7 @@ impl EnvVal {
                     ))
                 }
             }
-            Struct(_f) => Err(RuntimeError::from_token(
+            EnumValue(_) | Enum(_) | Struct(_) => Err(RuntimeError::from_token(
                 name,
                 "Trying to assign to a non-value.".to_string(),
             )),
@@ -258,24 +300,36 @@ impl Env {
         use EnvVal::*;
 
         match val {
-            NoValue => Ok(()),
-            Variable(v) => {
-                self.define_variable(v);
-                Ok(())
-            }
-            Constant(c) => self.define_constant(c),
-            Function(f) => self.define_function(f),
-            Struct(s) => {
-                self.define_struct(s);
-                Ok(())
-            }
-        }
+            NoValue => {}
+            Variable(v) => self.define_variable(v),
+            Constant(c) => self.define_constant(c)?,
+            Function(f) => self.define_function(f)?,
+            Enum(e) => self.define_enum(e),
+            EnumValue(e) => self.define_enum_value(e),
+            Struct(s) => self.define_struct(s),
+        };
+
+        Ok(())
     }
 
     pub fn define_variable(&mut self, var: Variable) {
         self.vals.insert(
             var.name.clone(),
             Rc::new(RefCell::new(EnvVal::Variable(var))),
+        );
+    }
+
+    pub fn define_enum(&mut self, enum_: Enum) {
+        self.vals.insert(
+            enum_.name.lexeme.clone(),
+            Rc::new(RefCell::new(EnvVal::Enum(enum_))),
+        );
+    }
+
+    pub fn define_enum_value(&mut self, enum_value: EnumValue) {
+        self.vals.insert(
+            enum_value.get_name(),
+            Rc::new(RefCell::new(EnvVal::EnumValue(enum_value))),
         );
     }
 

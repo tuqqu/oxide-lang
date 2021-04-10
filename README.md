@@ -59,12 +59,11 @@ struct Tangent {
     p: Point,
 }
 
-let circle_a = Circle::new(  // instantiation via static constructor
-    200, 
-    Point { x: 1, y: 5 }
-);
+// instantiation via static constructor
+let circle_a = Circle::new(200, Point { x: 1, y: 5 });
 
-let circle_b = Circle {      // struct instantiation
+// direct instantiation
+let circle_b = Circle {      
     radius: 103.5,
     center: Point { x: 1, y: 5 } ,             // inner structs instantiation
     tangents: vec[                             // inner vector of structs instantiation
@@ -74,10 +73,6 @@ let circle_b = Circle {      // struct instantiation
 };
 
 let area = circle_a.calc_area();  // 33653.4974775
-
-circle_a.add_tangent(
-    Tangent { p: Point { x: 11, y: 4 } }  // third tangent added
-);
 ```
 
 ```rust
@@ -127,23 +122,23 @@ println(add7(2)); // 9
 ```
 
 ```rust
-/// compute the greatest common divisor 
-/// of two integers using Euclids algorithm
+/// enums
 
-fn gcd(mut n: int, mut m: int) -> int {
-    while m != 0 {
-        if m < n {
-            let t = m;
-            m = n;
-            n = t;
-        }
-        m = m % n;
-    }
-
-    return n;
+enum Ordering {
+    Less,
+    Equal,
+    Greater
 }
 
-gcd(15, 5); // 5
+fn compare(a: int, b: int) -> Ordering {
+    return match true {
+        a < b => Ordering::Less,
+        a == b => Ordering::Equal,
+        a > b => Ordering::Greater,
+    };
+}
+
+let order: Ordering = compare(10, 5); // Ordering::Greater
 ```
 
 [More examples][examples]
@@ -196,6 +191,7 @@ cargo uninstall
     * [Declared functions](#declared-functions)
     * [Closures and Lambdas](#closures-and-lambdas)
 * [Structs](#structs)
+* [Enums](#enums)
 * [Vectors](#vectors)
 * [Constants](#constants)
 * [Operators](#operators)
@@ -207,7 +203,7 @@ cargo uninstall
 
 ## Variables and Type System
 
-There are ten types embodied in the language: `nil`, `num`, `int`, `float`, `bool`, `str`, `func`, `vec`, `any` and user-defined types (via structs). See [type system][type-system]
+There are eleven types embodied in the language: `nil`, `num`, `int`, `float`, `bool`, `str`, `func`, `vec`, `any` and user-defined types (via [`structs`](#structs) and [`enums`](#enums)). See [type system][type-system]
 
 Each variable has a type associated with it, either explicitly declared with the variable itself:
 
@@ -229,12 +225,14 @@ or implicitly inferred by the interpreter the first time it is being assigned:
 
 ```rust
 let x;
-x = true || false;              // inferred as "bool";
+x = true || false;              // inferred as "bool"
 
-let y = vec<bool>[];            // inferred as "vec<bool>";
+let y = vec<bool>[];            // inferred as "vec<bool>"
 
 let dog;
-dog = Dog::new("Good Boy");     // inferred as "Dog";
+dog = Dog::new("Good Boy");     // inferred as "Dog"
+
+let ordering = Ordering::Less; // inferred as "Ordering"
 ```
 
 Mutable variables cannot be assigned to a value of another type, unless they are of type `any`:
@@ -253,11 +251,11 @@ a = 45.34;                      // valid
 
 ### Mutability
 
-There are two possible ways of declaring a variable: immutable and mutable. Immutable ones cannot be reassigned after having been assigned to a value.
+Variables can be immutable and mutable. Immutable ones cannot be reassigned after having been assigned to a value.
 
 ```rust
-let x: str = "string";
-x = "another";                  //! type error
+let x = "a";
+x = "b"; //! error, x is immutable
 ```
 
 However, mutable ones behave like you would expect a variable to behave in most other languages:
@@ -265,7 +263,7 @@ However, mutable ones behave like you would expect a variable to behave in most 
 ```rust
 let mut x: str = "hello";
 x += " world";
-x += "another string";          // ok
+x += "another string"; // ok
 ```
 
 ### Shadowing
@@ -316,6 +314,26 @@ let description: str = match true {
     age >= 13 && x <= 19 => "teenager",
     age < 13 => "kid",
 };
+```
+
+`match` can be used with [enums](#enums)
+
+```rust
+enum HttpStatus {
+    NotFound,
+    NotModified,
+    Ok
+}
+
+fn code(status: HttpStatus) -> int {
+    return match status {
+        HttpStatus::NotFound => 404,
+        HttpStatus::NotModified => 304,
+        HttpStatus::Ok => 200,
+    };
+}
+
+let status = code(HttpStatus::Ok); // 200
 ```
 
 ### While
@@ -412,17 +430,23 @@ fn log(level: str, msg: str) {
 Defining a function argument as `mut` lets you mutate it in the function body. By default, it is immutable.
 
 ```rust
-fn inc(mut x: int) -> int {
-    x += 1;
-    return x;
+/// compute the greatest common divisor 
+/// of two integers using Euclids algorithm
+
+fn gcd(mut n: int, mut m: int) -> int {
+  while m != 0 {
+    if m < n {
+      let t = m;
+      m = n;
+      n = t;
+    }
+    m = m % n;
+  }
+
+  return n;
 }
 
-// same as with shadowing
-fn inc(x: int) -> int {
-    let mut x = x;
-    x += 1;
-    return x;
-}
+gcd(15, 5); // 5
 ```
 
 Redeclaring a function results in a runtime error.
@@ -628,6 +652,57 @@ system.age = 100;                //! access error, "age" is private
 system.planets[0].mass;          //! access error, "mass" is private
 system.planets[0].is_heavier(p); //! access error, "is_heavier()" is private
 Star::MAX_AGE;                   //! access error, "Star::MAX_AGE" is private
+```
+
+## Enums
+
+Same as structs, enums represent user-defined types. Enums are quite simple and similar to C-style enums.
+
+```rust
+enum TimeUnit {
+    Seconds,
+    Minutes,
+    Hours,
+    Days,
+    Months,
+    Years,
+}
+
+let days = TimeUnit::Days; // inferred type as "TimeUnit"
+```
+
+Equality of enum values can be checked with `==` and `!=`
+
+```rust
+days == TimeUnit::Days;             // true
+TimeUnit::Years == TimeUnit::Hours; // false
+```
+
+Or better with `match`
+
+```rust
+fn plural(time: TimeUnit) -> str {
+    return match time {
+        TimeUnit::Seconds => "seconds",
+        TimeUnit::Minutes => "minutes",
+        TimeUnit::Hours => "hours",
+        TimeUnit::Days => "days",
+        TimeUnit::Months => "months",
+        TimeUnit::Years => "years"
+    };
+}
+```
+
+Different types of enum values are not compatible and comparing them will trigger an error
+
+```rust
+enum Ordering {
+    Less,
+    Equal,
+    Greater
+}
+
+Ordering::Less == TimeUnit::Days; //! type error
 ```
 
 ## Vectors

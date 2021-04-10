@@ -9,11 +9,11 @@ use crate::interpreter::val::{StructInstance, VecInstance};
 
 use crate::lexer::token::{Pos, Token, TokenType};
 use crate::parser::expr::{
-    Assignment, Binary, Block, BoolLiteral, Call, CallStruct, ConstDecl, Expr, FloatLiteral,
-    FnDecl, GetProp, GetStaticProp, Grouping, If, ImplDecl, IntLiteral, Lambda, Loop, Match,
-    NilLiteral, Return, SelfStatic, Self_, SetIndex, SetProp, Stmt, StrLiteral, StructDecl, Unary,
-    ValType, VarDecl, Variable, VecIndex, Vec_, TYPE_BOOL, TYPE_FUNC, TYPE_INT, TYPE_NUM, TYPE_STR,
-    TYPE_STRUCT, TYPE_VEC,
+    Assignment, Binary, Block, BoolLiteral, Call, CallStruct, ConstDecl, EnumDecl, Expr,
+    FloatLiteral, FnDecl, GetProp, GetStaticProp, Grouping, If, ImplDecl, IntLiteral, Lambda, Loop,
+    Match, NilLiteral, Return, SelfStatic, Self_, SetIndex, SetProp, Stmt, StrLiteral, StructDecl,
+    Unary, ValType, VarDecl, Variable, VecIndex, Vec_, TYPE_BOOL, TYPE_FUNC, TYPE_INT, TYPE_NUM,
+    TYPE_STR, TYPE_STRUCT, TYPE_VEC,
 };
 
 use self::env::{Env, EnvVal};
@@ -60,6 +60,27 @@ impl Interpreter {
         }
 
         Ok(())
+    }
+
+    fn eval_enum_stmt(&mut self, stmt: &EnumDecl) -> StmtVal {
+        for (val, name) in stmt.vals.iter().enumerate() {
+            let val_name_t = name.clone();
+            let name_t = stmt.name.clone();
+            let name = name_t.lexeme.clone();
+            let val_name = val_name_t.lexeme.clone();
+
+            self.env.borrow_mut().define_enum_value(env::EnumValue::new(
+                val_name_t,
+                Val::EnumValue(name, val_name, val),
+                name_t,
+            ));
+        }
+
+        let enum_ = env::Enum::new(stmt.name.clone(), Val::Enum(stmt.name.clone()));
+
+        self.env.borrow_mut().define_enum(enum_);
+
+        StmtVal::None
     }
 
     fn eval_struct_stmt(&mut self, stmt: &StructDecl) -> StmtVal {
@@ -286,6 +307,8 @@ impl Interpreter {
             Function(f) => Ok(f.val.clone()),
             Constant(c) => Ok(c.val.clone()),
             Variable(v) => Ok(v.val.clone()),
+            Enum(e) => Ok(e.val.clone()),
+            EnumValue(e) => Ok(e.val.clone()),
             Struct(s) => Ok(s.val.clone()),
         }
     }
@@ -638,53 +661,72 @@ impl Interpreter {
     }
 
     fn eval_get_static_prop_expr(&mut self, expr: &GetStaticProp) -> Result<Val> {
-        let struct_ = self.evaluate(&expr.name)?;
+        let static_caller = self.evaluate(&expr.name)?;
 
-        if let Val::Struct(token, _) = struct_ {
-            let static_name = construct_static_name(&token.lexeme, &expr.prop_name.lexeme);
-            let public_access = self.is_public_static_access(token.lexeme.clone());
-            let static_val = self.env.borrow_mut().get_by_str(&static_name, token.pos)?;
-            let env_val = static_val.borrow_mut();
-            match env_val.deref() {
-                EnvVal::Constant(c) => {
-                    if let Some((_struct_name, pub_)) = c.for_struct.clone() {
-                        if StructInstance::can_access(pub_, public_access) {
+        match static_caller {
+            Val::Struct(token, _) => {
+                let static_name = construct_static_name(&token.lexeme, &expr.prop_name.lexeme);
+                let public_access = self.is_public_static_access(token.lexeme.clone());
+                let static_val = self.env.borrow_mut().get_by_str(&static_name, token.pos)?;
+                let env_val = static_val.borrow_mut();
+                match env_val.deref() {
+                    EnvVal::Constant(c) => {
+                        if let Some((_struct_name, pub_)) = c.for_struct.clone() {
+                            if StructInstance::can_access(pub_, public_access) {
+                                Ok(c.val.clone())
+                            } else {
+                                Err(RuntimeError::from_token(
+                                    token,
+                                    format!(
+                                        "Cannot access private static member \"{}\"",
+                                        static_name
+                                    ),
+                                ))
+                            }
+                        } else {
                             Ok(c.val.clone())
-                        } else {
-                            Err(RuntimeError::from_token(
-                                token,
-                                format!("Cannot access private static member \"{}\"", static_name),
-                            ))
                         }
-                    } else {
-                        Ok(c.val.clone())
                     }
-                }
-                // FIXME: add static methods here
-                EnvVal::Function(f) => {
-                    if let Some((_struct_name, pub_)) = f.for_struct.clone() {
-                        if StructInstance::can_access(pub_, public_access) {
+                    EnvVal::Function(f) => {
+                        if let Some((_struct_name, pub_)) = f.for_struct.clone() {
+                            if StructInstance::can_access(pub_, public_access) {
+                                Ok(f.val.clone())
+                            } else {
+                                Err(RuntimeError::from_token(
+                                    token,
+                                    format!(
+                                        "Cannot access private static member \"{}\"",
+                                        static_name
+                                    ),
+                                ))
+                            }
+                        } else {
                             Ok(f.val.clone())
-                        } else {
-                            Err(RuntimeError::from_token(
-                                token,
-                                format!("Cannot access private static member \"{}\"", static_name),
-                            ))
                         }
-                    } else {
-                        Ok(f.val.clone())
                     }
+                    _ => Err(RuntimeError::from_token(
+                        token,
+                        "Must be a static access".to_string(),
+                    )),
                 }
-                _ => Err(RuntimeError::from_token(
-                    token,
-                    "Must be a static access".to_string(),
-                )),
             }
-        } else {
-            Err(RuntimeError::new(format!(
-                "Must be a struct name, got \"{}\"",
-                struct_.get_type()
-            )))
+            Val::Enum(token) => {
+                let static_name = construct_static_name(&token.lexeme, &expr.prop_name.lexeme);
+                let static_val = self.env.borrow_mut().get_by_str(&static_name, token.pos)?;
+                let env_val = static_val.borrow_mut();
+
+                match env_val.deref() {
+                    EnvVal::EnumValue(e) => Ok(e.val.clone()),
+                    _ => Err(RuntimeError::from_token(
+                        token,
+                        "Enum value expected".to_string(),
+                    )),
+                }
+            }
+            _ => Err(RuntimeError::new(format!(
+                "Unknown static callee type \"{}\"",
+                static_caller.get_type()
+            ))),
         }
     }
 
@@ -875,6 +917,9 @@ impl Interpreter {
                 (Val::Str(left), Val::Str(right)) => Val::Bool(left != right),
                 (Val::Bool(left), Val::Bool(right)) => Val::Bool(left != right),
                 (Val::Nil, Val::Nil) => Val::Bool(true),
+                (Val::EnumValue(e1, _, v1), Val::EnumValue(e2, _, v2)) if e1 == e2 => {
+                    Val::Bool(v1 != v2)
+                }
                 (l, r) => {
                     return Err(equal_types_expected_error(
                         operator,
@@ -894,10 +939,12 @@ impl Interpreter {
                 (Val::Int(left), Val::Float(right)) => {
                     Val::Bool(((left as f64) - right).abs() < Val::FLOAT_ERROR_MARGIN)
                 }
-
                 (Val::Str(left), Val::Str(right)) => Val::Bool(left == right),
                 (Val::Bool(left), Val::Bool(right)) => Val::Bool(left == right),
-                (Val::Nil, Val::Nil) => Val::Bool(false),
+                (Val::Nil, Val::Nil) => Val::Bool(true),
+                (Val::EnumValue(e1, _, v1), Val::EnumValue(e2, _, v2)) if e1 == e2 => {
+                    Val::Bool(v1 == v2)
+                }
                 (l, r) => {
                     return Err(equal_types_expected_error(
                         operator,
@@ -1132,6 +1179,7 @@ impl Interpreter {
             IfStmt(if_stmt) => self.eval_if_stmt(if_stmt),
             Fn(f_decl) => self.eval_fn_stmt(f_decl),
             LoopStmt(loop_stmt) => self.eval_loop_stmt(loop_stmt),
+            Enum(enum_decl) => Ok(self.eval_enum_stmt(enum_decl)),
             Struct(struct_decl) => Ok(self.eval_struct_stmt(struct_decl)),
             Impl(impl_decl) => self.eval_impl_stmt(impl_decl),
         }

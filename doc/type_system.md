@@ -32,7 +32,10 @@ Functions can be declared with a name or created as lambda function. In that cas
 Vectors or arrays of values. [See more](/README.md#vectors)
 
 ### Struct
-User-defined types. [See more](/README.md#structs)
+User-defined type. [See more](/README.md#structs)
+
+### Enums
+User-defined type. [See more](/README.md#enums)
 
 ### Any
 `any` is a type alias which includes all possible types. Variable of type `any` can be reassigned to any value.

@@ -19,6 +19,12 @@ impl Token {
     }
 }
 
+impl std::cmp::PartialEq for Token {
+    fn eq(&self, other: &Self) -> bool {
+        self.lexeme == other.lexeme
+    }
+}
+
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub enum TokenType {
     Colon,
@@ -93,6 +99,7 @@ pub enum TokenType {
     Mut,
     Const,
 
+    Enum,
     Struct,
     Fn,
     Impl,

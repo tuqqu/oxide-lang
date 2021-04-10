@@ -5,8 +5,8 @@ use crate::parser::expr::Expr::{
     GetPropExpr, IntLiteralExpr, SetIndexExpr, SetPropExpr, VecIndexExpr,
 };
 use crate::parser::expr::{
-    CallStruct, GetProp, GetStaticProp, ImplDecl, IntLiteral, Lambda, Match, MatchArm, SelfStatic,
-    Self_, SetIndex, SetProp, StructDecl, ValType, VecIndex, Vec_,
+    CallStruct, EnumDecl, GetProp, GetStaticProp, ImplDecl, IntLiteral, Lambda, Match, MatchArm,
+    SelfStatic, Self_, SetIndex, SetProp, StructDecl, ValType, VecIndex, Vec_,
 };
 use crate::{error_at, error_token};
 
@@ -90,6 +90,14 @@ impl Parser {
 
             return match self.fn_decl() {
                 Ok(fn_decl) => Some(fn_decl),
+                Err(_) => {
+                    self.try_to_recover();
+                    None
+                }
+            };
+        } else if self.match_token(TokenType::Enum) {
+            return match self.enum_decl() {
+                Ok(enum_decl) => Some(enum_decl),
                 Err(_) => {
                     self.try_to_recover();
                     None
@@ -241,11 +249,65 @@ impl Parser {
         Ok((fn_decl, is_method))
     }
 
+    /// Parses the enum declaration statement.
+    fn enum_decl(&mut self) -> Result<Stmt> {
+        let name: Token = self.consume(TokenType::Identifier, "Enum name expected")?;
+        self.check_if_declared(&name)?;
+        self.consume(
+            TokenType::LeftCurlyBrace,
+            "Curly brace \"{\" expected after enum name",
+        )?;
+
+        let mut values = vec![];
+
+        while !self.check(TokenType::RightCurlyBrace) && !self.at_end() {
+            if self.check(TokenType::Identifier) {
+                let enum_val = self.consume(TokenType::Identifier, "Expected enum value.")?;
+
+                if values.contains(&enum_val) {
+                    self.err = true;
+                    let msg = format!(
+                        "Enum cannot have multiple identical values \"{}\"",
+                        enum_val.lexeme
+                    );
+                    error_token(&enum_val, &msg);
+                    return Err(ParserError);
+                }
+
+                values.push(enum_val);
+
+                if !self.check(TokenType::Comma) {
+                    break;
+                } else {
+                    self.consume(
+                        TokenType::Comma,
+                        "Comma \",\" expected after enum value declaration",
+                    )?;
+                }
+            } else {
+                self.err = true;
+                let msg = format!("Unexpected token \"{}\"", self.peek().lexeme);
+                error_token(&self.tokens[self.current], &msg);
+                return Err(ParserError);
+            }
+        }
+
+        self.consume(
+            TokenType::RightCurlyBrace,
+            "Curly brace \"}\" expected after enum body",
+        )?;
+
+        self.structs.push(name.lexeme.clone());
+        let enum_decl_stmt = Stmt::Enum(EnumDecl::new(name, values));
+
+        Ok(enum_decl_stmt)
+    }
+
     /// Parses the struct declaration statement as well as all its properties
     /// whether they are `pub` and their type
     fn struct_decl(&mut self) -> Result<Stmt> {
         let name: Token = self.consume(TokenType::Identifier, "Struct name expected")?;
-
+        self.check_if_declared(&name)?;
         self.consume(
             TokenType::LeftCurlyBrace,
             "Curly brace \"{\" expected after struct name",
@@ -1338,6 +1400,17 @@ impl Parser {
         }
 
         Ok(self.advance().clone())
+    }
+
+    fn check_if_declared(&mut self, name: &Token) -> Result<()> {
+        if self.structs.contains(&name.lexeme) {
+            self.err = true;
+            let msg = format!("Name \"{}\" is already in use", name.lexeme);
+            error_token(&name, &msg);
+            Err(ParserError)
+        } else {
+            Ok(())
+        }
     }
 
     fn try_to_recover(&mut self) {

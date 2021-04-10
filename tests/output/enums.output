@@ -1,0 +1,12 @@
+[enum] TimeUnit::Seconds
+true
+true
+false
+true
+enum TimeUnit
+[enum] TimeUnit::Seconds
+seconds
+minutes
+[vec] [[enum] Ordering::Less, [enum] Ordering::Equal, [enum] Ordering::Greater]
+[enum] Ordering::Less
+[enum] Ordering::Equal

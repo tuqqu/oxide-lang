@@ -21,6 +21,7 @@ pub struct Lexer {
 impl Lexer {
     pub fn new(src: String) -> Self {
         let mut keywords = HashMap::new();
+        keywords.insert("enum".to_string(), TokenType::Enum);
         keywords.insert("struct".to_string(), TokenType::Struct);
         keywords.insert("fn".to_string(), TokenType::Fn);
         keywords.insert("impl".to_string(), TokenType::Impl);
