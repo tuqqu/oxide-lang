@@ -1,6 +1,7 @@
 use crate::interpreter::val::Val;
 use crate::lexer::token::TokenType;
 use crate::Token;
+use std::convert::TryFrom;
 use std::fmt;
 
 #[derive(Debug, Clone)]
@@ -193,9 +194,16 @@ pub struct FloatLiteral(pub f64);
 pub struct StrLiteral(pub String);
 
 #[derive(Debug, Clone)]
+pub enum UnaryOperator {
+    Add,
+    Sub,
+    Not,
+}
+
+#[derive(Debug, Clone)]
 pub struct Unary {
     pub expr: Box<Expr>,
-    pub operator: Token,
+    pub operator: UnaryOperator,
 }
 
 #[derive(Debug, Clone)]
@@ -397,7 +405,7 @@ impl Binary {
 }
 
 impl Unary {
-    pub fn new(expr: Box<Expr>, operator: Token) -> Self {
+    pub fn new(expr: Box<Expr>, operator: UnaryOperator) -> Self {
         Self { expr, operator }
     }
 }
@@ -620,5 +628,18 @@ impl Match {
 impl MatchArm {
     pub fn new(expr: Box<Expr>, body: Box<Expr>) -> Self {
         Self { expr, body }
+    }
+}
+
+impl TryFrom<&Token> for UnaryOperator {
+    type Error = ();
+
+    fn try_from(token: &Token) -> Result<Self, Self::Error> {
+        match token.token_type {
+            TokenType::Plus => Ok(UnaryOperator::Add),
+            TokenType::Minus => Ok(UnaryOperator::Sub),
+            TokenType::Bang => Ok(UnaryOperator::Not),
+            _ => Err(()),
+        }
     }
 }

@@ -17,8 +17,10 @@ use self::expr::Expr::{
 use self::expr::Stmt::{BlockStmt, IfStmt, LoopStmt};
 use self::expr::{
     Assignment, Binary, Block, BoolLiteral, Call, ConstDecl, Expr, FloatLiteral, FnDecl, Grouping,
-    If, Loop, NilLiteral, Return, Stmt, StrLiteral, Unary, VarDecl, Variable,
+    If, Loop, NilLiteral, Return, Stmt, StrLiteral, Unary, UnaryOperator, VarDecl, Variable,
 };
+
+use std::convert::TryInto;
 
 pub mod expr;
 
@@ -948,15 +950,18 @@ impl Parser {
     }
 
     fn unary_expr(&mut self) -> Result<Expr> {
-        if self.match_tokens(vec![TokenType::Bang, TokenType::Minus]) {
-            let operator: Token = self.previous().clone();
-            let right: Expr = self.unary_expr()?;
-            let unary = UnaryExpr(Unary::new(Box::new(right), operator));
-
-            return Ok(unary);
+        if !self.match_tokens(vec![TokenType::Bang, TokenType::Minus, TokenType::Plus]) {
+            return self.call_expr();
         }
 
-        self.call_expr()
+        let operator: UnaryOperator = self
+            .previous()
+            .try_into()
+            .expect("Cannot convert token to UnaryOperator");
+        let right: Expr = self.unary_expr()?;
+        let unary = UnaryExpr(Unary::new(Box::new(right), operator));
+
+        Ok(unary)
     }
 
     fn call_expr(&mut self) -> Result<Expr> {

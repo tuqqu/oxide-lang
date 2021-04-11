@@ -12,8 +12,8 @@ use crate::parser::expr::{
     Assignment, Binary, Block, BoolLiteral, Call, CallStruct, ConstDecl, EnumDecl, Expr,
     FloatLiteral, FnDecl, GetProp, GetStaticProp, Grouping, If, ImplDecl, IntLiteral, Lambda, Loop,
     Match, NilLiteral, Return, SelfStatic, Self_, SetIndex, SetProp, Stmt, StrLiteral, StructDecl,
-    Unary, ValType, VarDecl, Variable, VecIndex, Vec_, TYPE_BOOL, TYPE_FUNC, TYPE_INT, TYPE_NUM,
-    TYPE_STR, TYPE_STRUCT, TYPE_VEC,
+    Unary, UnaryOperator, ValType, VarDecl, Variable, VecIndex, Vec_, TYPE_BOOL, TYPE_FUNC,
+    TYPE_INT, TYPE_NUM, TYPE_STR, TYPE_STRUCT, TYPE_VEC,
 };
 
 use self::env::{Env, EnvVal};
@@ -465,32 +465,36 @@ impl Interpreter {
     fn eval_unary_expr(&mut self, expr: &Unary) -> Result<Val> {
         let un_expr: Val = self.evaluate(&expr.expr)?;
 
-        let val = match expr.operator.token_type {
-            TokenType::Bang => match un_expr {
+        let val = match expr.operator {
+            UnaryOperator::Not => match un_expr {
                 Val::Bool(b) => Val::Bool(!b),
                 val => {
-                    return Err(RuntimeError::from_token(
-                        expr.operator.clone(),
-                        format!("Expected \"bool\" value, got \"{}\"", val.get_type()),
-                    ))
+                    return Err(RuntimeError::new(format!(
+                        "Expected \"bool\" value, got \"{}\"",
+                        val.get_type()
+                    )))
                 }
             },
-            TokenType::Minus => match un_expr {
+            UnaryOperator::Sub => match un_expr {
                 Val::Float(n) => Val::Float(-n),
                 Val::Int(n) => Val::Int(-n),
                 val => {
-                    return Err(RuntimeError::from_token(
-                        expr.operator.clone(),
-                        format!("Expected \"num\" value, got \"{}\"", val.get_type()),
-                    ))
+                    return Err(RuntimeError::new(format!(
+                        "Expected \"num\" value, got \"{}\"",
+                        val.get_type()
+                    )))
                 }
             },
-            _ => {
-                return Err(RuntimeError::from_token(
-                    expr.operator.clone(),
-                    format!("Unknown unary \"{}\"", expr.operator.lexeme),
-                ))
-            }
+            UnaryOperator::Add => match un_expr {
+                Val::Float(n) => Val::Float(n),
+                Val::Int(n) => Val::Int(n),
+                val => {
+                    return Err(RuntimeError::new(format!(
+                        "Expected \"num\" value, got \"{}\"",
+                        val.get_type()
+                    )))
+                }
+            },
         };
 
         Ok(val)
