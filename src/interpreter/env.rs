@@ -6,10 +6,11 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use crate::interpreter::Result;
 use crate::interpreter::RuntimeError;
 use crate::lexer::token::{Pos, Token};
-use crate::parser::expr::{ConstDecl, FnDecl, ValType};
+use crate::parser::expr::{ConstDecl, FnDecl};
 
 use super::val::Val;
 use crate::interpreter::val::StructInstance;
+use crate::parser::valtype::ValType;
 
 static COUNTER: AtomicUsize = AtomicUsize::new(1);
 

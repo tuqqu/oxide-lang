@@ -12,9 +12,10 @@ use crate::parser::expr::{
     Assignment, Binary, Block, BoolLiteral, Call, CallStruct, ConstDecl, EnumDecl, Expr,
     FloatLiteral, FnDecl, GetProp, GetStaticProp, Grouping, If, ImplDecl, IntLiteral, Lambda, Loop,
     Match, NilLiteral, Return, SelfStatic, Self_, SetIndex, SetProp, Stmt, StrLiteral, StructDecl,
-    Unary, ValType, VarDecl, Variable, VecIndex, Vec_, TYPE_BOOL, TYPE_FUNC, TYPE_INT, TYPE_NUM,
-    TYPE_STR, TYPE_STRUCT, TYPE_VEC,
+    Unary, VarDecl, Variable, VecIndex, Vec_,
 };
+
+use crate::parser::valtype::{ValType, TYPE_BOOL, TYPE_FUNC, TYPE_INT, TYPE_STR, TYPE_STRUCT, TYPE_VEC, TYPE_NUM};
 
 use self::env::{Env, EnvVal};
 use self::val::{Callable, Function, StmtVal, Val};

@@ -3,10 +3,7 @@ use std::fmt;
 use std::rc::Rc;
 use std::sync::Arc;
 
-use crate::parser::expr::{
-    Lambda, StructDecl, ValType, TYPE_BOOL, TYPE_ENUM, TYPE_ENUM_VALUE, TYPE_FLOAT, TYPE_FUNC,
-    TYPE_INT, TYPE_NIL, TYPE_STR, TYPE_STRUCT, TYPE_STRUCT_INSTANCE, TYPE_UNINIT, TYPE_VEC,
-};
+use crate::parser::expr::{Lambda, StructDecl};
 
 use super::env::Env;
 use super::Interpreter;
@@ -16,6 +13,10 @@ use crate::interpreter::env::{construct_static_name, internal_id, Impl};
 use crate::interpreter::RuntimeError;
 use crate::lexer::token::Token;
 use std::collections::HashMap;
+use crate::parser::valtype::{
+    ValType, TYPE_BOOL, TYPE_ENUM, TYPE_ENUM_VALUE, TYPE_FLOAT, TYPE_FUNC,
+    TYPE_INT, TYPE_NIL, TYPE_STR, TYPE_STRUCT, TYPE_STRUCT_INSTANCE, TYPE_UNINIT, TYPE_VEC,
+};
 
 #[derive(Debug, Clone)]
 pub enum Val {

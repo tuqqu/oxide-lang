@@ -434,16 +434,16 @@ Defining a function argument as `mut` lets you mutate it in the function body. B
 /// of two integers using Euclids algorithm
 
 fn gcd(mut n: int, mut m: int) -> int {
-  while m != 0 {
-    if m < n {
-      let t = m;
-      m = n;
-      n = t;
+    while m != 0 {
+        if m < n {
+          let t = m;
+          m = n;
+          n = t;
+        }
+        m = m % n;
     }
-    m = m % n;
-  }
-
-  return n;
+  
+    return n;
 }
 
 gcd(15, 5); // 5

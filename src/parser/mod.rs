@@ -6,7 +6,7 @@ use crate::parser::expr::Expr::{
 };
 use crate::parser::expr::{
     CallStruct, EnumDecl, GetProp, GetStaticProp, ImplDecl, IntLiteral, Lambda, Match, MatchArm,
-    SelfStatic, Self_, SetIndex, SetProp, StructDecl, ValType, VecIndex, Vec_,
+    SelfStatic, Self_, SetIndex, SetProp, StructDecl, VecIndex, Vec_,
 };
 use crate::{error_at, error_token};
 
@@ -19,8 +19,10 @@ use self::expr::{
     Assignment, Binary, Block, BoolLiteral, Call, ConstDecl, Expr, FloatLiteral, FnDecl, Grouping,
     If, Loop, NilLiteral, Return, Stmt, StrLiteral, Unary, VarDecl, Variable,
 };
+use crate::parser::valtype::ValType;
 
 pub mod expr;
+pub mod valtype;
 
 pub type Result<T> = result::Result<T, ParserError>;
 
