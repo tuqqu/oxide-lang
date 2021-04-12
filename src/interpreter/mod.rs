@@ -835,6 +835,19 @@ impl Interpreter {
         };
 
         let val = self.evaluate(&expr.expr)?;
+        let mut vec = vec.borrow_mut();
+
+        if !vec.val_type.conforms(&val) {
+            return Err(RuntimeError::from_token(
+                expr.operator.clone(),
+                format!(
+                    "Cannot assign value of type \"{}\" to a vector of type \"{}\"",
+                    val.get_type(),
+                    vec.val_type
+                ),
+            ));
+        }
+
         let val = match expr.operator.token_type {
             TokenType::Equal => val,
             TokenType::PlusEqual
@@ -842,9 +855,8 @@ impl Interpreter {
             | TokenType::AsteriskEqual
             | TokenType::SlashEqual
             | TokenType::ModulusEqual => {
-                let r_val = vec.borrow_mut().get(index)?;
-
-                Self::evaluate_two_operands(expr.operator.clone(), val, r_val)?
+                let l_val = vec.get(index)?;
+                Self::evaluate_two_operands(expr.operator.clone(), l_val, val)?
             }
             _ => {
                 return Err(RuntimeError::from_token(
@@ -854,7 +866,7 @@ impl Interpreter {
             }
         };
 
-        vec.borrow_mut().set(index, val.clone())?;
+        vec.set(index, val.clone())?;
 
         Ok(val)
     }
