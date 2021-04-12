@@ -108,14 +108,14 @@ println(input); // [vec] [-3, 0, 1, 3, 4, 4, 13, 19]
 ```rust
 /// first-class functions
 
-let make_adder = fn (x: num) -> func {
+let make_adder = fn (x: num) -> fn {
     return fn (y: num) -> num {
         return x + y;
     };
 };
 
-let add5 = make_adder(5);
-let add7 = make_adder(7);
+let add5: fn = make_adder(5);
+let add7: fn = make_adder(7);
 
 println(add5(2)); // 7
 println(add7(2)); // 9
@@ -203,7 +203,7 @@ cargo uninstall
 
 ## Variables and Type System
 
-There are eleven types embodied in the language: `nil`, `num`, `int`, `float`, `bool`, `str`, `func`, `vec`, `any` and user-defined types (via [`structs`](#structs) and [`enums`](#enums)). See [type system][type-system]
+There are eleven types embodied in the language: `nil`, `num`, `int`, `float`, `bool`, `str`, `fn`, `vec`, `any` and user-defined types (via [`structs`](#structs) and [`enums`](#enums)). See [type system][type-system]
 
 Each variable has a type associated with it, either explicitly declared with the variable itself:
 
@@ -212,9 +212,7 @@ let x: int;
 
 let mut y: str = "hello" + " world";
 
-let double: func = fn (x: num) -> num {
-    return x * 2;
-};
+let double: fn = fn (x: num) -> num { return x * 2; };
 
 let human: Person = Person { name: "Jane" };
 
@@ -453,13 +451,13 @@ Redeclaring a function results in a runtime error.
 
 ### Closures and Lambdas
 
-Functions are first-class citizens of the language, they can be stored in a variable of type `func`, passed to or/and returned from another function.
+Functions are first-class citizens of the language, they can be stored in a variable of type `fn`, passed to or/and returned from another function.
 
 ```rust
 /// function returns closure
 /// which captures the internal value i
 /// each call to the closure increments the captured value
-fn create_counter() -> func {
+fn create_counter() -> fn {
     let mut i = 0;
 
     return fn () {                  // returns closure
@@ -468,7 +466,7 @@ fn create_counter() -> func {
     };
 }
 
-let counter = create_counter();     // inferred as "func"
+let counter = create_counter();     // inferred as "fn"
 
 counter(); // 1
 counter(); // 2
@@ -482,7 +480,7 @@ fn str_concat(prefix: str, suffix: str) -> str {
     return prefix + suffix;
 }
 
-fn str_transform(callable: func, a: str, b: str) -> any {
+fn str_transform(callable: fn, a: str, b: str) -> any {
     return callable(a, b);
 }
 
