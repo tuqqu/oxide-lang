@@ -12,11 +12,11 @@ use super::Result;
 use crate::interpreter::env::{construct_static_name, internal_id, Impl};
 use crate::interpreter::RuntimeError;
 use crate::lexer::token::Token;
-use std::collections::HashMap;
 use crate::parser::valtype::{
-    ValType, TYPE_BOOL, TYPE_ENUM, TYPE_ENUM_VALUE, TYPE_FLOAT, TYPE_FUNC,
-    TYPE_INT, TYPE_NIL, TYPE_STR, TYPE_STRUCT, TYPE_STRUCT_INSTANCE, TYPE_UNINIT, TYPE_VEC,
+    ValType, TYPE_BOOL, TYPE_ENUM, TYPE_ENUM_VALUE, TYPE_FLOAT, TYPE_FN, TYPE_INT, TYPE_NIL,
+    TYPE_STR, TYPE_STRUCT, TYPE_STRUCT_INSTANCE, TYPE_UNINIT, TYPE_VEC,
 };
+use std::collections::HashMap;
 
 #[derive(Debug, Clone)]
 pub enum Val {
@@ -368,7 +368,6 @@ impl Val {
             _ => false,
             // FIXME: add struct comparisons
             // FIXME: add vec comparisons
-            // FIXME: add enum comparisons
         }
     }
 
@@ -382,7 +381,7 @@ impl Val {
             Str(_str) => TYPE_STR.to_string(),
             Int(_isize) => TYPE_INT.to_string(),
             Float(_f64) => TYPE_FLOAT.to_string(),
-            Callable(_f) => TYPE_FUNC.to_string(),
+            Callable(_f) => TYPE_FN.to_string(),
             Struct(_t, _c) => TYPE_STRUCT.to_string(),
             StructInstance(_i) => TYPE_STRUCT_INSTANCE.to_string(),
             Enum(_e) => TYPE_ENUM.to_string(),
@@ -402,7 +401,7 @@ impl fmt::Display for Val {
             Str(s) => write!(f, "{}", s),
             Int(n) => write!(f, "{}", n),
             Float(n) => write!(f, "{}", n),
-            Callable(_f) => write!(f, "{}", TYPE_FUNC),
+            Callable(_f) => write!(f, "{}", TYPE_FN),
             Struct(token, _c) => write!(f, "[struct {}]", token.lexeme),
             StructInstance(i) => {
                 let mut props = vec![];

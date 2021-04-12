@@ -416,6 +416,7 @@ impl Env {
                 .unwrap()
                 .borrow_mut()
                 .get_by_str(name, pos);
+
             return val;
         }
 

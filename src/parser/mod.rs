@@ -8,6 +8,7 @@ use crate::parser::expr::{
     CallStruct, EnumDecl, GetProp, GetStaticProp, ImplDecl, IntLiteral, Lambda, Match, MatchArm,
     SelfStatic, Self_, SetIndex, SetProp, StructDecl, VecIndex, Vec_,
 };
+use crate::parser::valtype::ValType;
 use crate::{error_at, error_token};
 
 use self::expr::Expr::{
@@ -19,7 +20,6 @@ use self::expr::{
     Assignment, Binary, Block, BoolLiteral, Call, ConstDecl, Expr, FloatLiteral, FnDecl, Grouping,
     If, Loop, NilLiteral, Return, Stmt, StrLiteral, Unary, VarDecl, Variable,
 };
-use crate::parser::valtype::ValType;
 
 pub mod expr;
 pub mod valtype;
@@ -30,8 +30,8 @@ pub type Result<T> = result::Result<T, ParserError>;
 pub struct ParserError;
 
 pub struct Parser {
-    pub tokens: Vec<Token>,
-    pub structs: Vec<String>,
+    tokens: Vec<Token>,
+    structs: Vec<String>,
     current: usize,
     loop_depth: usize,
     fn_depth: usize,
@@ -359,7 +359,6 @@ impl Parser {
     /// Parses the struct implementation block:
     /// Struct methods
     /// Future scope: add types
-    /// Future scope: add static methods
     fn impl_decl(&mut self) -> Result<Stmt> {
         let name: Token =
             self.consume(TokenType::Identifier, "Implementation target name expected")?;
@@ -1278,7 +1277,7 @@ impl Parser {
             || self.check(Bool)
             || self.check(Map)
             || self.check(Any)
-            || self.check(Func)
+            || self.check(Fn)
             || self.check(Identifier)
         {
             let v_type_token = self.advance().clone();
@@ -1316,7 +1315,7 @@ impl Parser {
         if self.check(SelfStatic) {
             if let Some(name) = self.current_struct_name.clone() {
                 self.advance();
-                return Ok(ValType::Struct(name));
+                return Ok(ValType::Instance(name));
             } else {
                 self.err = true;
                 error_token(
@@ -1426,8 +1425,8 @@ impl Parser {
             }
 
             match self.peek().token_type {
-                Struct | Fn | Impl | Let | Const | For | If | Loop | While | Match | Return
-                | Continue => {
+                Enum | Struct | Fn | Impl | Let | Const | For | If | Loop | While | Match
+                | Return | Continue => {
                     return;
                 }
                 _ => {}

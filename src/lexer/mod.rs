@@ -33,7 +33,7 @@ impl Lexer {
         keywords.insert("num".to_string(), TokenType::Num);
         keywords.insert("int".to_string(), TokenType::Int);
         keywords.insert("float".to_string(), TokenType::Float);
-        keywords.insert("func".to_string(), TokenType::Func);
+        // keywords.insert("func".to_string(), TokenType::Func);
         keywords.insert("any".to_string(), TokenType::Any);
         keywords.insert("vec".to_string(), TokenType::Vec);
         keywords.insert("bool".to_string(), TokenType::Bool);

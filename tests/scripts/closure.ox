@@ -1,7 +1,7 @@
 /// function returns closure
 /// which captures the internal value i
 /// each call to the closure increments the captured value
-fn create_counter(start_from: num) -> func {
+fn create_counter(start_from: num) -> fn {
     let mut i = start_from;
 
     fn count() {
@@ -19,7 +19,7 @@ counter();
 counter();
 counter();
 
-let anon_create_counter: func = fn (mut i: num) -> func {
+let anon_create_counter: fn = fn (mut i: num) -> fn {
     return fn () {
         i += 1;
         println(i);

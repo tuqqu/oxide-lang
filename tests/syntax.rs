@@ -43,6 +43,11 @@ fn test_types() {
 }
 
 #[test]
+fn test_type_inference() {
+    test_script("type_inference");
+}
+
+#[test]
 fn test_while() {
     test_script("while");
 }

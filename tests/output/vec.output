@@ -14,7 +14,24 @@ vec<vec<bool>>
 vec<vec<bool>>
 [vec] [[vec] [[vec] [[vec] [hello]]]]
 vec<vec<vec<vec<any>>>>
-[vec] [[struct] D {  }, [struct] D {  }]
-vec<D>
 [vec] [100, 2, 3]
 vec<int>
+[vec] [[struct] S {  }, [struct] S {  }]
+vec<S>
+[vec] []
+vec<S>
+[struct] D { d: 10 }
+[struct] D { d: 100 }
+vec<D>
+[vec] []
+vec<E>
+[vec] [[enum] E::A]
+vec<E>
+[enum] E::B
+vec<E>
+[enum] E::B
+vec<E>
+[vec] []
+vec<fn>
+[vec] [fn]
+vec<fn>

@@ -1,0 +1,26 @@
+int
+uninit
+str
+float
+str
+int
+nil
+bool
+fn
+fn
+fn
+vec<any>
+vec<any>
+vec<int>
+vec<int>
+vec<str>
+struct
+vec<S>
+vec<S>
+enum E
+vec<E>
+vec<E>
+vec<fn>
+vec<fn>
+uninit
+vec<nil>

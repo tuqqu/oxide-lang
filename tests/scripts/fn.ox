@@ -44,7 +44,7 @@ fn func_a(a: num) -> num {
 println(func_a(10));
 
 /// accepts closure and calls it
-fn func_b(closure: func) {
+fn func_b(closure: fn) {
     closure(10);
 }
 

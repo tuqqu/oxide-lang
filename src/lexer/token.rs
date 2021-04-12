@@ -83,7 +83,6 @@ pub enum TokenType {
     Nil,
     Vec,
     Map,
-    Func,
     Any,
 
     While,

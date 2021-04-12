@@ -5,7 +5,7 @@ use std::fmt;
 pub const TYPE_UNINIT: &str = "uninit";
 pub const TYPE_ANY: &str = "any";
 pub const TYPE_BOOL: &str = "bool";
-pub const TYPE_FUNC: &str = "func";
+pub const TYPE_FN: &str = "fn";
 pub const TYPE_NUM: &str = "num";
 pub const TYPE_INT: &str = "int";
 pub const TYPE_FLOAT: &str = "float";
@@ -29,9 +29,9 @@ pub enum ValType {
     Str,
     Vec(Generics),
     Map,
-    Func,
+    Fn,
     /// Corresponds to both enum & struct.
-    Struct(String),
+    Instance(String),
     Any,
 }
 
@@ -49,9 +49,9 @@ impl ValType {
                 Some(Self::Vec(Generics::new(generics)))
             }
             TokenType::Map => Some(Self::Map),
-            TokenType::Func => Some(Self::Func),
+            TokenType::Fn => Some(Self::Fn),
             TokenType::Any => Some(Self::Any),
-            TokenType::Identifier => Some(Self::Struct(token.lexeme.clone())),
+            TokenType::Identifier => Some(Self::Instance(token.lexeme.clone())),
             _ => None,
         }
     }
@@ -64,9 +64,9 @@ impl ValType {
             Val::Bool(_) => Some(Self::Bool),
             Val::Nil => Some(Self::Nil),
             Val::Str(_) => Some(Self::Str),
-            Val::Callable(_) => Some(Self::Func),
-            Val::StructInstance(i) => Some(Self::Struct(i.borrow_mut().struct_name.clone())),
-            Val::EnumValue(e, _, _) => Some(Self::Struct(e.clone())),
+            Val::Callable(_) => Some(Self::Fn),
+            Val::StructInstance(i) => Some(Self::Instance(i.borrow_mut().struct_name.clone())),
+            Val::EnumValue(e, _, _) => Some(Self::Instance(e.clone())),
             Val::VecInstance(v) => Some(Self::Vec(Generics::new(vec![v
                 .borrow_mut()
                 .val_type
@@ -81,15 +81,15 @@ impl ValType {
             (Self::Any, _) => true,
             (Self::Nil, Val::Nil) => true,
             (Self::Bool, Val::Bool(_)) => true,
-            (Self::Func, Val::Callable(_)) => true,
+            (Self::Fn, Val::Callable(_)) => true,
             (Self::Num, Val::Float(_)) => true,
             (Self::Num, Val::Int(_)) => true,
             (Self::Int, Val::Int(_)) => true,
             (Self::Float, Val::Float(_)) => true,
             (Self::Float, Val::Int(_)) => true,
             (Self::Str, Val::Str(_)) => true,
-            (Self::Struct(s), Val::StructInstance(i)) => i.borrow_mut().struct_name == *s,
-            (Self::Struct(s), Val::EnumValue(e, _, _)) => s == e,
+            (Self::Instance(s), Val::StructInstance(i)) => i.borrow_mut().struct_name == *s,
+            (Self::Instance(s), Val::EnumValue(e, _, _)) => s == e,
             (Self::Vec(g), Val::VecInstance(v)) => {
                 let v_g_type = g.types.first().unwrap();
                 let vi_g_type = v.borrow_mut().val_type.clone();
@@ -107,7 +107,7 @@ impl fmt::Display for ValType {
             Self::Uninit => write!(f, "{}", TYPE_UNINIT),
             Self::Any => write!(f, "{}", TYPE_ANY),
             Self::Bool => write!(f, "{}", TYPE_BOOL),
-            Self::Func => write!(f, "{}", TYPE_FUNC),
+            Self::Fn => write!(f, "{}", TYPE_FN),
             Self::Num => write!(f, "{}", TYPE_NUM),
             Self::Int => write!(f, "{}", TYPE_INT),
             Self::Float => write!(f, "{}", TYPE_FLOAT),
@@ -115,7 +115,7 @@ impl fmt::Display for ValType {
             Self::Nil => write!(f, "{}", TYPE_NIL),
             Self::Vec(g) => write!(f, "{}<{}>", TYPE_VEC, g.types.first().unwrap()),
             Self::Map => write!(f, "{}", TYPE_MAP),
-            Self::Struct(s) => write!(f, "{}", s),
+            Self::Instance(s) => write!(f, "{}", s),
         }
     }
 }

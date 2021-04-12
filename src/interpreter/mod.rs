@@ -15,7 +15,9 @@ use crate::parser::expr::{
     Unary, VarDecl, Variable, VecIndex, Vec_,
 };
 
-use crate::parser::valtype::{ValType, TYPE_BOOL, TYPE_FUNC, TYPE_INT, TYPE_STR, TYPE_STRUCT, TYPE_VEC, TYPE_NUM};
+use crate::parser::valtype::{
+    ValType, TYPE_BOOL, TYPE_FN, TYPE_INT, TYPE_NUM, TYPE_STR, TYPE_STRUCT, TYPE_VEC,
+};
 
 use self::env::{Env, EnvVal};
 use self::val::{Callable, Function, StmtVal, Val};
@@ -519,7 +521,7 @@ impl Interpreter {
             }
             _ => Err(RuntimeError::new(format!(
                 "Callable value must be of type \"{}\", got \"{}\"",
-                TYPE_FUNC,
+                TYPE_FN,
                 callee.get_type()
             ))),
         }
