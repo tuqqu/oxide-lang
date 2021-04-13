@@ -66,7 +66,7 @@ impl Interpreter {
     }
 
     fn eval_enum_stmt(&mut self, stmt: &EnumDecl) -> Result<StmtVal> {
-        if self.env.borrow().contains_key(&stmt.name.lexeme) {
+        if self.env.borrow().has_definition(&stmt.name.lexeme) {
             return Err(RuntimeError::from_token(
                 stmt.name.clone(),
                 format!("Name '{}' is already in use", stmt.name.lexeme),
@@ -93,7 +93,7 @@ impl Interpreter {
     }
 
     fn eval_struct_stmt(&mut self, stmt: &StructDecl) -> Result<StmtVal> {
-        if self.env.borrow().contains_key(&stmt.name.lexeme) {
+        if self.env.borrow().has_definition(&stmt.name.lexeme) {
             return Err(RuntimeError::from_token(
                 stmt.name.clone(),
                 format!("Name '{}' is already in use", stmt.name.lexeme),

@@ -334,7 +334,7 @@ impl Env {
         );
     }
 
-    pub fn contains_key(&self, name: &str) -> bool {
+    pub fn has_definition(&self, name: &str) -> bool {
         self.vals.contains_key(name)
     }
 
