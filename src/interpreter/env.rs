@@ -334,6 +334,10 @@ impl Env {
         );
     }
 
+    pub fn contains_key(&self, name: &str) -> bool {
+        self.vals.contains_key(name)
+    }
+
     pub fn define_struct(&mut self, struct_: Struct) {
         self.vals.insert(
             struct_.name.clone(),
@@ -379,7 +383,7 @@ impl Env {
         if self.vals.contains_key(&func.get_name()) {
             return Err(RuntimeError::from_token(
                 func.name.clone(),
-                format!("Trying to redefine function \"{}\"", func.get_name()),
+                format!("Name \"{}\" is already in use", func.get_name()),
             ));
         }
 
