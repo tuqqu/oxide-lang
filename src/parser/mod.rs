@@ -255,7 +255,6 @@ impl Parser {
     /// Parses the enum declaration statement.
     fn enum_decl(&mut self) -> Result<Stmt> {
         let name: Token = self.consume(TokenType::Identifier, "Enum name expected")?;
-        self.check_if_declared(&name)?;
         self.consume(
             TokenType::LeftCurlyBrace,
             "Curly brace \"{\" expected after enum name",
@@ -310,7 +309,6 @@ impl Parser {
     /// whether they are `pub` and their type
     fn struct_decl(&mut self) -> Result<Stmt> {
         let name: Token = self.consume(TokenType::Identifier, "Struct name expected")?;
-        self.check_if_declared(&name)?;
         self.consume(
             TokenType::LeftCurlyBrace,
             "Curly brace \"{\" expected after struct name",
@@ -1403,17 +1401,6 @@ impl Parser {
         }
 
         Ok(self.advance().clone())
-    }
-
-    fn check_if_declared(&mut self, name: &Token) -> Result<()> {
-        if self.structs.contains(&name.lexeme) {
-            self.err = true;
-            let msg = format!("Name \"{}\" is already in use", name.lexeme);
-            error_token(&name, &msg);
-            Err(ParserError)
-        } else {
-            Ok(())
-        }
     }
 
     fn try_to_recover(&mut self) {

@@ -65,7 +65,13 @@ impl Interpreter {
         Ok(())
     }
 
-    fn eval_enum_stmt(&mut self, stmt: &EnumDecl) -> StmtVal {
+    fn eval_enum_stmt(&mut self, stmt: &EnumDecl) -> Result<StmtVal> {
+        if self.env.borrow().has_definition(&stmt.name.lexeme) {
+            return Err(RuntimeError::from_token(
+                stmt.name.clone(),
+                format!("Name '{}' is already in use", stmt.name.lexeme),
+            ));
+        }
         for (val, name) in stmt.vals.iter().enumerate() {
             let val_name_t = name.clone();
             let name_t = stmt.name.clone();
@@ -83,10 +89,16 @@ impl Interpreter {
 
         self.env.borrow_mut().define_enum(enum_);
 
-        StmtVal::None
+        Ok(StmtVal::None)
     }
 
-    fn eval_struct_stmt(&mut self, stmt: &StructDecl) -> StmtVal {
+    fn eval_struct_stmt(&mut self, stmt: &StructDecl) -> Result<StmtVal> {
+        if self.env.borrow().has_definition(&stmt.name.lexeme) {
+            return Err(RuntimeError::from_token(
+                stmt.name.clone(),
+                format!("Name '{}' is already in use", stmt.name.lexeme),
+            ));
+        }
         let decl = stmt.clone();
         let struct_ = env::Struct::new(
             stmt.name.lexeme.clone(),
@@ -138,7 +150,7 @@ impl Interpreter {
 
         self.env.borrow_mut().define_struct(struct_);
 
-        StmtVal::None
+        Ok(StmtVal::None)
     }
 
     fn eval_impl_stmt(&mut self, stmt: &ImplDecl) -> Result<StmtVal> {
@@ -1184,8 +1196,8 @@ impl Interpreter {
             IfStmt(if_stmt) => self.eval_if_stmt(if_stmt),
             Fn(f_decl) => self.eval_fn_stmt(f_decl),
             LoopStmt(loop_stmt) => self.eval_loop_stmt(loop_stmt),
-            Enum(enum_decl) => Ok(self.eval_enum_stmt(enum_decl)),
-            Struct(struct_decl) => Ok(self.eval_struct_stmt(struct_decl)),
+            Enum(enum_decl) => self.eval_enum_stmt(enum_decl),
+            Struct(struct_decl) => self.eval_struct_stmt(struct_decl),
             Impl(impl_decl) => self.eval_impl_stmt(impl_decl),
         }
     }
