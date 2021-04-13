@@ -130,15 +130,17 @@ enum Ordering {
     Greater
 }
 
-fn compare(a: int, b: int) -> Ordering {
-    return match true {
-        a < b => Ordering::Less,
-        a == b => Ordering::Equal,
-        a > b => Ordering::Greater,
-    };
+impl Ordering {
+    pub fn compare(a: int, b: int) -> Self {
+        return match true {
+            a < b  => Self::Less,
+            a == b => Self::Equal,
+            a > b  => Self::Greater,
+        };
+    }
 }
 
-let order: Ordering = compare(10, 5); // Ordering::Greater
+let order = Ordering::compare(10, 5); // Ordering::Greater
 ```
 
 [More examples][examples]
@@ -323,15 +325,17 @@ enum HttpStatus {
     Ok
 }
 
-fn code(status: HttpStatus) -> int {
-    return match status {
-        HttpStatus::NotFound => 404,
-        HttpStatus::NotModified => 304,
-        HttpStatus::Ok => 200,
-    };
+impl HttpStatus {
+    fn code(status: Self) -> int {
+        return match status {
+            Self::NotFound => 404,
+            Self::NotModified => 304,
+            Self::Ok => 200,
+        };
+    }
 }
 
-let status = code(HttpStatus::Ok); // 200
+let status = HttpStatus::code(HttpStatus::Ok); // 200
 ```
 
 ### While
@@ -669,26 +673,32 @@ enum TimeUnit {
 let days = TimeUnit::Days; // inferred type as "TimeUnit"
 ```
 
-Equality of enum values can be checked with `==` and `!=`
+`impl` blocks can be used to implement static methods and constants on enums. 
+
+_Future scope: allow instance methods on enums._
+
+```rust
+impl TimeUnit {   
+    pub fn plural(time: Self) -> str {
+        return match time {
+            Self::Seconds => "seconds",
+            Self::Minutes => "minutes",
+            Self::Hours => "hours",
+            Self::Days => "days",
+            Self::Months => "months",
+            Self::Years => "years"
+        };
+    }
+}
+
+TimeUnit::plural(days); // "days"
+```
+
+Equality of enum values can be checked with `==` and `!=` or with `match`
 
 ```rust
 days == TimeUnit::Days;             // true
 TimeUnit::Years == TimeUnit::Hours; // false
-```
-
-Or better with `match`
-
-```rust
-fn plural(time: TimeUnit) -> str {
-    return match time {
-        TimeUnit::Seconds => "seconds",
-        TimeUnit::Minutes => "minutes",
-        TimeUnit::Hours => "hours",
-        TimeUnit::Days => "days",
-        TimeUnit::Months => "months",
-        TimeUnit::Years => "years"
-    };
-}
 ```
 
 Different types of enum values are not compatible and comparing them will trigger an error

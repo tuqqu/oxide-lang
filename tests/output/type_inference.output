@@ -17,7 +17,7 @@ vec<str>
 struct
 vec<S>
 vec<S>
-enum E
+enum E::A
 vec<E>
 vec<E>
 vec<fn>

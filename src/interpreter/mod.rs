@@ -535,13 +535,13 @@ impl Interpreter {
                 let struct_ = self.env.borrow_mut().get_by_str(&s, expr.self_static.pos)?;
                 let struct_ = struct_.borrow_mut().deref().clone();
 
-                if let EnvVal::Struct(s) = struct_ {
-                    Ok(s.val)
-                } else {
-                    Err(RuntimeError::from_token(
+                match struct_ {
+                    EnvVal::Struct(s) => Ok(s.val),
+                    EnvVal::Enum(e) => Ok(e.val),
+                    _ => Err(RuntimeError::from_token(
                         expr.self_static.clone(),
                         "Wrong static bind target".to_string(),
-                    ))
+                    )),
                 }
             }
             None => Err(RuntimeError::from_token(
@@ -667,14 +667,16 @@ impl Interpreter {
         let static_caller = self.evaluate(&expr.name)?;
 
         match static_caller {
-            Val::Struct(token, _) => {
+            Val::Struct(token, _) | Val::Enum(token) => {
                 let static_name = construct_static_name(&token.lexeme, &expr.prop_name.lexeme);
                 let public_access = self.is_public_static_access(token.lexeme.clone());
                 let static_val = self.env.borrow_mut().get_by_str(&static_name, token.pos)?;
                 let env_val = static_val.borrow_mut();
                 match env_val.deref() {
+                    // FIXME: can it lead to a bug? this branch should be possible only in Enum case
+                    EnvVal::EnumValue(e) => Ok(e.val.clone()),
                     EnvVal::Constant(c) => {
-                        if let Some((_struct_name, pub_)) = c.for_struct.clone() {
+                        if let Some((_name, pub_)) = c.for_target.clone() {
                             if StructInstance::can_access(pub_, public_access) {
                                 Ok(c.val.clone())
                             } else {
@@ -691,7 +693,7 @@ impl Interpreter {
                         }
                     }
                     EnvVal::Function(f) => {
-                        if let Some((_struct_name, pub_)) = f.for_struct.clone() {
+                        if let Some((_name, pub_)) = f.for_target.clone() {
                             if StructInstance::can_access(pub_, public_access) {
                                 Ok(f.val.clone())
                             } else {
@@ -709,20 +711,7 @@ impl Interpreter {
                     }
                     _ => Err(RuntimeError::from_token(
                         token,
-                        "Must be a static access".to_string(),
-                    )),
-                }
-            }
-            Val::Enum(token) => {
-                let static_name = construct_static_name(&token.lexeme, &expr.prop_name.lexeme);
-                let static_val = self.env.borrow_mut().get_by_str(&static_name, token.pos)?;
-                let env_val = static_val.borrow_mut();
-
-                match env_val.deref() {
-                    EnvVal::EnumValue(e) => Ok(e.val.clone()),
-                    _ => Err(RuntimeError::from_token(
-                        token,
-                        "Enum value expected".to_string(),
+                        "Unknown static access value".to_string(),
                     )),
                 }
             }
@@ -748,6 +737,7 @@ impl Interpreter {
                 }
             }
             Val::VecInstance(vec) => VecInstance::get_method(&expr.prop_name, vec),
+            // FIXME: add instance methods for enums
             _ => Err(RuntimeError::new(format!(
                 "Must be a struct instance, got \"{}\"",
                 instance.get_type()

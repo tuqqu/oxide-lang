@@ -3,7 +3,7 @@ true
 true
 false
 true
-enum TimeUnit
+enum TimeUnit::Seconds
 [enum] TimeUnit::Seconds
 seconds
 minutes

@@ -385,7 +385,7 @@ impl Val {
             Struct(_t, _c) => TYPE_STRUCT.to_string(),
             StructInstance(_i) => TYPE_STRUCT_INSTANCE.to_string(),
             Enum(_e) => TYPE_ENUM.to_string(),
-            EnumValue(e, _n, _v) => format!("{} {}", TYPE_ENUM_VALUE, e.clone()),
+            EnumValue(e, n, _v) => format!("{} {}::{}", TYPE_ENUM_VALUE, e, n),
             VecInstance(v) => format!("{}<{}>", TYPE_VEC, v.borrow_mut().val_type),
         }
     }
