@@ -9,7 +9,7 @@ use crate::parser::expr::{
     SelfStatic, Self_, SetIndex, SetProp, StructDecl, VecIndex, Vec_,
 };
 use crate::parser::valtype::ValType;
-use crate::{error_at, error_token};
+use crate::error_token;
 
 use self::expr::Expr::{
     AssignmentExpr, BinaryExpr, BoolLiteralExpr, EmptyExpr, FloatLiteralExpr, GroupingExpr,
@@ -486,7 +486,8 @@ impl Parser {
                 } else {
                     if params.len() > FnDecl::MAX_ARGS {
                         self.err = true;
-                        error_token(self.peek(), "Block statement expected");
+                        let msg = format!("Cannot have more than {} arguments", FnDecl::MAX_ARGS);
+                        error_token(self.peek(), &msg);
                     }
 
                     let mutable = self.check(TokenType::Mut);
@@ -1011,7 +1012,7 @@ impl Parser {
                 if args.len() >= FnDecl::MAX_ARGS {
                     self.err = true;
                     let msg = format!("Cannot have more than {} arguments", FnDecl::MAX_ARGS);
-                    error_at(self.peek().pos, &msg);
+                    error_token(self.peek(), &msg);
                 }
 
                 args.push(self.any_expr()?);
@@ -1039,7 +1040,7 @@ impl Parser {
             if args.len() >= FnDecl::MAX_ARGS {
                 self.err = true;
                 let msg = format!("Cannot have more than {} arguments", FnDecl::MAX_ARGS);
-                error_at(self.peek().pos, &msg);
+                error_token(self.peek(), &msg);
             }
 
             if self.check(TokenType::RightCurlyBrace) {
