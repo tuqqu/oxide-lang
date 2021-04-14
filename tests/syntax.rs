@@ -133,6 +133,11 @@ fn test_struct_static_self() {
 }
 
 #[test]
-fn test_enums() {
-    test_script("enums");
+fn test_enum_values() {
+    test_script("enum_values");
+}
+
+#[test]
+fn test_enum_impl() {
+    test_script("enum_impl");
 }

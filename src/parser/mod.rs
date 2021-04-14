@@ -36,6 +36,7 @@ pub struct Parser {
     loop_depth: usize,
     fn_depth: usize,
     err: bool,
+    // FIXME: rename this to something more generic
     current_struct_name: Option<String>,
 }
 
@@ -355,7 +356,7 @@ impl Parser {
     }
 
     /// Parses the struct implementation block:
-    /// Struct methods
+    /// Struct instance methods, static methods, constants
     /// Future scope: add types
     fn impl_decl(&mut self) -> Result<Stmt> {
         let name: Token =
@@ -370,6 +371,7 @@ impl Parser {
 
         // static methods
         let mut fns = vec![];
+        // instance methods
         let mut methods = vec![];
         let mut consts = vec![];
 

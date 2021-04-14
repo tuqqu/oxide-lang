@@ -52,7 +52,7 @@ pub struct Constant {
     pub id: usize,
     pub name: Token,
     pub val: Val,
-    pub for_struct: Option<(Token, bool)>,
+    pub for_target: Option<(Token, bool)>,
 }
 
 #[derive(Clone, Debug)]
@@ -60,7 +60,7 @@ pub struct Function {
     pub id: usize,
     pub name: Token,
     pub val: Val,
-    pub for_struct: Option<(Token, bool)>,
+    pub for_target: Option<(Token, bool)>,
 }
 
 #[derive(Clone, Debug)]
@@ -122,12 +122,12 @@ impl Constant {
             id: internal_id(),
             name,
             val,
-            for_struct,
+            for_target: for_struct,
         }
     }
 
     pub fn get_name(&self) -> String {
-        if let Some((for_struct, _)) = &self.for_struct {
+        if let Some((for_struct, _)) = &self.for_target {
             construct_static_name(&for_struct.lexeme, &self.name.lexeme)
         } else {
             self.name.lexeme.clone()
@@ -149,12 +149,12 @@ impl Function {
             id: internal_id(),
             name,
             val,
-            for_struct,
+            for_target: for_struct,
         }
     }
 
     pub fn get_name(&self) -> String {
-        if let Some((for_struct, _)) = &self.for_struct {
+        if let Some((for_struct, _)) = &self.for_target {
             construct_static_name(&for_struct.lexeme, &self.name.lexeme)
         } else {
             self.name.lexeme.clone()
