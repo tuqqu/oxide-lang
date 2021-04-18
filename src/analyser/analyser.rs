@@ -1,7 +1,7 @@
-pub use crate::lexer::token::{Token, TokenType};
-pub use crate::parser::expr::{Expr, Stmt};
-use crate::parser::{expr};
 use super::ty::*;
+pub use crate::lexer::token::{Token, TokenType};
+use crate::parser::expr;
+pub use crate::parser::expr::{Expr, Stmt};
 
 use std::collections::HashMap;
 
@@ -106,7 +106,6 @@ impl Analyser {
             Expr::VariableExpr(var_expr) => {
                 let name = &var_expr.name.lexeme;
 
-
                 let mut arg_types: Vec<Type> = Vec::new();
                 for expr in &call_expr.args {
                     let ty = self.analyse_expression(expr)?;
@@ -115,22 +114,20 @@ impl Analyser {
 
                 let ty = match self.get_binding_in_scope(name) {
                     Some(ty) => ty,
-                    None => return Err(TypeError::NotAFunction)
+                    None => return Err(TypeError::NotAFunction),
                 };
                 let function = match ty {
                     Type::Function(function) => function,
-                    _ => return Err(TypeError::NotAFunction)
+                    _ => return Err(TypeError::NotAFunction),
                 };
                 let return_type = &function.return_type;
                 let param_types = &function.param_types;
                 let arity = function.param_types.len();
 
                 if arg_types.len() != arity {
-                    return Err(TypeError::ArityMismatch)
+                    return Err(TypeError::ArityMismatch);
                 }
-                let types_match = arg_types.iter().zip(param_types).all(|(t1, t2)| {
-                    t1 == t2
-                });
+                let types_match = arg_types.iter().zip(param_types).all(|(t1, t2)| t1 == t2);
 
                 if types_match {
                     Ok(return_type.clone())
@@ -138,7 +135,7 @@ impl Analyser {
                     Err(TypeError::FunctionParamsArgsTypeMismatch)
                 }
             }
-            _ => Err(TypeError::NotAFunction)
+            _ => Err(TypeError::NotAFunction),
         }
     }
 }
@@ -185,12 +182,15 @@ impl Analyser {
         self.enter_scope();
 
         // TODO: Consider mutability of params
-        let param_types: Vec<Type> = (&lambda.params).iter().map(|(token, typ, _is_mutable)| {
-            // let (token, typ, _is_mutable) = param;
-            let typ = Type::from(&typ);
-            self.create_binding_in_scope(token.lexeme.clone(), typ.clone());
-            typ
-        }).collect();
+        let param_types: Vec<Type> = (&lambda.params)
+            .iter()
+            .map(|(token, typ, _is_mutable)| {
+                // let (token, typ, _is_mutable) = param;
+                let typ = Type::from(&typ);
+                self.create_binding_in_scope(token.lexeme.clone(), typ.clone());
+                typ
+            })
+            .collect();
 
         for stmt in &lambda.body {
             self.analyse_statement(stmt)?;
@@ -218,7 +218,7 @@ impl Analyser {
 
     fn analyse_if_statement(&mut self, if_stmt: &expr::If) -> AnalyserResult {
         if self.analyse_expression(&*if_stmt.condition)? != Type::Bool {
-            return Err(TypeError::IfConditionNotBool)
+            return Err(TypeError::IfConditionNotBool);
         }
         self.analyse_statement(&*if_stmt.then_stmt)?;
         if let Some(else_stmt) = &if_stmt.else_stmt {

@@ -97,7 +97,7 @@ fn run(
     };
 
     let mut analyser = analyser::Analyser::new();
-    dbg!(analyser.analyse_statements(&stmts));
+    println!("{:?}", analyser.analyse_statements(&stmts));
 
     let mut interpreter = Interpreter::new(lib, stdout, stderr, stdin);
     let res = interpreter.interpret(&stmts);

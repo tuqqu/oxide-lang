@@ -6,13 +6,13 @@ pub enum Type {
     Str,
     Bool,
     Nil,
-    Function(Box<FunctionType>)
+    Function(Box<FunctionType>),
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct FunctionType {
     pub return_type: Type,
-    pub param_types: Vec<Type>
+    pub param_types: Vec<Type>,
 }
 
 impl Type {
@@ -31,7 +31,7 @@ impl FunctionType {
     pub fn new(return_type: Type, param_types: Vec<Type>) -> Self {
         Self {
             return_type,
-            param_types
+            param_types,
         }
     }
 }
