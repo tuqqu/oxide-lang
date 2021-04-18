@@ -10,6 +10,7 @@ use crate::lexer::token::{Pos, Token, TokenType};
 use crate::lexer::Lexer;
 use crate::parser::Parser;
 
+mod analyser;
 mod interpreter;
 mod lexer;
 mod parser;
@@ -94,6 +95,9 @@ fn run(
             process::exit(1);
         }
     };
+
+    let mut analyser = analyser::Analyser::new();
+    dbg!(analyser.analyse_statements(&stmts));
 
     let mut interpreter = Interpreter::new(lib, stdout, stderr, stdin);
     let res = interpreter.interpret(&stmts);
