@@ -43,6 +43,7 @@ pub enum Stmt {
     Enum(EnumDecl),
     Struct(StructDecl),
     Impl(ImplDecl),
+    Trait(TraitDecl),
     LoopStmt(Loop),
 }
 
@@ -130,9 +131,11 @@ pub struct SetIndex {
     pub expr: Box<Expr>,
 }
 
+pub type ParamList = Vec<(Token, ValType, bool)>;
+
 #[derive(Debug, Clone)]
 pub struct Lambda {
-    pub params: Vec<(Token, ValType, bool)>,
+    pub params: ParamList,
     pub ret_type: ValType,
     pub body: Vec<Stmt>,
 }
@@ -199,6 +202,14 @@ pub struct FnDecl {
     pub lambda: Lambda,
 }
 
+// FIXME: try to unite FnSignature with FnDecl and Lambda
+#[derive(Debug, Clone)]
+pub struct FnSignatureDecl {
+    pub name: Token,
+    pub params: Vec<(Token, ValType, bool)>,
+    pub ret_type: ValType,
+}
+
 #[derive(Debug, Clone)]
 pub struct EnumDecl {
     /// Enum name.
@@ -218,14 +229,24 @@ pub struct StructDecl {
 
 #[derive(Debug, Clone)]
 pub struct ImplDecl {
-    /// Struct name.
-    pub for_struct: Token,
+    /// Impl name.
+    pub impl_name: Token,
+    /// For name if present.
+    pub for_name: Option<Token>,
     /// Instance methods.
     pub methods: Vec<(FnDecl, bool)>,
     /// Static methods.
     pub fns: Vec<(FnDecl, bool)>,
     /// Associated constants.
     pub consts: Vec<(ConstDecl, bool)>,
+}
+
+#[derive(Debug, Clone)]
+pub struct TraitDecl {
+    /// Trait name.
+    pub name: Token,
+    /// Instance method signatures
+    pub method_signs: Vec<FnSignatureDecl>,
 }
 
 #[derive(Debug, Clone)]
@@ -419,6 +440,16 @@ impl FnDecl {
     }
 }
 
+impl FnSignatureDecl {
+    pub fn new(name: Token, params: ParamList, ret_type: ValType) -> Self {
+        Self {
+            name,
+            params,
+            ret_type,
+        }
+    }
+}
+
 impl EnumDecl {
     pub fn new(name: Token, vals: Vec<Token>) -> Self {
         Self { name, vals }
@@ -433,13 +464,15 @@ impl StructDecl {
 
 impl ImplDecl {
     pub fn new(
-        for_struct: Token,
+        impl_name: Token,
+        for_name: Option<Token>,
         methods: Vec<(FnDecl, bool)>,
         fns: Vec<(FnDecl, bool)>,
         consts: Vec<(ConstDecl, bool)>,
     ) -> Self {
         Self {
-            for_struct,
+            impl_name,
+            for_name,
             methods,
             fns,
             consts,
@@ -447,11 +480,14 @@ impl ImplDecl {
     }
 }
 
-impl Lambda {
-    #[allow(dead_code)]
-    pub const MAX_ARGS: usize = FnDecl::MAX_ARGS;
+impl TraitDecl {
+    pub fn new(name: Token, method_signs: Vec<FnSignatureDecl>) -> Self {
+        Self { name, method_signs }
+    }
+}
 
-    pub fn new(params: Vec<(Token, ValType, bool)>, ret_type: ValType, body: Vec<Stmt>) -> Self {
+impl Lambda {
+    pub fn new(params: ParamList, ret_type: ValType, body: Vec<Stmt>) -> Self {
         Self {
             params,
             ret_type,

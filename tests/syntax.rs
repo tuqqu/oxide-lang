@@ -141,3 +141,8 @@ fn test_enum_values() {
 fn test_enum_impl() {
     test_script("enum_impl");
 }
+
+#[test]
+fn test_traits() {
+    test_script("traits");
+}

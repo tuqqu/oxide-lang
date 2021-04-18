@@ -24,29 +24,29 @@ for let mut i = 0; i < 30; i += 1 {
 ```rust
 /// structs
 
-struct Circle {                 // struct declaration
-    pub radius: float,          // public field
-    center: Point,              // private field
-    tangents: vec<Tangent>,     
+struct Circle {                   // struct declaration
+    pub radius: float,            // public field
+    center: Point,                // private field
 }
 
-impl Circle {                   // struct implementation
-    const PI = 3.14159;         // private associated constant
+impl Circle {                     // struct implementation
+    const PI = 3.14159;           // private associated constant
 
     pub fn new(radius: float, center: Point) -> Self {    // public static method
         return Self {
             radius: radius,
             center: center,
-            tangents: vec[],
-        }
+        };
     }
-  
-    pub fn calc_area(self) -> float {                     // public method
+}
+
+trait Shape {                     // trait declaration
+    fn calc_area(self) -> float;  // trait methods are always public
+}
+
+impl Shape for Circle {            // trait implementation
+    fn calc_area(self) -> float {  
         return Self::PI * self.radius * self.radius;
-    }
-  
-    pub fn add_tangent(self, t: Tangent) {      
-        self.tangents.push(t);
     }
 }
 
@@ -55,24 +55,16 @@ struct Point {
     pub y: int,
 }
 
-struct Tangent {
-    p: Point,
-}
-
 // instantiation via static constructor
 let circle_a = Circle::new(200, Point { x: 1, y: 5 });
 
 // direct instantiation
 let circle_b = Circle {      
     radius: 103.5,
-    center: Point { x: 1, y: 5 } ,             // inner structs instantiation
-    tangents: vec[                             // inner vector of structs instantiation
-        Tangent { p: Point { x: 4, y: 3 } },
-        Tangent { p: Point { x: 1, y: 0 } },
-    ],
+    center: Point { x: 1, y: 5 } ,  // inner structs instantiation
 };
 
-let area = circle_a.calc_area();  // 33653.4974775
+let area = circle_a.calc_area();  // 125663.59999
 ```
 
 ```rust
@@ -146,6 +138,9 @@ let order = Ordering::compare(10, 5); // Ordering::Greater
 [More examples][examples]
 
 ## Usage
+
+Download the [latest release][latest-releases] and put the executable in your PATH.
+
 ### Interpret a file
 ```shell
 oxide [script.ox]
@@ -191,8 +186,10 @@ cargo uninstall
     * [For](#for)
 * [Functions](#functions)
     * [Declared functions](#declared-functions)
-    * [Closures and Lambdas](#closures-and-lambdas)
+    * [Closures and Lambdas](#closures)
 * [Structs](#structs)
+  * [Public and Private](#public-and-private)
+* [Traits](#traits)
 * [Enums](#enums)
 * [Vectors](#vectors)
 * [Constants](#constants)
@@ -453,7 +450,7 @@ gcd(15, 5); // 5
 
 Redeclaring a function results in a runtime error.
 
-### Closures and Lambdas
+### Closures
 
 Functions are first-class citizens of the language, they can be stored in a variable of type `fn`, passed to or/and returned from another function.
 
@@ -654,6 +651,61 @@ system.age = 100;                //! access error, "age" is private
 system.planets[0].mass;          //! access error, "mass" is private
 system.planets[0].is_heavier(p); //! access error, "is_heavier()" is private
 Star::MAX_AGE;                   //! access error, "Star::MAX_AGE" is private
+```
+
+## Traits
+
+Traits are similar to Rust traits and are used to define shared behavior.
+
+Because all trait methods are always public they are defined with no `pub` keyword.
+
+_Note: no static methods allowed._
+
+```rust
+trait Shape {
+    fn calc_area(self) -> float;
+  
+    fn calc_perimeter(self) -> float;
+}
+```
+
+Trait body lists function signatures that must be implemented when implementing the trait:
+
+```rust
+impl Shape for RightTriangle {
+    fn calc_area(self) -> float {
+        return self.a * self.b / 2;
+    }
+  
+    fn calc_perimeter(self) -> float {
+        return self.a + self.b + self.c;
+    }
+}
+
+impl Shape for Rectangle {
+    fn calc_area(self) -> float {
+        return self.a * self.b;
+    }
+  
+    fn calc_perimeter(self) -> float {
+        return (self.a + self.b) * 2;
+    }
+}
+```
+
+All structs that implement the `Shape` trait can be used wherever a shape is expected:
+
+```rust
+fn print_shape_values(shape: Shape) {
+    let area = shape.calc_area();
+    let perimeter = shape.calc_perimeter();
+
+    println("The area is " + area);
+    println("The perimeter is " + perimeter);
+}
+
+let a = Rectangle::new(10, 30);
+print_shape_values(a); 
 ```
 
 ## Enums

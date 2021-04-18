@@ -61,6 +61,7 @@ pub struct StructInstance {
     pub props: HashMap<String, (Val, ValType, bool)>,
     pub fns: HashMap<String, (Lambda, Rc<RefCell<Self>>, bool)>,
     pub struct_name: String,
+    pub impls: Vec<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -150,7 +151,7 @@ pub enum PropFuncVal {
 }
 
 impl StructInstance {
-    pub fn new(struct_: StructDecl, impl_: Option<Impl>) -> Rc<RefCell<Self>> {
+    pub fn new(struct_: StructDecl, impls: Vec<Impl>) -> Rc<RefCell<Self>> {
         let mut props: HashMap<String, (Val, ValType, bool)> = HashMap::new();
         for (prop, public) in struct_.props {
             // we can be sure that v_type is always present
@@ -160,22 +161,29 @@ impl StructInstance {
             );
         }
 
+        let mut impl_names = vec![];
+        for impl_ in &impls {
+            if let Some(trait_name) = &impl_.trait_name {
+                impl_names.push(trait_name.clone());
+            }
+        }
+
         let instance = Self {
             id: internal_id(),
             props,
             fns: HashMap::new(),
             struct_name: struct_.name.lexeme,
+            impls: impl_names,
         };
 
         let self_ = Rc::new(RefCell::new(instance));
-
-        if let Some(impl_) = impl_ {
-            let mut fns = HashMap::new();
+        for impl_ in impls {
+            let mut borrowed_self = self_.borrow_mut();
             for (fun, pub_) in impl_.methods {
-                fns.insert(fun.name.lexeme, (fun.lambda, self_.clone(), pub_));
+                borrowed_self
+                    .fns
+                    .insert(fun.name.lexeme, (fun.lambda, self_.clone(), pub_));
             }
-
-            self_.borrow_mut().fns = fns;
         }
 
         self_

@@ -88,7 +88,10 @@ impl ValType {
             (Self::Float, Val::Float(_)) => true,
             (Self::Float, Val::Int(_)) => true,
             (Self::Str, Val::Str(_)) => true,
-            (Self::Instance(s), Val::StructInstance(i)) => i.borrow_mut().struct_name == *s,
+            (Self::Instance(s), Val::StructInstance(i)) => {
+                let i = i.borrow();
+                i.struct_name == *s || i.impls.contains(s)
+            }
             (Self::Instance(s), Val::EnumValue(e, _, _)) => s == e,
             (Self::Vec(g), Val::VecInstance(v)) => {
                 let v_g_type = g.types.first().unwrap();

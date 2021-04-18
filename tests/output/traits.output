@@ -1,0 +1,16 @@
+Cat::accept_cat_return_animal
+[struct] Cat { name: Thomas }
+cat makes noise
+Thomas
+[struct] Cat { name: new name }
+[struct] Cat { name: Thomas }
+dog makes noise
+just a dog
+[struct] Dog {  }
+[struct] Dog {  }
+whale makes noise
+White Whale
+[struct] Whale { name: new name }
+[struct] Whale { name: White Whale }
+[struct] Cat { name: Thomas }
+[struct] Dog {  }

@@ -25,6 +25,7 @@ impl Lexer {
         keywords.insert("struct".to_string(), TokenType::Struct);
         keywords.insert("fn".to_string(), TokenType::Fn);
         keywords.insert("impl".to_string(), TokenType::Impl);
+        keywords.insert("trait".to_string(), TokenType::Trait);
 
         keywords.insert("pub".to_string(), TokenType::Pub);
 
@@ -33,7 +34,6 @@ impl Lexer {
         keywords.insert("num".to_string(), TokenType::Num);
         keywords.insert("int".to_string(), TokenType::Int);
         keywords.insert("float".to_string(), TokenType::Float);
-        // keywords.insert("func".to_string(), TokenType::Func);
         keywords.insert("any".to_string(), TokenType::Any);
         keywords.insert("vec".to_string(), TokenType::Vec);
         keywords.insert("bool".to_string(), TokenType::Bool);
@@ -47,6 +47,7 @@ impl Lexer {
 
         keywords.insert("Self".to_string(), TokenType::SelfStatic);
         keywords.insert("self".to_string(), TokenType::Self_);
+
         keywords.insert("let".to_string(), TokenType::Let);
         keywords.insert("mut".to_string(), TokenType::Mut);
         keywords.insert("const".to_string(), TokenType::Const);
@@ -56,7 +57,6 @@ impl Lexer {
         keywords.insert("loop".to_string(), TokenType::Loop);
 
         keywords.insert("match".to_string(), TokenType::Match);
-
         keywords.insert("if".to_string(), TokenType::If);
         keywords.insert("else".to_string(), TokenType::Else);
 

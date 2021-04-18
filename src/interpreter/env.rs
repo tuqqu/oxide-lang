@@ -6,7 +6,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use crate::interpreter::Result;
 use crate::interpreter::RuntimeError;
 use crate::lexer::token::{Pos, Token};
-use crate::parser::expr::{ConstDecl, FnDecl};
+use crate::parser::expr::{ConstDecl, FnDecl, FnSignatureDecl};
 
 use super::val::Val;
 use crate::interpreter::val::StructInstance;
@@ -23,7 +23,7 @@ pub struct Env {
     pub vals: HashMap<String, Rc<RefCell<EnvVal>>>,
     pub self_: Option<Rc<RefCell<StructInstance>>>,
     pub static_bind: Option<String>,
-    pub impls: HashMap<String, Impl>,
+    pub impls: HashMap<String, Vec<Impl>>,
     pub enclosing: Option<Rc<RefCell<Self>>>,
 }
 
@@ -36,6 +36,7 @@ pub enum EnvVal {
     Enum(Enum),
     EnumValue(EnumValue),
     Struct(Struct),
+    Trait(Trait),
 }
 
 #[derive(Clone, Debug)]
@@ -85,12 +86,20 @@ pub struct Struct {
     pub val: Val,
 }
 
-/// The only env value, which is not wrapped in `EnvValue` enum value,
+#[derive(Clone, Debug)]
+pub struct Trait {
+    pub id: usize,
+    pub name: String,
+    pub methods: Vec<FnSignatureDecl>,
+}
+
+/// It is not wrapped in `EnvValue` enum value,
 /// because we store it separately to lookup called functions & etc.
 #[derive(Clone, Debug)]
 pub struct Impl {
     pub id: usize,
-    pub for_struct: String,
+    pub impl_name: String,
+    pub trait_name: Option<String>,
     pub methods: Vec<(FnDecl, bool)>,
     pub fns: Vec<(FnDecl, bool)>,
     pub consts: Vec<(ConstDecl, bool)>,
@@ -197,16 +206,28 @@ impl Struct {
     }
 }
 
+impl Trait {
+    pub fn new(name: String, methods: Vec<FnSignatureDecl>) -> Self {
+        Self {
+            id: internal_id(),
+            name,
+            methods,
+        }
+    }
+}
+
 impl Impl {
     pub fn new(
-        for_struct: String,
+        impl_name: String,
+        trait_name: Option<String>,
         methods: Vec<(FnDecl, bool)>,
         fns: Vec<(FnDecl, bool)>,
         consts: Vec<(ConstDecl, bool)>,
     ) -> Self {
         Self {
             id: internal_id(),
-            for_struct,
+            impl_name,
+            trait_name,
             methods,
             fns,
             consts,
@@ -269,7 +290,7 @@ impl EnvVal {
                     ))
                 }
             }
-            EnumValue(_) | Enum(_) | Struct(_) => Err(RuntimeError::from_token(
+            EnumValue(_) | Enum(_) | Struct(_) | Trait(_) => Err(RuntimeError::from_token(
                 name,
                 "Trying to assign to a non-value.".to_string(),
             )),
@@ -302,6 +323,7 @@ impl Env {
 
         match val {
             NoValue => {}
+            Trait(_t) => {}
             Variable(v) => self.define_variable(v),
             Constant(c) => self.define_constant(c)?,
             Function(f) => self.define_function(f)?,
@@ -346,28 +368,34 @@ impl Env {
     }
 
     pub fn define_impl(&mut self, impl_: Impl) -> Result<()> {
-        self.impls.insert(impl_.for_struct.clone(), impl_);
+        self.impls
+            .entry(impl_.impl_name.clone())
+            .or_default()
+            .push(impl_);
 
         Ok(())
     }
 
-    pub fn define_self(&mut self, self_: Rc<RefCell<StructInstance>>) -> Result<()> {
+    pub fn define_trait(&mut self, trait_: Trait) {
+        self.vals.insert(
+            trait_.name.clone(),
+            Rc::new(RefCell::new(EnvVal::Trait(trait_))),
+        );
+    }
+
+    pub fn define_self(&mut self, self_: Rc<RefCell<StructInstance>>) {
         self.self_ = Some(self_);
-
-        Ok(())
     }
 
-    pub fn define_static_bind(&mut self, static_bind: String) -> Result<()> {
+    pub fn define_static_bind(&mut self, static_bind: String) {
         self.static_bind = Some(static_bind);
-
-        Ok(())
     }
 
     pub fn define_constant(&mut self, constant: Constant) -> Result<()> {
         if self.vals.contains_key(&constant.get_name()) {
             return Err(RuntimeError::from_token(
                 constant.name.clone(),
-                format!("Trying to redefine constant \"{}\"", constant.get_name()),
+                format!("Name \"{}\" is already in use", constant.get_name()),
             ));
         }
 
@@ -430,7 +458,7 @@ impl Env {
         ))
     }
 
-    pub fn get_impl(&mut self, name: &Token) -> Option<Impl> {
+    pub fn get_impls(&mut self, name: &Token) -> Option<Vec<Impl>> {
         if self.impls.contains_key(&name.lexeme) {
             let impl_ = self.impls.get(&name.lexeme);
 
@@ -441,7 +469,12 @@ impl Env {
         }
 
         if self.enclosing.is_some() {
-            return self.enclosing.as_ref().unwrap().borrow_mut().get_impl(name);
+            return self
+                .enclosing
+                .as_ref()
+                .unwrap()
+                .borrow_mut()
+                .get_impls(name);
         }
 
         None

@@ -12,7 +12,7 @@ use crate::parser::expr::{
     Assignment, Binary, Block, BoolLiteral, Call, CallStruct, ConstDecl, EnumDecl, Expr,
     FloatLiteral, FnDecl, GetProp, GetStaticProp, Grouping, If, ImplDecl, IntLiteral, Lambda, Loop,
     Match, NilLiteral, Return, SelfStatic, Self_, SetIndex, SetProp, Stmt, StrLiteral, StructDecl,
-    Unary, VarDecl, Variable, VecIndex, Vec_,
+    TraitDecl, Unary, VarDecl, Variable, VecIndex, Vec_,
 };
 
 use crate::parser::valtype::{
@@ -66,12 +66,8 @@ impl Interpreter {
     }
 
     fn eval_enum_stmt(&mut self, stmt: &EnumDecl) -> Result<StmtVal> {
-        if self.env.borrow().has_definition(&stmt.name.lexeme) {
-            return Err(RuntimeError::from_token(
-                stmt.name.clone(),
-                format!("Name '{}' is already in use", stmt.name.lexeme),
-            ));
-        }
+        self.check_name(&stmt.name)?;
+
         for (val, name) in stmt.vals.iter().enumerate() {
             let val_name_t = name.clone();
             let name_t = stmt.name.clone();
@@ -93,12 +89,8 @@ impl Interpreter {
     }
 
     fn eval_struct_stmt(&mut self, stmt: &StructDecl) -> Result<StmtVal> {
-        if self.env.borrow().has_definition(&stmt.name.lexeme) {
-            return Err(RuntimeError::from_token(
-                stmt.name.clone(),
-                format!("Name '{}' is already in use", stmt.name.lexeme),
-            ));
-        }
+        self.check_name(&stmt.name)?;
+
         let decl = stmt.clone();
         let struct_ = env::Struct::new(
             stmt.name.lexeme.clone(),
@@ -107,8 +99,14 @@ impl Interpreter {
                 *StructCallable::new(
                     decl.props.len(),
                     Arc::new(move |inter, args| {
-                        let impl_ = inter.env.borrow_mut().get_impl(&decl.name);
-                        let instance = StructInstance::new(decl.clone(), impl_);
+                        let impls = inter.env.borrow_mut().get_impls(&decl.name);
+                        let impls = if let Some(impls) = impls {
+                            impls
+                        } else {
+                            vec![]
+                        };
+
+                        let instance = StructInstance::new(decl.clone(), impls);
 
                         for (prop, param) in args {
                             let mut instance_borrowed = instance.borrow_mut();
@@ -156,6 +154,57 @@ impl Interpreter {
     fn eval_impl_stmt(&mut self, stmt: &ImplDecl) -> Result<StmtVal> {
         let decl = stmt.clone();
 
+        let (impl_name, trait_name) = if let Some(for_name) = decl.for_name {
+            let trait_ = self
+                .env
+                .borrow_mut()
+                .get_by_str(&decl.impl_name.lexeme, decl.impl_name.pos)?;
+            let trait_ = trait_.borrow_mut().deref().clone();
+
+            match trait_ {
+                EnvVal::Trait(t) => {
+                    for signature in &t.methods {
+                        // FIXME: improve traversing
+                        let mut found = false;
+                        for (method, _pub) in &decl.methods {
+                            if method.name == signature.name {
+                                if method.lambda.ret_type != signature.ret_type
+                                    || method.lambda.params != signature.params
+                                {
+                                    return Err(RuntimeError::from_token(
+                                        method.clone().name,
+                                        format!(
+                                            "Mismatched signature of method \"{}\"",
+                                            method.name.lexeme
+                                        ),
+                                    ));
+                                }
+
+                                found = true;
+                            }
+                        }
+
+                        if !found {
+                            return Err(RuntimeError::from_token(
+                                signature.name.clone(),
+                                format!("Method \"{}\" must be implemented", signature.name.lexeme),
+                            ));
+                        }
+                    }
+                }
+                _ => {
+                    return Err(RuntimeError::from_token(
+                        for_name,
+                        "Expected trait name".to_string(),
+                    ))
+                }
+            }
+
+            (for_name.lexeme, Some(decl.impl_name.lexeme.clone()))
+        } else {
+            (decl.impl_name.lexeme.clone(), None)
+        };
+
         for (const_, pub_) in &decl.consts {
             let val: Val = self.evaluate(&const_.init)?;
 
@@ -164,7 +213,7 @@ impl Interpreter {
                 .define_constant(env::Constant::with_struct(
                     const_.name.clone(),
                     val,
-                    (stmt.for_struct.clone(), *pub_),
+                    (stmt.impl_name.clone(), *pub_),
                 ))?;
         }
 
@@ -172,7 +221,7 @@ impl Interpreter {
             let val = self.eval_fn_expr(
                 &fn_.lambda.clone(),
                 None,
-                Some(stmt.for_struct.lexeme.clone()),
+                Some(stmt.impl_name.lexeme.clone()),
             );
 
             self.env
@@ -180,16 +229,28 @@ impl Interpreter {
                 .define_function(env::Function::with_struct(
                     fn_.name.clone(),
                     val,
-                    (stmt.for_struct.clone(), *pub_),
+                    (stmt.impl_name.clone(), *pub_),
                 ))?;
         }
 
         self.env.borrow_mut().define_impl(env::Impl::new(
-            decl.for_struct.lexeme.clone(),
+            impl_name,
+            trait_name,
             decl.methods,
             decl.fns,
             decl.consts,
         ))?;
+
+        Ok(StmtVal::None)
+    }
+
+    fn eval_trait_stmt(&mut self, stmt: &TraitDecl) -> Result<StmtVal> {
+        self.check_name(&stmt.name)?;
+
+        self.env.borrow_mut().define_trait(env::Trait::new(
+            stmt.name.lexeme.clone(),
+            stmt.method_signs.clone(),
+        ));
 
         Ok(StmtVal::None)
     }
@@ -312,7 +373,7 @@ impl Interpreter {
         use EnvVal::*;
 
         match env_val.deref() {
-            NoValue => Err(RuntimeError::from_token(
+            NoValue | Trait(_) => Err(RuntimeError::from_token(
                 expr.name.clone(),
                 format!(
                     "Trying to access uninitialized variable \"{}\"",
@@ -400,13 +461,13 @@ impl Interpreter {
 
                 if self_.is_some() {
                     let cur_instance = self_.clone().unwrap();
-                    env.define_static_bind(cur_instance.borrow().struct_name.clone())?;
-                    env.define_self(cur_instance)?;
+                    env.define_static_bind(cur_instance.borrow().struct_name.clone());
+                    env.define_self(cur_instance);
                 }
 
                 if self_static.is_some() {
                     let static_bind = self_static.clone().unwrap();
-                    env.define_static_bind(static_bind)?;
+                    env.define_static_bind(static_bind);
                 }
 
                 for (i, param) in func.lambda.params.iter().enumerate() {
@@ -1199,6 +1260,7 @@ impl Interpreter {
             Enum(enum_decl) => self.eval_enum_stmt(enum_decl),
             Struct(struct_decl) => self.eval_struct_stmt(struct_decl),
             Impl(impl_decl) => self.eval_impl_stmt(impl_decl),
+            Trait(trait_decl) => self.eval_trait_stmt(trait_decl),
         }
     }
 
@@ -1255,6 +1317,17 @@ impl Interpreter {
             static_bind != struct_name
         } else {
             true
+        }
+    }
+
+    fn check_name(&self, name: &Token) -> Result<()> {
+        if self.env.borrow().has_definition(&name.lexeme) {
+            Err(RuntimeError::from_token(
+                name.clone(),
+                format!("Name \"{}\" is already in use", &name.lexeme),
+            ))
+        } else {
+            Ok(())
         }
     }
 

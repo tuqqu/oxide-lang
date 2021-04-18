@@ -102,6 +102,7 @@ pub enum TokenType {
     Struct,
     Fn,
     Impl,
+    Trait,
 
     Pub,
 
