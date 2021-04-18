@@ -14,9 +14,7 @@ pub const TYPE_NIL: &str = "nil";
 pub const TYPE_VEC: &str = "vec";
 pub const TYPE_MAP: &str = "map";
 pub const TYPE_STRUCT: &str = "struct";
-pub const TYPE_STRUCT_INSTANCE: &str = "struct";
 pub const TYPE_ENUM: &str = "enum";
-pub const TYPE_ENUM_VALUE: &str = "enum";
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum ValType {

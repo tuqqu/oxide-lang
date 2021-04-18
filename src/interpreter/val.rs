@@ -13,8 +13,8 @@ use crate::interpreter::env::{construct_static_name, internal_id, Impl};
 use crate::interpreter::RuntimeError;
 use crate::lexer::token::Token;
 use crate::parser::valtype::{
-    ValType, TYPE_BOOL, TYPE_ENUM, TYPE_ENUM_VALUE, TYPE_FLOAT, TYPE_FN, TYPE_INT, TYPE_NIL,
-    TYPE_STR, TYPE_STRUCT, TYPE_STRUCT_INSTANCE, TYPE_UNINIT, TYPE_VEC,
+    ValType, TYPE_BOOL, TYPE_ENUM, TYPE_FLOAT, TYPE_FN, TYPE_INT, TYPE_NIL, TYPE_STR, TYPE_STRUCT,
+    TYPE_UNINIT, TYPE_VEC,
 };
 use std::collections::HashMap;
 
@@ -391,9 +391,9 @@ impl Val {
             Float(_f64) => TYPE_FLOAT.to_string(),
             Callable(_f) => TYPE_FN.to_string(),
             Struct(_t, _c) => TYPE_STRUCT.to_string(),
-            StructInstance(_i) => TYPE_STRUCT_INSTANCE.to_string(),
+            StructInstance(i) => i.borrow().struct_name.clone(),
             Enum(_e) => TYPE_ENUM.to_string(),
-            EnumValue(e, n, _v) => format!("{} {}::{}", TYPE_ENUM_VALUE, e, n),
+            EnumValue(e, _n, _v) => e.clone(),
             VecInstance(v) => format!("{}<{}>", TYPE_VEC, v.borrow_mut().val_type),
         }
     }
