@@ -27,9 +27,6 @@ pub mod valtype;
 
 pub type Result<T> = result::Result<T, ParserError>;
 
-#[derive(Debug, Clone)]
-pub struct ParserError;
-
 pub struct Parser {
     tokens: Vec<Token>,
     constructors: Vec<String>,
@@ -53,7 +50,7 @@ impl Parser {
         }
     }
 
-    pub fn parse(&mut self) -> Result<Vec<Stmt>> {
+    pub fn parse(&mut self) -> result::Result<Vec<Stmt>, ()> {
         let mut stmts: Vec<Stmt> = Vec::<Stmt>::new();
 
         while !self.at_end() {
@@ -64,7 +61,7 @@ impl Parser {
         }
 
         if self.err {
-            Err(ParserError)
+            Err(())
         } else {
             Ok(stmts)
         }
@@ -74,16 +71,16 @@ impl Parser {
         if self.match_token(TokenType::Let) {
             match self.var_decl() {
                 Ok(var_decl) => Some(var_decl),
-                Err(_) => {
-                    self.try_to_recover();
+                Err(p_err) => {
+                    self.on_error(p_err);
                     None
                 }
             }
         } else if self.match_token(TokenType::Const) {
             match self.const_decl() {
                 Ok(const_decl) => Some(const_decl),
-                Err(_) => {
-                    self.try_to_recover();
+                Err(p_err) => {
+                    self.on_error(p_err);
                     None
                 }
             }
@@ -93,48 +90,48 @@ impl Parser {
 
             match self.fn_decl() {
                 Ok(fn_decl) => Some(fn_decl),
-                Err(_) => {
-                    self.try_to_recover();
+                Err(p_err) => {
+                    self.on_error(p_err);
                     None
                 }
             }
         } else if self.match_token(TokenType::Enum) {
             match self.enum_decl() {
                 Ok(enum_decl) => Some(enum_decl),
-                Err(_) => {
-                    self.try_to_recover();
+                Err(p_err) => {
+                    self.on_error(p_err);
                     None
                 }
             }
         } else if self.match_token(TokenType::Struct) {
             match self.struct_decl() {
                 Ok(struct_decl) => Some(struct_decl),
-                Err(_) => {
-                    self.try_to_recover();
+                Err(p_err) => {
+                    self.on_error(p_err);
                     None
                 }
             }
         } else if self.match_token(TokenType::Impl) {
             match self.impl_decl() {
                 Ok(impl_decl) => Some(impl_decl),
-                Err(_) => {
-                    self.try_to_recover();
+                Err(p_err) => {
+                    self.on_error(p_err);
                     None
                 }
             }
         } else if self.match_token(TokenType::Trait) {
             match self.trait_decl() {
                 Ok(trait_decl) => Some(trait_decl),
-                Err(_) => {
-                    self.try_to_recover();
+                Err(p_err) => {
+                    self.on_error(p_err);
                     None
                 }
             }
         } else {
             match self.any_stmt() {
                 Ok(stmt) => Some(stmt),
-                Err(_) => {
-                    self.try_to_recover();
+                Err(p_err) => {
+                    self.on_error(p_err);
                     None
                 }
             }
@@ -207,17 +204,16 @@ impl Parser {
             if let Some(expr) = self.scalar_expr() {
                 expr
             } else {
-                self.err = true;
-                error_token(
+                return Err(ParserError::new(
                     &self.tokens[self.current],
                     "Constant must be initialized with a scalar value only",
-                );
-                return Err(ParserError);
+                ));
             }
         } else {
-            self.err = true;
-            error_token(&self.tokens[self.current], "Constant must be initialized");
-            return Err(ParserError);
+            return Err(ParserError::new(
+                &self.tokens[self.current],
+                "Constant must be initialized",
+            ));
         };
 
         self.consume(
@@ -248,9 +244,10 @@ impl Parser {
         let lambda = match lambda {
             Expr::FnExpr(l) => l,
             _ => {
-                self.err = true;
-                error_token(&self.tokens[self.current], "Unexpected expression type");
-                return Err(ParserError);
+                return Err(ParserError::new(
+                    &self.tokens[self.current],
+                    "Unexpected expression type",
+                ));
             }
         };
 
@@ -289,13 +286,13 @@ impl Parser {
                 let enum_val = self.consume(TokenType::Identifier, "Expected enum value.")?;
 
                 if values.contains(&enum_val) {
-                    self.err = true;
-                    let msg = format!(
-                        "Enum cannot have multiple identical values \"{}\"",
-                        enum_val.lexeme
-                    );
-                    error_token(&enum_val, &msg);
-                    return Err(ParserError);
+                    return Err(ParserError::new(
+                        &enum_val,
+                        format!(
+                            "Enum cannot have multiple identical values \"{}\"",
+                            enum_val.lexeme
+                        ),
+                    ));
                 }
 
                 values.push(enum_val);
@@ -309,10 +306,10 @@ impl Parser {
                     )?;
                 }
             } else {
-                self.err = true;
-                let msg = format!("Unexpected token \"{}\"", self.peek().lexeme);
-                error_token(&self.tokens[self.current], &msg);
-                return Err(ParserError);
+                return Err(ParserError::new(
+                    &self.tokens[self.current],
+                    format!("Unexpected token \"{}\"", self.peek().lexeme),
+                ));
             }
         }
 
@@ -346,8 +343,8 @@ impl Parser {
                     Ok(var_decl) => {
                         props.push((var_decl, public));
                     }
-                    Err(_) => {
-                        self.try_to_recover();
+                    Err(p_err) => {
+                        self.on_error(p_err);
                     }
                 };
                 if !self.check(TokenType::Comma) {
@@ -359,10 +356,10 @@ impl Parser {
                     )?;
                 }
             } else {
-                self.err = true;
-                let msg = format!("Unexpected token \"{}\"", self.peek().lexeme);
-                error_token(&self.tokens[self.current], &msg);
-                return Err(ParserError);
+                return Err(ParserError::new(
+                    &self.tokens[self.current],
+                    format!("Unexpected token \"{}\"", self.peek().lexeme),
+                ));
             }
         }
 
@@ -407,9 +404,7 @@ impl Parser {
         while !self.check(TokenType::RightCurlyBrace) && !self.at_end() {
             let public = if for_name.is_some() {
                 if self.check(TokenType::Pub) {
-                    self.err = true;
-                    error_token(self.peek(), "Trait methods must not be preceded with \"pub\", as they are always public");
-                    return Err(ParserError);
+                    return Err(ParserError::new(self.peek(), "Trait methods must not be preceded with \"pub\", as they are always public"));
                 }
 
                 true
@@ -425,8 +420,8 @@ impl Parser {
                     Ok((fn_decl, true)) => {
                         methods.push((fn_decl, public));
                     }
-                    Err(_) => {
-                        self.try_to_recover();
+                    Err(p_err) => {
+                        self.on_error(p_err);
                     }
                 };
             } else if self.match_token(TokenType::Const) {
@@ -434,14 +429,12 @@ impl Parser {
                     Ok(const_decl) => {
                         consts.push((const_decl, public));
                     }
-                    Err(_) => {
-                        self.try_to_recover();
+                    Err(p_err) => {
+                        self.on_error(p_err);
                     }
                 };
             } else {
-                self.err = true;
-                error_token(self.peek(), "Unexpected token");
-                return Err(ParserError);
+                return Err(ParserError::new(self.peek(), "Unexpected token"));
             }
         }
 
@@ -479,9 +472,10 @@ impl Parser {
 
                 // FIXME: add support for statics
                 if !instance_method {
-                    self.err = true;
-                    error_token(self.peek(), "Static methods are not supported in traits");
-                    return Err(ParserError);
+                    return Err(ParserError::new(
+                        self.peek(),
+                        "Static methods are not supported in traits",
+                    ));
                 }
 
                 method_signs.push(sign);
@@ -545,9 +539,7 @@ impl Parser {
         let body = if let BlockStmt(block) = body {
             block
         } else {
-            self.err = true;
-            error_token(self.peek(), "Function body error");
-            return Err(ParserError);
+            return Err(ParserError::new(self.peek(), "Function body error"));
         };
 
         let lambda_expr = Expr::FnExpr(Lambda::new(params, ret_type, body.stmts));
@@ -571,29 +563,28 @@ impl Parser {
             loop {
                 if self.check(TokenType::Self_) {
                     if !expect_method {
-                        self.err = true;
-                        error_token(
+                        return Err(ParserError::new(
                             self.peek(),
                             "Only methods can have \"self\" in parameter list",
-                        );
-                        return Err(ParserError);
+                        ));
                     } else if !params.is_empty() {
-                        self.err = true;
-                        let msg = format!(
-                            "\"self\" must be at index 0 in parameter list, got \"{}\"",
-                            params.len() - 1
-                        );
-                        error_token(self.peek(), &msg);
-                        return Err(ParserError);
+                        return Err(ParserError::new(
+                            self.peek(),
+                            format!(
+                                "\"self\" must be at index 0 in parameter list, got \"{}\"",
+                                params.len() - 1
+                            ),
+                        ));
                     }
 
                     instance_method = true;
                     self.advance();
                 } else {
                     if params.len() > FnDecl::MAX_ARGS {
-                        self.err = true;
-                        let msg = format!("Cannot have more than {} arguments", FnDecl::MAX_ARGS);
-                        error_token(self.peek(), &msg);
+                        return Err(ParserError::new(
+                            self.peek(),
+                            format!("Cannot have more than {} arguments", FnDecl::MAX_ARGS),
+                        ));
                     }
 
                     let mutable = self.check(TokenType::Mut);
@@ -607,13 +598,13 @@ impl Parser {
                     let v_type = if self.match_token(TokenType::Colon) {
                         self.type_decl()?
                     } else {
-                        self.err = true;
-                        let msg = format!(
-                            "Function argument \"{}\" must be explicitly typed",
-                            id.lexeme
-                        );
-                        error_token(&id, &msg);
-                        return Err(ParserError);
+                        return Err(ParserError::new(
+                            &id,
+                            format!(
+                                "Function argument \"{}\" must be explicitly typed",
+                                id.lexeme
+                            ),
+                        ));
                     };
 
                     params.push((id, v_type, mutable));
@@ -825,8 +816,10 @@ impl Parser {
 
     fn break_stmt(&mut self) -> Result<Stmt> {
         if self.loop_depth == 0 {
-            self.err = true;
-            error_token(&self.previous(), "Must be inside a loop to use \"break\"");
+            return Err(ParserError::new(
+                &self.previous(),
+                "Must be inside a loop to use \"break\"",
+            ));
         }
 
         self.consume(TokenType::Semicolon, "Semicolon \";\" expected after break")?;
@@ -836,11 +829,10 @@ impl Parser {
 
     fn continue_stmt(&mut self) -> Result<Stmt> {
         if self.loop_depth == 0 {
-            self.err = true;
-            error_token(
+            return Err(ParserError::new(
                 &self.previous(),
                 "Must be inside a loop to use \"continue\"",
-            );
+            ));
         }
 
         self.consume(
@@ -853,11 +845,10 @@ impl Parser {
 
     fn return_stmt(&mut self) -> Result<Stmt> {
         if 0 == self.fn_depth {
-            self.err = true;
-            error_token(
+            return Err(ParserError::new(
                 &self.previous(),
                 "Must be inside a function to use \"return\"",
-            );
+            ));
         }
 
         let token = self.previous().clone();
@@ -893,9 +884,10 @@ impl Parser {
             return Ok(block_stmt);
         }
 
-        self.err = true;
-        error_token(&self.tokens[self.current], "Block statement expected");
-        Err(ParserError)
+        Err(ParserError::new(
+            &self.tokens[self.current],
+            "Block statement expected",
+        ))
     }
 
     fn block(&mut self) -> Result<Vec<Stmt>> {
@@ -953,11 +945,7 @@ impl Parser {
                     operator,
                     Box::new(expr_val),
                 ))),
-                _ => {
-                    self.err = true;
-                    error_token(&operator, "Invalid assignment target");
-                    Err(ParserError)
-                }
+                _ => Err(ParserError::new(&operator, "Invalid assignment target")),
             };
         }
 
@@ -1106,9 +1094,10 @@ impl Parser {
         if !self.check(TokenType::RightParen) {
             loop {
                 if args.len() >= FnDecl::MAX_ARGS {
-                    self.err = true;
-                    let msg = format!("Cannot have more than {} arguments", FnDecl::MAX_ARGS);
-                    error_token(self.peek(), &msg);
+                    return Err(ParserError::new(
+                        self.peek(),
+                        format!("Cannot have more than {} arguments", FnDecl::MAX_ARGS),
+                    ));
                 }
 
                 args.push(self.any_expr()?);
@@ -1134,9 +1123,10 @@ impl Parser {
 
         loop {
             if args.len() >= FnDecl::MAX_ARGS {
-                self.err = true;
-                let msg = format!("Cannot have more than {} arguments", FnDecl::MAX_ARGS);
-                error_token(self.peek(), &msg);
+                return Err(ParserError::new(
+                    self.peek(),
+                    format!("Cannot have more than {} arguments", FnDecl::MAX_ARGS),
+                ));
             }
 
             if self.check(TokenType::RightCurlyBrace) {
@@ -1153,10 +1143,10 @@ impl Parser {
             }
         }
 
-        let _cl_paren = self.consume(
+        self.consume(
             TokenType::RightCurlyBrace,
             "Curly brace \"}\" expected after arguments",
-        );
+        )?;
 
         let call = Expr::CallStructExpr(CallStruct::new(Box::new(callee), args));
 
@@ -1262,9 +1252,7 @@ impl Parser {
             return Ok(EmptyExpr);
         }
 
-        self.err = true;
-        error_token(self.peek(), "Expression expected");
-        Err(ParserError)
+        Err(ParserError::new(self.peek(), "Expression expected"))
     }
 
     fn scalar_expr(&mut self) -> Option<Expr> {
@@ -1381,11 +1369,7 @@ impl Parser {
             let v_type = ValType::try_from_token(&v_type_token, None);
             return match v_type {
                 Some(v_type) => Ok(v_type),
-                None => {
-                    self.err = true;
-                    error_token(&v_type_token, "Unrecognised type");
-                    Err(ParserError)
-                }
+                None => Err(ParserError::new(&v_type_token, "Unrecognised type")),
             };
         }
 
@@ -1401,11 +1385,7 @@ impl Parser {
             let v_type = ValType::try_from_token(&v_type_token, generics);
             return match v_type {
                 Some(v_type) => Ok(v_type),
-                None => {
-                    self.err = true;
-                    error_token(&v_type_token, "Unrecognised type");
-                    Err(ParserError)
-                }
+                None => Err(ParserError::new(&v_type_token, "Unrecognised type")),
             };
         }
 
@@ -1414,20 +1394,17 @@ impl Parser {
                 self.advance();
                 return Ok(ValType::Instance(name));
             } else {
-                self.err = true;
-                error_token(
+                return Err(ParserError::new(
                     &self.advance().clone(),
                     "Type \"Self\" can be used inside \"impl\" blocks only",
-                );
-                return Err(ParserError);
+                ));
             }
         }
 
-        self.err = true;
-        let msg = format!("Expected type, got \"{}\"", self.peek().lexeme);
-        error_token(self.peek(), &msg);
-
-        Err(ParserError)
+        Err(ParserError::new(
+            self.peek(),
+            format!("Expected type, got \"{}\"", self.peek().lexeme),
+        ))
     }
 
     fn consume_generic_types(&mut self, min: usize, max: usize) -> Result<Vec<ValType>> {
@@ -1452,11 +1429,10 @@ impl Parser {
             generics.push(val_type);
 
             if generics.len() > max {
-                self.err = true;
-                let msg = format!("Too many generic types, expected only {}", max);
-                error_token(&self.peek(), &msg);
-
-                return Err(ParserError);
+                return Err(ParserError::new(
+                    &self.peek(),
+                    format!("Too many generic types, expected only {}", max),
+                ));
             }
 
             if !self.match_token(TokenType::Comma) {
@@ -1465,11 +1441,10 @@ impl Parser {
         }
 
         if generics.len() < min {
-            self.err = true;
-            let msg = format!("Too few generic types, expected at least \"{}\"", min);
-            error_token(&self.peek(), &msg);
-
-            return Err(ParserError);
+            return Err(ParserError::new(
+                &self.peek(),
+                format!("Too few generic types, expected at least \"{}\"", min),
+            ));
         }
 
         self.consume(
@@ -1491,13 +1466,16 @@ impl Parser {
 
     fn consume(&mut self, t_type: TokenType, msg: &str) -> Result<Token> {
         if !self.check(t_type) {
-            self.err = true;
-            error_token(self.peek(), msg);
-
-            return Err(ParserError);
+            return Err(ParserError::new(self.peek(), msg));
         }
 
         Ok(self.advance().clone())
+    }
+
+    fn on_error(&mut self, p_err: ParserError) {
+        self.err = true;
+        error_token(&p_err.token, &p_err.msg);
+        self.try_to_recover();
     }
 
     fn try_to_recover(&mut self) {
@@ -1519,6 +1497,21 @@ impl Parser {
             }
 
             self.advance();
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct ParserError {
+    token: Token,
+    msg: String,
+}
+
+impl ParserError {
+    fn new<S: AsRef<str>>(token: &Token, msg: S) -> Self {
+        Self {
+            token: token.clone(),
+            msg: msg.as_ref().to_string(),
         }
     }
 }
