@@ -97,7 +97,10 @@ fn run(
     };
 
     let mut analyser = analyser::Analyser::new();
-    println!("{:?}", analyser.analyse_statements(&stmts));
+    // println!("{:?}", analyser.analyse_statements(&stmts));
+    if let Err(err) = analyser.analyse_statements(&stmts) {
+        println!("{}", err)
+    }
 
     let mut interpreter = Interpreter::new(lib, stdout, stderr, stdin);
     let res = interpreter.interpret(&stmts);

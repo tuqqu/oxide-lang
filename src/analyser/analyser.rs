@@ -1,17 +1,13 @@
-use super::ty::*;
-pub use crate::lexer::token::{Token, TokenType};
-use crate::parser::expr;
-pub use crate::parser::expr::{Expr, Stmt};
-
-use std::collections::HashMap;
-
-struct Scope {
-    type_bindings: HashMap<String, Type>,
-}
+use super::*;
+use crate::lexer::token::{Token, TokenType};
+use crate::parser::{
+    expr,
+    expr::{Expr, Stmt},
+};
 
 pub struct State {
     in_function_decl: bool,
-    returns: Vec<Type>,
+    returns: Vec<(/*ty:*/ Type, /*location:*/ Token)>,
 }
 
 impl State {
@@ -26,21 +22,6 @@ impl State {
 pub struct Analyser {
     scope_chain: Vec<Scope>,
     state: State,
-}
-
-#[derive(Debug)]
-pub enum TypeError {
-    MismatchedTypes(Type, Type),
-    CannotResolveType,
-    InvalidBinaryOperation(Type, Type, Token),
-    UndefinedVariable(Token),
-    ReturnOutSideFunction,
-    MissingReturn,
-    ReturnTypeMismatch,
-    NotAFunction,
-    ArityMismatch,
-    FunctionParamsArgsTypeMismatch,
-    IfConditionNotBool,
 }
 
 pub type AnalyserResult = Result<Type, TypeError>;
@@ -64,7 +45,7 @@ impl Analyser {
 }
 
 impl Analyser {
-    fn analyse_expression(&mut self, expression: &Expr) -> AnalyserResult {
+    fn analyse_expression(&self, expression: &Expr) -> AnalyserResult {
         match expression {
             Expr::BinaryExpr(binary_expr) => self.analyse_binary_expression(binary_expr),
             Expr::IntLiteralExpr(_) => Ok(Type::Int),
@@ -73,11 +54,12 @@ impl Analyser {
             Expr::EmptyExpr => Ok(Type::Nil),
             Expr::VariableExpr(variable) => self.analyse_variable(variable),
             Expr::CallExpr(call_expr) => self.analyse_call_expression(call_expr),
+            Expr::AssignmentExpr(assignment) => self.analyse_assignment(assignment),
             _ => Ok(Type::Nil),
         }
     }
 
-    fn analyse_binary_expression(&mut self, expr: &expr::Binary) -> AnalyserResult {
+    fn analyse_binary_expression(&self, expr: &expr::Binary) -> AnalyserResult {
         let lhs = self.analyse_expression(&*expr.left)?;
         let rhs = self.analyse_expression(&*expr.right)?;
 
@@ -93,50 +75,79 @@ impl Analyser {
         }
     }
 
-    fn analyse_variable(&mut self, var: &expr::Variable) -> AnalyserResult {
+    fn analyse_variable(&self, var: &expr::Variable) -> AnalyserResult {
         match self.get_binding_in_scope(&var.name.lexeme) {
-            Some(typ) => Ok(typ.clone()),
+            Some(binding) => Ok(binding.get_ty().clone()),
             None => Err(TypeError::UndefinedVariable(var.name.clone())),
         }
     }
 
-    fn analyse_call_expression(&mut self, call_expr: &expr::Call) -> AnalyserResult {
+    fn analyse_call_expression(&self, call_expr: &expr::Call) -> AnalyserResult {
         // TODO: Method calls
-        match &*call_expr.callee {
-            Expr::VariableExpr(var_expr) => {
-                let name = &var_expr.name.lexeme;
+        let var_expr = match &*call_expr.callee {
+            Expr::VariableExpr(var_expr) => var_expr,
+            _ => return Err(TypeError::NotAFunction),
+        };
+        let name = &var_expr.name.lexeme;
 
-                let mut arg_types: Vec<Type> = Vec::new();
-                for expr in &call_expr.args {
-                    let ty = self.analyse_expression(expr)?;
-                    arg_types.push(ty);
-                }
+        let function = match self.get_binding_in_scope(name) {
+            Some(ty) => match ty.get_ty() {
+                Type::Function(function) => function,
+                _ => return Err(TypeError::NotAFunction),
+            },
+            None => return Err(TypeError::NotAFunction),
+        };
 
-                let ty = match self.get_binding_in_scope(name) {
-                    Some(ty) => ty,
-                    None => return Err(TypeError::NotAFunction),
-                };
-                let function = match ty {
-                    Type::Function(function) => function,
-                    _ => return Err(TypeError::NotAFunction),
-                };
-                let return_type = &function.return_type;
-                let param_types = &function.param_types;
-                let arity = function.param_types.len();
+        let return_type = &function.return_type;
+        let param_types = &function.param_types;
+        let arity = param_types.len();
 
-                if arg_types.len() != arity {
-                    return Err(TypeError::ArityMismatch);
-                }
-                let types_match = arg_types.iter().zip(param_types).all(|(t1, t2)| t1 == t2);
-
-                if types_match {
-                    Ok(return_type.clone())
-                } else {
-                    Err(TypeError::FunctionParamsArgsTypeMismatch)
-                }
-            }
-            _ => Err(TypeError::NotAFunction),
+        // Arity Check
+        if call_expr.args.len() != arity {
+            return Err(TypeError::ArityMismatch);
         }
+
+        // Signature check
+        for (expr, ty) in call_expr.args.iter().zip(param_types) {
+            let typ = self.analyse_expression(expr)?;
+            if typ != *ty {
+                return Err(TypeError::FunctionParamsArgsTypeMismatch);
+            }
+        }
+
+        Ok(return_type.clone())
+    }
+
+    fn analyse_assignment(&self, assignment: &expr::Assignment) -> AnalyserResult {
+        let name = &assignment.name.lexeme;
+        dbg!(&assignment);
+        let binding = match self.get_binding_in_scope(name) {
+            Some(binding) => binding,
+            None => return Err(TypeError::UndefinedVariable(assignment.name.clone())),
+        };
+
+        if !binding.is_mutable() {
+            return Err(TypeError::cannot_mutate_variable(
+                assignment.name.clone(),
+                binding.get_at().clone(),
+            ));
+        }
+
+        let expr = &*assignment.expr;
+        let expr_ty = self.analyse_expression(expr)?;
+
+        if expr_ty != *binding.get_ty() {
+            let expected = binding.get_ty().clone();
+            let at = binding.get_at().clone();
+            return Err(TypeError::type_mismatch(
+                expected,
+                at,
+                expr_ty,
+                assignment.name.clone(),
+            ));
+        }
+
+        Ok(expr_ty)
     }
 }
 
@@ -160,7 +171,7 @@ impl Analyser {
                 let expr_type = self.analyse_expression(expr)?;
                 let typ = Type::from(&typ);
                 if typ != expr_type {
-                    return Err(TypeError::MismatchedTypes(typ, expr_type));
+                    return Err(TypeError::AmbiguousTypes);
                 }
                 expr_type
             }
@@ -168,57 +179,64 @@ impl Analyser {
             (None, Some(typ)) => Type::from(typ),
             _ => return Err(TypeError::CannotResolveType),
         };
+
         let name = var_decl.name.lexeme.clone();
-        self.create_binding_in_scope(name, typ);
+        self.create_binding_in_scope(name, typ, var_decl.name.clone(), var_decl.mutable);
         Ok(Type::Nil)
     }
 
     fn analyse_fn_decl(&mut self, function: &expr::FnDecl) -> AnalyserResult {
         let lambda = &function.lambda;
-        self.state.in_function_decl = true;
-
         let return_type = Type::from(&lambda.ret_type);
 
-        self.enter_scope();
+        self.enter_function_decl();
 
-        // TODO: Consider mutability of params
+        // Bind params to scope
         let param_types: Vec<Type> = (&lambda.params)
             .iter()
-            .map(|(token, typ, _is_mutable)| {
-                // let (token, typ, _is_mutable) = param;
+            .map(|(token, typ, is_mutable)| {
+                // TODO: Consider mutability of params
                 let typ = Type::from(&typ);
-                self.create_binding_in_scope(token.lexeme.clone(), typ.clone());
+                self.create_binding_in_scope(
+                    token.lexeme.clone(),
+                    typ.clone(),
+                    token.clone(),
+                    *is_mutable,
+                );
                 typ
             })
             .collect();
 
+        // Analyse FunctionBody
         for stmt in &lambda.body {
             self.analyse_statement(stmt)?;
         }
 
-        if return_type != Type::Nil {
-            if self.state.returns.is_empty() {
-                return Err(TypeError::MissingReturn);
-            }
-            for return_expr in &self.state.returns {
-                if *return_expr != return_type {
-                    return Err(TypeError::ReturnTypeMismatch);
-                }
+        // Check returns
+        // TODO: Return Err(TypeError::MissingReturn)
+        for (return_ty, token) in &self.state.returns {
+            if *return_ty != return_type {
+                return Err(TypeError::return_type_mismatch(
+                    return_type,
+                    function.name.clone(),
+                    return_ty.clone(),
+                    token.clone(),
+                ));
             }
         }
 
-        self.exit_scope();
-        self.state.in_function_decl = false;
+        self.exit_function_decl();
         let fn_ty = FunctionType::new(return_type, param_types);
-        dbg!(&fn_ty);
         let fn_name = function.name.lexeme.clone();
-        self.create_binding_in_scope(fn_name, Type::Function(Box::new(fn_ty)));
+        let ty = Type::Function(Box::new(fn_ty));
+
+        self.create_binding_in_scope(fn_name, ty, function.name.clone(), false);
         Ok(Type::Nil)
     }
 
     fn analyse_if_statement(&mut self, if_stmt: &expr::If) -> AnalyserResult {
         if self.analyse_expression(&*if_stmt.condition)? != Type::Bool {
-            return Err(TypeError::IfConditionNotBool);
+            return Err(TypeError::ConditionNotBool);
         }
         self.analyse_statement(&*if_stmt.then_stmt)?;
         if let Some(else_stmt) = &if_stmt.else_stmt {
@@ -243,10 +261,14 @@ impl Analyser {
         }
 
         let expr_type = self.analyse_expression(&*return_stmt.expr)?;
-        self.state.returns.push(expr_type);
+        self.state
+            .returns
+            .push((expr_type, return_stmt.keyword.clone()));
         Ok(Type::Nil)
     }
 }
+
+// MARK: Utils
 
 impl Analyser {
     fn enter_scope(&mut self) {
@@ -257,32 +279,25 @@ impl Analyser {
         self.scope_chain.pop();
     }
 
-    fn create_binding_in_scope(&mut self, name: String, typ: Type) {
+    fn create_binding_in_scope(&mut self, name: String, ty: Type, at: Token, is_mutable: bool) {
         self.scope_chain
             .last_mut()
             .unwrap()
-            .create_binding_for(name, typ)
+            .create_binding_for(name, ty, at, is_mutable)
     }
 
-    fn get_binding_in_scope(&self, name: &str) -> Option<&Type> {
+    fn get_binding_in_scope(&self, name: &str) -> Option<&TypeBinding> {
         self.scope_chain.last().unwrap().get_binding_for(name)
     }
-}
 
-// MARK: Scope
-
-impl Scope {
-    fn get_binding_for(&self, name: &str) -> Option<&Type> {
-        self.type_bindings.get(name)
+    fn enter_function_decl(&mut self) {
+        self.state.in_function_decl = true;
+        self.enter_scope();
     }
 
-    fn create_binding_for(&mut self, name: String, typ: Type) {
-        self.type_bindings.insert(name, typ);
-    }
-
-    fn new() -> Self {
-        Self {
-            type_bindings: HashMap::new(),
-        }
+    fn exit_function_decl(&mut self) {
+        self.state.in_function_decl = false;
+        self.state.returns.clear();
+        self.exit_scope();
     }
 }
