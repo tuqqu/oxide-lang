@@ -375,10 +375,15 @@ impl Analyser {
     }
 
     fn get_mut_binding_in_scope(&mut self, name: &str) -> Option<&mut TypeBinding> {
-        self.scope_chain
-            .last_mut()
-            .unwrap()
-            .get_mut_binding_for(name)
+        if let Some(stack) = self.distance_to_def.get(name) {
+            let distance = stack.last().unwrap();
+            self.scope_chain
+                .get_mut(*distance)
+                .unwrap()
+                .get_mut_binding_for(name)
+        } else {
+            None
+        }
     }
 
     fn enter_function_decl(&mut self) {
