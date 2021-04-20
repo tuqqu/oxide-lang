@@ -8,6 +8,7 @@ pub enum TypeError {
     CannotResolveType,
     InvalidBinaryOperation(Type, Type, Token),
     UndefinedVariable(Token),
+    UninitialisedVariableAccess(Token),
     ReturnOutSideFunction,
     ReturnTypeMismatch(TypeMismatch),
     NotAFunction,

@@ -45,7 +45,7 @@ impl Analyser {
 }
 
 impl Analyser {
-    fn analyse_expression(&self, expression: &Expr) -> AnalyserResult {
+    fn analyse_expression(&mut self, expression: &Expr) -> AnalyserResult {
         match expression {
             Expr::BinaryExpr(binary_expr) => self.analyse_binary_expression(binary_expr),
             Expr::IntLiteralExpr(_) => Ok(Type::Int),
@@ -59,7 +59,7 @@ impl Analyser {
         }
     }
 
-    fn analyse_binary_expression(&self, expr: &expr::Binary) -> AnalyserResult {
+    fn analyse_binary_expression(&mut self, expr: &expr::Binary) -> AnalyserResult {
         let lhs = self.analyse_expression(&*expr.left)?;
         let rhs = self.analyse_expression(&*expr.right)?;
 
@@ -75,42 +75,50 @@ impl Analyser {
         }
     }
 
-    fn analyse_variable(&self, var: &expr::Variable) -> AnalyserResult {
+    fn analyse_variable(&mut self, var: &expr::Variable) -> AnalyserResult {
         match self.get_binding_in_scope(&var.name.lexeme) {
-            Some(binding) => Ok(binding.get_ty().clone()),
+            Some(binding) => {
+                if !binding.is_initialised() {
+                    return Err(TypeError::UninitialisedVariableAccess(var.name.clone()));
+                }
+                Ok(binding.get_ty().clone())
+            }
             None => Err(TypeError::UndefinedVariable(var.name.clone())),
         }
     }
 
-    fn analyse_call_expression(&self, call_expr: &expr::Call) -> AnalyserResult {
+    fn analyse_call_expression(&mut self, call_expr: &expr::Call) -> AnalyserResult {
         // TODO: Method calls
         let var_expr = match &*call_expr.callee {
             Expr::VariableExpr(var_expr) => var_expr,
             _ => return Err(TypeError::NotAFunction),
         };
-        let name = &var_expr.name.lexeme;
+        let name = &var_expr.name.lexeme; 
+
+        // Analyse args
+        let arg_tys:Vec<Type> = 
+        call_expr.args.iter().map(|expr| {
+            self.analyse_expression(expr).unwrap_or(Type::Nil)
+        }).collect();
 
         let function = match self.get_binding_in_scope(name) {
-            Some(ty) => match ty.get_ty() {
-                Type::Function(function) => function,
-                _ => return Err(TypeError::NotAFunction),
+            Some(binding) => {
+                match binding.get_ty() {
+                    Type::Function(function) => function,
+                    _ => return Err(TypeError::NotAFunction)
+                }
             },
-            None => return Err(TypeError::NotAFunction),
+            None => return Err(TypeError::NotAFunction)
         };
 
-        let return_type = &function.return_type;
         let param_types = &function.param_types;
-        let arity = param_types.len();
+        let return_type = &function.return_type;
 
-        // Arity Check
-        if call_expr.args.len() != arity {
-            return Err(TypeError::ArityMismatch);
+        if arg_tys.len() != param_types.len() {
+            return Err(TypeError::ArityMismatch)
         }
-
-        // Signature check
-        for (expr, ty) in call_expr.args.iter().zip(param_types) {
-            let typ = self.analyse_expression(expr)?;
-            if typ != *ty {
+        for (arg_ty, param_ty) in arg_tys.iter().zip(param_types) {
+            if arg_ty != param_ty {
                 return Err(TypeError::FunctionParamsArgsTypeMismatch);
             }
         }
@@ -118,9 +126,8 @@ impl Analyser {
         Ok(return_type.clone())
     }
 
-    fn analyse_assignment(&self, assignment: &expr::Assignment) -> AnalyserResult {
+    fn analyse_assignment(&mut self, assignment: &expr::Assignment) -> AnalyserResult {
         let name = &assignment.name.lexeme;
-        dbg!(&assignment);
         let binding = match self.get_binding_in_scope(name) {
             Some(binding) => binding,
             None => return Err(TypeError::UndefinedVariable(assignment.name.clone())),
@@ -136,6 +143,7 @@ impl Analyser {
         let expr = &*assignment.expr;
         let expr_ty = self.analyse_expression(expr)?;
 
+        let binding = self.get_mut_binding_in_scope(name).unwrap();
         if expr_ty != *binding.get_ty() {
             let expected = binding.get_ty().clone();
             let at = binding.get_at().clone();
@@ -147,6 +155,7 @@ impl Analyser {
             ));
         }
 
+        binding.make_initialised();
         Ok(expr_ty)
     }
 }
@@ -181,7 +190,7 @@ impl Analyser {
         };
 
         let name = var_decl.name.lexeme.clone();
-        self.create_binding_in_scope(name, typ, var_decl.name.clone(), var_decl.mutable);
+        self.create_binding_in_scope(name, typ, var_decl.name.clone(), var_decl.mutable, var_decl.init.is_some());
         Ok(Type::Nil)
     }
 
@@ -202,6 +211,7 @@ impl Analyser {
                     typ.clone(),
                     token.clone(),
                     *is_mutable,
+                    true, // params are set at the callsite
                 );
                 typ
             })
@@ -230,7 +240,7 @@ impl Analyser {
         let fn_name = function.name.lexeme.clone();
         let ty = Type::Function(Box::new(fn_ty));
 
-        self.create_binding_in_scope(fn_name, ty, function.name.clone(), false);
+        self.create_binding_in_scope(fn_name, ty, function.name.clone(), false, true);
         Ok(Type::Nil)
     }
 
@@ -279,15 +289,19 @@ impl Analyser {
         self.scope_chain.pop();
     }
 
-    fn create_binding_in_scope(&mut self, name: String, ty: Type, at: Token, is_mutable: bool) {
+    fn create_binding_in_scope(&mut self, name: String, ty: Type, at: Token, is_mutable: bool, is_initialised : bool) {
         self.scope_chain
             .last_mut()
             .unwrap()
-            .create_binding_for(name, ty, at, is_mutable)
+            .create_binding_for(name, ty, at, is_mutable, is_initialised)
     }
 
     fn get_binding_in_scope(&self, name: &str) -> Option<&TypeBinding> {
         self.scope_chain.last().unwrap().get_binding_for(name)
+    }
+
+    fn get_mut_binding_in_scope(&mut self, name: &str) -> Option<&mut TypeBinding> {
+        self.scope_chain.last_mut().unwrap().get_mut_binding_for(name)
     }
 
     fn enter_function_decl(&mut self) {
