@@ -144,6 +144,8 @@ impl Lexer {
             '&' => {
                 let t_type = if self.match_char('&') {
                     TokenType::LogicAnd
+                } else if self.match_char('=') {
+                    TokenType::BitwiseAndEqual
                 } else {
                     TokenType::BitwiseAnd
                 };
@@ -152,6 +154,8 @@ impl Lexer {
             '|' => {
                 let t_type = if self.match_char('|') {
                     TokenType::LogicOr
+                } else if self.match_char('=') {
+                    TokenType::BitwiseOrEqual
                 } else {
                     TokenType::BitwiseOr
                 };
@@ -162,6 +166,14 @@ impl Lexer {
                     TokenType::BangEqual
                 } else {
                     TokenType::Bang
+                };
+                self.add_token(t_type);
+            }
+            '^' => {
+                let t_type = if self.match_char('=') {
+                    TokenType::BitwiseXorEqual
+                } else {
+                    TokenType::BitwiseXor
                 };
                 self.add_token(t_type);
             }

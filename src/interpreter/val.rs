@@ -17,6 +17,7 @@ use crate::parser::valtype::{
     TYPE_UNINIT, TYPE_VEC,
 };
 use std::collections::HashMap;
+use std::ops::Deref;
 
 #[derive(Debug, Clone)]
 pub enum Val {
@@ -360,23 +361,343 @@ impl VecInstance {
 impl Val {
     pub const FLOAT_ERROR_MARGIN: f64 = f64::EPSILON;
 
-    // FIXME: unify equality
-    pub fn equal(a: &Self, b: &Self) -> bool {
+    pub fn equal(lhs: &Self, rhs: &Self, operator: Token) -> Result<Self> {
         use Val::*;
-
-        match (a, b) {
+        let val = match (lhs, rhs) {
             (Nil, Nil) => true,
-            (Bool(a), Bool(b)) => a == b,
-            (Str(a), Str(b)) => a == b,
-            (Int(a), Int(b)) => a == b,
-            (Float(a), Float(b)) => (a - b).abs() < Self::FLOAT_ERROR_MARGIN,
-            (Float(a), Int(b)) => (*a - *b as f64).abs() < Self::FLOAT_ERROR_MARGIN,
-            (Int(a), Float(b)) => (*a as f64 - *b).abs() < Self::FLOAT_ERROR_MARGIN,
-            (EnumValue(e1, _, v1), EnumValue(e2, _, v2)) => e1 == e2 && v1 == v2,
-            _ => false,
-            // FIXME: add struct comparisons
-            // FIXME: add vec comparisons
-        }
+            (Bool(lhs), Bool(rhs)) => lhs == rhs,
+            (Str(lhs), Str(rhs)) => lhs == rhs,
+            (Int(lhs), Int(rhs)) => lhs == rhs,
+            (Float(lhs), Float(rhs)) => (lhs - rhs).abs() < Self::FLOAT_ERROR_MARGIN,
+            (Float(lhs), Int(rhs)) => (lhs - (*rhs as f64)).abs() < Self::FLOAT_ERROR_MARGIN,
+            (Int(lhs), Float(rhs)) => ((*lhs as f64) - rhs).abs() < Self::FLOAT_ERROR_MARGIN,
+            (EnumValue(lhs_e, _, lhs_v), EnumValue(rhs_e, _, rhs_v)) if lhs_e == rhs_e => {
+                lhs_v == rhs_v
+            }
+            (VecInstance(lhs), VecInstance(rhs)) => {
+                lhs.borrow().deref().id == rhs.borrow().deref().id
+            }
+            (StructInstance(lhs), StructInstance(rhs)) => {
+                lhs.borrow().deref().id == rhs.borrow().deref().id
+            }
+            (lhs, rhs) => {
+                return Err(RuntimeError::from_token(
+                    operator,
+                    &format!(
+                        "Both operands must be of the same type. Got \"{}\" and \"{}\"",
+                        lhs.get_type(),
+                        rhs.get_type(),
+                    ),
+                ))
+            }
+        };
+
+        Ok(Self::Bool(val))
+    }
+
+    pub fn not_equal(lhs: &Self, rhs: &Self, operator: Token) -> Result<Self> {
+        use Val::*;
+        let val = match (lhs, rhs) {
+            (Nil, Nil) => false,
+            (Bool(lhs), Bool(rhs)) => lhs != rhs,
+            (Str(lhs), Str(rhs)) => lhs != rhs,
+            (Int(lhs), Int(rhs)) => lhs != rhs,
+            (Float(lhs), Float(rhs)) => (lhs - rhs).abs() > Self::FLOAT_ERROR_MARGIN,
+            (Float(lhs), Int(rhs)) => (lhs - (*rhs as f64)).abs() > Self::FLOAT_ERROR_MARGIN,
+            (Int(lhs), Float(rhs)) => ((*lhs as f64) - rhs).abs() > Self::FLOAT_ERROR_MARGIN,
+            (EnumValue(lhs_e, _, lhs_v), EnumValue(rhs_e, _, rhs_v)) if lhs_e == rhs_e => {
+                lhs_v != rhs_v
+            }
+            (VecInstance(lhs), VecInstance(rhs)) => {
+                lhs.borrow().deref().id != rhs.borrow().deref().id
+            }
+            (StructInstance(lhs), StructInstance(rhs)) => {
+                lhs.borrow().deref().id != rhs.borrow().deref().id
+            }
+            (lhs, rhs) => {
+                return Err(RuntimeError::from_token(
+                    operator,
+                    &format!(
+                        "Both operands must be of the same type. Got \"{}\" and \"{}\"",
+                        lhs.get_type(),
+                        rhs.get_type(),
+                    ),
+                ))
+            }
+        };
+
+        Ok(Self::Bool(val))
+    }
+
+    pub fn greater(lhs: &Self, rhs: &Self, operator: Token) -> Result<Self> {
+        use Val::*;
+        let val =
+            match (lhs, rhs) {
+                (Int(lhs), Int(rhs)) => lhs > rhs,
+                (Float(lhs), Float(rhs)) => lhs > rhs,
+                (Float(lhs), Int(rhs)) => *lhs > (*rhs as f64),
+                (Int(lhs), Float(rhs)) => (*lhs as f64) > *rhs,
+                (lhs, rhs) => {
+                    return Err(RuntimeError::from_token(
+                        operator,
+                        &format!(
+                        "Both operands must be of types \"{}\" or \"{}\". Got \"{}\" and \"{}\"",
+                        TYPE_INT, TYPE_FLOAT,
+                        lhs.get_type(), rhs.get_type(),
+                    ),
+                    ))
+                }
+            };
+
+        Ok(Self::Bool(val))
+    }
+
+    pub fn greater_equal(lhs: &Self, rhs: &Self, operator: Token) -> Result<Self> {
+        use Val::*;
+        let val =
+            match (lhs, rhs) {
+                (Int(lhs), Int(rhs)) => lhs >= rhs,
+                (Float(lhs), Float(rhs)) => lhs >= rhs,
+                (Float(lhs), Int(rhs)) => *lhs >= (*rhs as f64),
+                (Int(lhs), Float(rhs)) => (*lhs as f64) >= *rhs,
+                (lhs, rhs) => {
+                    return Err(RuntimeError::from_token(
+                        operator,
+                        &format!(
+                        "Both operands must be of types \"{}\" or \"{}\". Got \"{}\" and \"{}\"",
+                        TYPE_INT, TYPE_FLOAT,
+                        lhs.get_type(), rhs.get_type(),
+                    ),
+                    ))
+                }
+            };
+
+        Ok(Self::Bool(val))
+    }
+
+    pub fn less(lhs: &Self, rhs: &Self, operator: Token) -> Result<Self> {
+        use Val::*;
+        let val =
+            match (lhs, rhs) {
+                (Int(lhs), Int(rhs)) => lhs < rhs,
+                (Float(lhs), Float(rhs)) => lhs < rhs,
+                (Float(lhs), Int(rhs)) => *lhs < (*rhs as f64),
+                (Int(lhs), Float(rhs)) => (*lhs as f64) < *rhs,
+                (lhs, rhs) => {
+                    return Err(RuntimeError::from_token(
+                        operator,
+                        &format!(
+                        "Both operands must be of types \"{}\" or \"{}\". Got \"{}\" and \"{}\"",
+                        TYPE_INT, TYPE_FLOAT,
+                        lhs.get_type(), rhs.get_type(),
+                    ),
+                    ))
+                }
+            };
+
+        Ok(Self::Bool(val))
+    }
+
+    pub fn less_equal(lhs: &Self, rhs: &Self, operator: Token) -> Result<Self> {
+        use Val::*;
+        let val =
+            match (lhs, rhs) {
+                (Int(lhs), Int(rhs)) => lhs <= rhs,
+                (Float(lhs), Float(rhs)) => lhs <= rhs,
+                (Float(lhs), Int(rhs)) => *lhs <= (*rhs as f64),
+                (Int(lhs), Float(rhs)) => (*lhs as f64) <= *rhs,
+                (lhs, rhs) => {
+                    return Err(RuntimeError::from_token(
+                        operator,
+                        &format!(
+                        "Both operands must be of types \"{}\" or \"{}\". Got \"{}\" and \"{}\"",
+                        TYPE_INT, TYPE_FLOAT,
+                        lhs.get_type(), rhs.get_type(),
+                    ),
+                    ))
+                }
+            };
+
+        Ok(Self::Bool(val))
+    }
+
+    pub fn subtract(lhs: &Self, rhs: &Self, operator: Token) -> Result<Self> {
+        use Val::*;
+        let val =
+            match (lhs, rhs) {
+                (Int(lhs), Int(rhs)) => Int(lhs - rhs),
+                (Float(lhs), Float(rhs)) => Float(lhs - rhs),
+                (Float(lhs), Int(rhs)) => Float(lhs - (*rhs as f64)),
+                (Int(lhs), Float(rhs)) => Float((*lhs as f64) - *rhs),
+                (lhs, rhs) => {
+                    return Err(RuntimeError::from_token(
+                        operator,
+                        &format!(
+                        "Both operands must be of types \"{}\" or \"{}\". Got \"{}\" and \"{}\"",
+                        TYPE_INT, TYPE_FLOAT,
+                        lhs.get_type(), rhs.get_type(),
+                    ),
+                    ))
+                }
+            };
+
+        Ok(val)
+    }
+
+    pub fn add(lhs: &Self, rhs: &Self, operator: Token) -> Result<Self> {
+        use Val::*;
+        let val = match (lhs, rhs) {
+            (Int(lhs), Int(rhs)) => Int(lhs + rhs),
+            (Float(lhs), Float(rhs)) => Float(lhs + rhs),
+            (Float(lhs), Int(rhs)) => Float(lhs + (*rhs as f64)),
+            (Int(lhs), Float(rhs)) => Float((*lhs as f64) + *rhs),
+            (Str(lhs), Str(rhs)) => Str(format!("{}{}", lhs, rhs)),
+            (Str(lhs), Nil) => Str(format!("{}{}", lhs, rhs)),
+            (Str(lhs), Bool(rhs)) => Str(format!("{}{}", lhs, rhs)),
+            (Str(lhs), Int(rhs)) => Str(format!("{}{}", lhs, rhs)),
+            (Str(lhs), Float(rhs)) => Str(format!("{}{}", lhs, rhs)),
+            (lhs, rhs) => return Err(
+                RuntimeError::from_token(
+                    operator,
+                    &format!(
+                        "Both operands must be of types \"{}\", \"{}\", or \"{}\" with any other type. Got \"{}\" and \"{}\"",
+                        TYPE_INT, TYPE_FLOAT, TYPE_STR,
+                        lhs.get_type(), rhs.get_type(),
+                    )
+                )
+            ),
+        };
+
+        Ok(val)
+    }
+
+    pub fn divide(lhs: &Self, rhs: &Self, operator: Token) -> Result<Self> {
+        use Val::*;
+        let val =
+            match (lhs, rhs) {
+                (Int(lhs), Int(rhs)) => Int(lhs / rhs),
+                (Float(lhs), Float(rhs)) => Float(lhs / rhs),
+                (Float(lhs), Int(rhs)) => Float(lhs / (*rhs as f64)),
+                (Int(lhs), Float(rhs)) => Float((*lhs as f64) / rhs),
+                (lhs, rhs) => {
+                    return Err(RuntimeError::from_token(
+                        operator,
+                        &format!(
+                        "Both operands must be of types \"{}\" or \"{}\". Got \"{}\" and \"{}\"",
+                        TYPE_INT, TYPE_FLOAT,
+                        lhs.get_type(), rhs.get_type(),
+                    ),
+                    ))
+                }
+            };
+
+        Ok(val)
+    }
+
+    pub fn modulus(lhs: &Self, rhs: &Self, operator: Token) -> Result<Self> {
+        use Val::*;
+        let val =
+            match (lhs, rhs) {
+                (Int(lhs), Int(rhs)) => Int(lhs % rhs),
+                (Float(lhs), Float(rhs)) => Float(lhs % rhs),
+                (Float(lhs), Int(rhs)) => Float(lhs % (*rhs as f64)),
+                (Int(lhs), Float(rhs)) => Float((*lhs as f64) % *rhs),
+                (lhs, rhs) => {
+                    return Err(RuntimeError::from_token(
+                        operator,
+                        &format!(
+                        "Both operands must be of types \"{}\" or \"{}\". Got \"{}\" and \"{}\"",
+                        TYPE_INT, TYPE_FLOAT,
+                        lhs.get_type(), rhs.get_type(),
+                    ),
+                    ))
+                }
+            };
+
+        Ok(val)
+    }
+
+    pub fn multiply(lhs: &Self, rhs: &Self, operator: Token) -> Result<Self> {
+        use Val::*;
+        let val =
+            match (lhs, rhs) {
+                (Int(lhs), Int(rhs)) => Int(lhs * rhs),
+                (Float(lhs), Float(rhs)) => Float(lhs * rhs),
+                (Float(lhs), Int(rhs)) => Float(lhs * (*rhs as f64)),
+                (Int(lhs), Float(rhs)) => Float((*lhs as f64) * rhs),
+                (lhs, rhs) => {
+                    return Err(RuntimeError::from_token(
+                        operator,
+                        &format!(
+                        "Both operands must be of types \"{}\" or \"{}\". Got \"{}\" and \"{}\"",
+                        TYPE_INT, TYPE_FLOAT,
+                        lhs.get_type(), rhs.get_type(),
+                    ),
+                    ))
+                }
+            };
+
+        Ok(val)
+    }
+
+    pub fn bitwise_and(lhs: &Self, rhs: &Self, operator: Token) -> Result<Self> {
+        use Val::*;
+        let val = match (lhs, rhs) {
+            (Int(lhs), Int(rhs)) => Int(lhs & rhs),
+            (lhs, rhs) => {
+                return Err(RuntimeError::from_token(
+                    operator,
+                    &format!(
+                        "Both operands must be of type \"{}\". Got \"{}\" and \"{}\"",
+                        TYPE_INT,
+                        lhs.get_type(),
+                        rhs.get_type(),
+                    ),
+                ))
+            }
+        };
+
+        Ok(val)
+    }
+
+    pub fn bitwise_or(lhs: &Self, rhs: &Self, operator: Token) -> Result<Self> {
+        use Val::*;
+        let val = match (lhs, rhs) {
+            (Int(lhs), Int(rhs)) => Int(lhs | rhs),
+            (lhs, rhs) => {
+                return Err(RuntimeError::from_token(
+                    operator,
+                    &format!(
+                        "Both operands must be of type \"{}\". Got \"{}\" and \"{}\"",
+                        TYPE_INT,
+                        lhs.get_type(),
+                        rhs.get_type(),
+                    ),
+                ))
+            }
+        };
+
+        Ok(val)
+    }
+
+    pub fn bitwise_xor(lhs: &Self, rhs: &Self, operator: Token) -> Result<Self> {
+        use Val::*;
+        let val = match (lhs, rhs) {
+            (Int(lhs), Int(rhs)) => Int(lhs ^ rhs),
+            (lhs, rhs) => {
+                return Err(RuntimeError::from_token(
+                    operator,
+                    &format!(
+                        "Both operands must be of type \"{}\". Got \"{}\" and \"{}\"",
+                        TYPE_INT,
+                        lhs.get_type(),
+                        rhs.get_type(),
+                    ),
+                ))
+            }
+        };
+
+        Ok(val)
     }
 
     pub fn get_type(&self) -> String {

@@ -921,9 +921,10 @@ let e = Math::get_e(); // ok
 - `&&`, `||` logic, operate on `bool` values
 - `<`, `>`, `<=`, `>=`, comparison, operate on `int`, `float` values
 - `==`, `!=` equality, operate on values of the **same** type
-- `-`, `/`, `+`, `*`, `%` math operations on numbers
+- `-`, `/`, `+`, `*`, `%` math operations on on `int`, `float` values
+- `&`, `|`, `^` bitwise operations on integers
 - `+` string concatenation, also casts any other value in the same expression to `str`
-- `=`, `+=`, `-=`, `/=`, `%=`, `*=` various corresponding assignment operators
+- `=`, `+=`, `-=`, `/=`, `%=`, `*=`, `&=`, `|=`, `^=` various corresponding assignment operators
 
 ## Comments
 

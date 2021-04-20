@@ -926,6 +926,9 @@ impl Parser {
             TokenType::MinusEqual,
             TokenType::AsteriskEqual,
             TokenType::ModulusEqual,
+            TokenType::BitwiseAndEqual,
+            TokenType::BitwiseOrEqual,
+            TokenType::BitwiseXorEqual,
         ]) {
             let operator: Token = self.previous().clone();
             let expr_val = self.assign_expr()?;
@@ -992,13 +995,29 @@ impl Parser {
     }
 
     fn comparison_expr(&mut self) -> Result<Expr> {
-        let mut expr = self.sum_expr()?;
+        let mut expr = self.bitwise_expr()?;
 
         while self.match_tokens(vec![
             TokenType::Greater,
             TokenType::GreaterEqual,
             TokenType::Less,
             TokenType::LessEqual,
+        ]) {
+            let operator: Token = self.previous().clone();
+            let right: Expr = self.bitwise_expr()?;
+            expr = BinaryExpr(Binary::new(Box::new(expr), Box::new(right), operator));
+        }
+
+        Ok(expr)
+    }
+
+    fn bitwise_expr(&mut self) -> Result<Expr> {
+        let mut expr = self.sum_expr()?;
+
+        while self.match_tokens(vec![
+            TokenType::BitwiseAnd,
+            TokenType::BitwiseOr,
+            TokenType::BitwiseXor,
         ]) {
             let operator: Token = self.previous().clone();
             let right: Expr = self.sum_expr()?;

@@ -19,7 +19,7 @@ pub fn run_file(path: String) {
     run_file_with_streams(path, None, None, None);
 }
 
-/// Runs file with changed std streams.
+/// Runs file with std streams.
 ///
 /// Primarily used by tests to capture output, although there is nothing specific
 /// to tests. Can be used to run scripts and prevent and/or capture output.

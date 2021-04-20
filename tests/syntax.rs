@@ -63,11 +63,6 @@ fn test_loop() {
 }
 
 #[test]
-fn test_logic_expr() {
-    test_script("logic_expr");
-}
-
-#[test]
 fn test_scope() {
     test_script("scope");
 }

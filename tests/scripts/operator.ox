@@ -1,63 +1,169 @@
+// math
+
 let x = 10 + 10;
-let y = 10 - 10;
-let z = 10 * 10;
-let a = 10 / 10;
-let b = 20 % 6;
-
-let mut x1 = 10;
-x1 += 5;
-
-let mut x2 = 10;
-x2 -= 5;
-
-let mut x3 = 10;
-x3 /= 5;
-
-let mut x4 = 10;
-x4 *= 5;
-
-let mut x5 = 10;
-x5 %= 5;
-
-let mut c = "hello" + " world";
-let d = "this is ten: " + 10;
-
-let mut c1 = "hello";
-c1 += " world";
-
-let e1 = 8 == 8;
-let e2 = "hello" == "world";
-let e3 = "hello" != "hi";
-let e4 = true == true;
-
-let f1 = 50 > -4;
-let f2 = 4 >= 4;
-let f3 = 4 < 2;
-let f4 = 4 <= 0;
-
 println(x);
-println(y);
-println(z);
-println(a);
-println(b);
 
-println(x1);
-println(x2);
-println(x3);
-println(x4);
-println(x5);
+let x = 24 + (-3);
+println(x);
 
-println(c);
-println(d);
+let x = 10 - 10;
+println(x);
 
-println(c1);
+let x = 24 - (-3);
+println(x);
 
-println(e1);
-println(e2);
-println(e3);
-println(e4);
+let x = 10 * 10;
+println(x);
 
-println(f1);
-println(f2);
-println(f3);
-println(f4);
+let x = 24 * (-3);
+println(x);
+
+let x = 10 / 10;
+println(x);
+
+let x = 24 / (-3);
+println(x);
+
+let x = 20 % 6;
+println(x);
+
+let x = 24 % (-3);
+println(x);
+
+// math assignment
+
+let mut x = 10;
+x += 5;
+println(x);
+
+let mut x = 10;
+x -= 5;
+println(x);
+
+let mut x = 10;
+x /= 5;
+println(x);
+
+let mut x = 10;
+x *= 5;
+println(x);
+
+let mut x = 10;
+x %= 5;
+println(x);
+
+// concat
+
+let mut x = "hello" + " world";
+println(x);
+
+let x = "this is ten: " + 10;
+println(x);
+
+let mut x = "hello";
+x += " world";
+println(x);
+
+// equality
+
+let x = 8 == 8;
+println(x);
+
+let x = "hello" == "world";
+println(x);
+
+let x = "hello" != "hi";
+println(x);
+
+let x = true == true;
+println(x);
+
+let x = false == true;
+println(x);
+
+let x = nil == nil;
+println(x);
+
+// logic
+
+let x = true && true;
+println(x);
+
+let x = true && false;
+println(x);
+
+let x = false && true;
+println(x);
+
+let x = false && false;
+println(x);
+
+let x = true || true;
+println(x);
+
+let x = true || false;
+println(x);
+
+let x = false || true;
+println(x);
+
+let x = false || false;
+println(x);
+
+// comparison
+
+let x = 50 > -4;
+println(x);
+
+let x = 4 >= 4;
+println(x);
+
+let x = 4 < 2;
+println(x);
+
+let x = 4 <= 0;
+println(x);
+
+// bitwise
+
+let x = 10 ^ 45;
+println(x);
+
+let x = 42 | 9;
+println(x);
+
+let x = 67 & 9;
+println(x);
+
+let mut x = 10;
+x ^= 34;
+println(x);
+
+let mut x = 42;
+x |= 34;
+println(x);
+
+let mut x = 67;
+x &= 21;
+println(x);
+
+// mix
+
+let x = 45 * 59 + 34 ^ (499 - 34 * 1 & 3) - 34 - (-0) + (32 & 34 | 3) / 344 + 4 % 4 ^ 2;
+println(x);
+
+let r = false;
+let x = true || true || false || (true || 8 <= 100) || r;
+println(x);
+
+let x = true && "hello" == ("he" + "llo") && (3 == 3) && ((6 * 6 / 6) == (1 * 3 + 2 + 1)) && 6 != 5 || false;
+println(x);
+
+let x = 8 != 5 && ((1)) * 78 > 100;
+println(x);
+
+let x = 2 >= 56 && r;
+println(x);
+
+let x = 2 >= 56 && 443 ^ 234 == 443 ^ 234 & 342 && false || 34 == 34;
+println(x);

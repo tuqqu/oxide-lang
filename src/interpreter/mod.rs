@@ -15,9 +15,7 @@ use crate::parser::expr::{
     TraitDecl, Unary, VarDecl, Variable, VecIndex, Vec_,
 };
 
-use crate::parser::valtype::{
-    ValType, TYPE_BOOL, TYPE_FN, TYPE_INT, TYPE_NUM, TYPE_STR, TYPE_STRUCT, TYPE_VEC,
-};
+use crate::parser::valtype::{ValType, TYPE_FN, TYPE_INT, TYPE_STRUCT, TYPE_VEC};
 
 use self::env::{Env, EnvVal};
 use self::val::{Callable, Function, StmtVal, Val};
@@ -316,8 +314,7 @@ impl Interpreter {
     }
 
     fn eval_if_stmt(&mut self, stmt: &If) -> Result<StmtVal> {
-        let truth: bool = Self::is_true(&self.evaluate(&stmt.condition)?)?;
-        if truth {
+        if Self::is_true(&self.evaluate(&stmt.condition)?)? {
             self.evaluate_stmt(&stmt.then_stmt)
         } else if let Some(else_stmt) = &stmt.else_stmt {
             self.evaluate_stmt(else_stmt)
@@ -355,7 +352,7 @@ impl Interpreter {
 
         for arm in &expr.arms {
             let br_cond: Val = self.evaluate(&arm.expr)?;
-            if Val::equal(&cond, &br_cond) {
+            if let Val::Bool(true) = Val::equal(&cond, &br_cond, expr.keyword.clone())? {
                 return self.evaluate(&arm.body);
             }
         }
@@ -397,7 +394,10 @@ impl Interpreter {
             | TokenType::MinusEqual
             | TokenType::AsteriskEqual
             | TokenType::SlashEqual
-            | TokenType::ModulusEqual => {
+            | TokenType::ModulusEqual
+            | TokenType::BitwiseAndEqual
+            | TokenType::BitwiseOrEqual
+            | TokenType::BitwiseXorEqual => {
                 let env_val = self.env.borrow_mut().get(expr.name.clone())?;
                 let env_val = env_val.borrow_mut();
                 match env_val.deref() {
@@ -833,7 +833,10 @@ impl Interpreter {
             | TokenType::MinusEqual
             | TokenType::AsteriskEqual
             | TokenType::SlashEqual
-            | TokenType::ModulusEqual => {
+            | TokenType::ModulusEqual
+            | TokenType::BitwiseAndEqual
+            | TokenType::BitwiseOrEqual
+            | TokenType::BitwiseXorEqual => {
                 let struct_name = instance.borrow().struct_name.clone();
                 let public_access = self.is_public_access(struct_name);
 
@@ -917,7 +920,10 @@ impl Interpreter {
             | TokenType::MinusEqual
             | TokenType::AsteriskEqual
             | TokenType::SlashEqual
-            | TokenType::ModulusEqual => {
+            | TokenType::ModulusEqual
+            | TokenType::BitwiseAndEqual
+            | TokenType::BitwiseOrEqual
+            | TokenType::BitwiseXorEqual => {
                 let l_val = vec.get(index)?;
                 Self::evaluate_two_operands(expr.operator.clone(), l_val, val)?
             }
@@ -977,215 +983,37 @@ impl Interpreter {
         Ok(val)
     }
 
-    fn evaluate_two_operands(operator: Token, left: Val, right: Val) -> Result<Val> {
-        let val = match operator.token_type {
+    fn evaluate_two_operands(operator: Token, lhs: Val, rhs: Val) -> Result<Val> {
+        match operator.token_type {
             //equality
-            TokenType::BangEqual => match (left, right) {
-                (Val::Float(left), Val::Float(right)) => {
-                    Val::Bool((left - right).abs() > Val::FLOAT_ERROR_MARGIN)
-                }
-                (Val::Int(left), Val::Int(right)) => Val::Bool(left != right),
-                (Val::Int(left), Val::Float(right)) => {
-                    Val::Bool(((left as f64) - right).abs() > Val::FLOAT_ERROR_MARGIN)
-                }
-                (Val::Float(left), Val::Int(right)) => {
-                    Val::Bool((left - (right as f64)).abs() > Val::FLOAT_ERROR_MARGIN)
-                }
-
-                (Val::Str(left), Val::Str(right)) => Val::Bool(left != right),
-                (Val::Bool(left), Val::Bool(right)) => Val::Bool(left != right),
-                (Val::Nil, Val::Nil) => Val::Bool(true),
-                (Val::EnumValue(e1, _, v1), Val::EnumValue(e2, _, v2)) if e1 == e2 => {
-                    Val::Bool(v1 != v2)
-                }
-                (l, r) => {
-                    return Err(RuntimeError::equal_types_expected_error(
-                        operator,
-                        &r.get_type(),
-                        &l.get_type(),
-                    ))
-                }
-            },
-            TokenType::EqualEqual => match (left, right) {
-                (Val::Float(left), Val::Float(right)) => {
-                    Val::Bool((left - right).abs() < Val::FLOAT_ERROR_MARGIN)
-                }
-                (Val::Int(left), Val::Int(right)) => Val::Bool(left == right),
-                (Val::Float(left), Val::Int(right)) => {
-                    Val::Bool((left - (right as f64)).abs() < Val::FLOAT_ERROR_MARGIN)
-                }
-                (Val::Int(left), Val::Float(right)) => {
-                    Val::Bool(((left as f64) - right).abs() < Val::FLOAT_ERROR_MARGIN)
-                }
-                (Val::Str(left), Val::Str(right)) => Val::Bool(left == right),
-                (Val::Bool(left), Val::Bool(right)) => Val::Bool(left == right),
-                (Val::Nil, Val::Nil) => Val::Bool(true),
-                (Val::EnumValue(e1, _, v1), Val::EnumValue(e2, _, v2)) if e1 == e2 => {
-                    Val::Bool(v1 == v2)
-                }
-                (l, r) => {
-                    return Err(RuntimeError::equal_types_expected_error(
-                        operator,
-                        &r.get_type(),
-                        &l.get_type(),
-                    ))
-                }
-            },
+            TokenType::EqualEqual => Val::equal(&lhs, &rhs, operator),
+            TokenType::BangEqual => Val::not_equal(&lhs, &rhs, operator),
             // comparison
-            TokenType::Greater => match (left, right) {
-                (Val::Float(left), Val::Float(right)) => Val::Bool(left > right),
-                (Val::Int(left), Val::Int(right)) => Val::Bool(left > right),
-                (Val::Float(left), Val::Int(right)) => Val::Bool(left > (right as f64)),
-                (Val::Int(left), Val::Float(right)) => Val::Bool((left as f64) > right),
-                (l, r) => {
-                    return Err(RuntimeError::incompatible_types_error(
-                        operator,
-                        TYPE_BOOL,
-                        &r.get_type(),
-                        &l.get_type(),
-                    ))
-                }
-            },
-            TokenType::GreaterEqual => match (left, right) {
-                (Val::Float(left), Val::Float(right)) => Val::Bool(left >= right),
-                (Val::Int(left), Val::Int(right)) => Val::Bool(left >= right),
-                (Val::Float(left), Val::Int(right)) => Val::Bool(left >= right as f64),
-                (Val::Int(left), Val::Float(right)) => Val::Bool((left as f64) >= right),
-                (l, r) => {
-                    return Err(RuntimeError::incompatible_types_error(
-                        operator,
-                        TYPE_BOOL,
-                        &r.get_type(),
-                        &l.get_type(),
-                    ))
-                }
-            },
-            TokenType::Less => match (left, right) {
-                (Val::Float(left), Val::Float(right)) => Val::Bool(left < right),
-                (Val::Int(left), Val::Int(right)) => Val::Bool(left < right),
-                (Val::Float(left), Val::Int(right)) => Val::Bool(left < right as f64),
-                (Val::Int(left), Val::Float(right)) => Val::Bool((left as f64) < right),
-                (l, r) => {
-                    return Err(RuntimeError::incompatible_types_error(
-                        operator,
-                        TYPE_BOOL,
-                        &r.get_type(),
-                        &l.get_type(),
-                    ))
-                }
-            },
-            TokenType::LessEqual => match (left, right) {
-                (Val::Float(left), Val::Float(right)) => Val::Bool(left <= right),
-                (Val::Int(left), Val::Int(right)) => Val::Bool(left <= right),
-                (Val::Float(left), Val::Int(right)) => Val::Bool(left <= right as f64),
-                (Val::Int(left), Val::Float(right)) => Val::Bool((left as f64) <= right),
-                (l, r) => {
-                    return Err(RuntimeError::incompatible_types_error(
-                        operator,
-                        TYPE_BOOL,
-                        &r.get_type(),
-                        &l.get_type(),
-                    ))
-                }
-            },
+            TokenType::Greater => Val::greater(&lhs, &rhs, operator),
+            TokenType::GreaterEqual => Val::greater_equal(&lhs, &rhs, operator),
+            TokenType::Less => Val::less(&lhs, &rhs, operator),
+            TokenType::LessEqual => Val::less_equal(&lhs, &rhs, operator),
             // math
-            TokenType::Minus | TokenType::MinusEqual => match (left, right) {
-                (Val::Float(left), Val::Float(right)) => Val::Float(left - right),
-                (Val::Int(left), Val::Int(right)) => Val::Int(left - right),
-                (Val::Float(left), Val::Int(right)) => Val::Float(left - right as f64),
-                (Val::Int(left), Val::Float(right)) => Val::Float((left as f64) - right),
-                (l, r) => {
-                    return Err(RuntimeError::incompatible_types_error(
-                        operator,
-                        TYPE_NUM,
-                        &r.get_type(),
-                        &l.get_type(),
-                    ))
-                }
-            },
-            TokenType::Plus | TokenType::PlusEqual => match (left, right) {
-                (Val::Float(left), Val::Float(right)) => Val::Float(left + right),
-                (Val::Int(left), Val::Int(right)) => Val::Int(left + right),
-                (Val::Float(left), Val::Int(right)) => Val::Float(left + right as f64),
-                (Val::Int(left), Val::Float(right)) => Val::Float((left as f64) + right),
-
-                (Val::Str(left), Val::Str(right)) => Val::Str(format!("{}{}", left, right)),
-                (Val::Str(left), Val::Float(right)) => Val::Str(format!("{}{}", left, right)),
-                (Val::Str(left), Val::Int(right)) => Val::Str(format!("{}{}", left, right)),
-                (Val::Float(left), Val::Str(right)) => Val::Str(format!("{}{}", left, right)),
-                (Val::Int(left), Val::Str(right)) => Val::Str(format!("{}{}", left, right)),
-                (Val::Str(left), Val::Bool(right)) => Val::Str(format!("{}{}", left, right)),
-                (Val::Bool(left), Val::Str(right)) => Val::Str(format!("{}{}", left, right)),
-                (l, r) => {
-                    return Err(RuntimeError::incompatible_types_error(
-                        operator,
-                        &format!("{}, {}", TYPE_NUM, TYPE_STR),
-                        &r.get_type(),
-                        &l.get_type(),
-                    ))
-                }
-            },
-            TokenType::Slash | TokenType::SlashEqual => match (left, right) {
-                (Val::Float(left), Val::Float(right)) => Val::Float(left / right),
-                (Val::Int(left), Val::Int(right)) => Val::Int(left / right),
-                (Val::Float(left), Val::Int(right)) => Val::Float(left / right as f64),
-                (Val::Int(left), Val::Float(right)) => Val::Float((left as f64) / right),
-                (l, r) => {
-                    return Err(RuntimeError::incompatible_types_error(
-                        operator,
-                        TYPE_NUM,
-                        &r.get_type(),
-                        &l.get_type(),
-                    ))
-                }
-            },
-            TokenType::Modulus | TokenType::ModulusEqual => match (left, right) {
-                (Val::Float(left), Val::Float(right)) => Val::Float(left % right),
-                (Val::Int(left), Val::Int(right)) => Val::Int(left % right),
-                (Val::Float(left), Val::Int(right)) => Val::Float(left % right as f64),
-                (Val::Int(left), Val::Float(right)) => Val::Float((left as f64) % right),
-                (l, r) => {
-                    return Err(RuntimeError::incompatible_types_error(
-                        operator,
-                        TYPE_NUM,
-                        &r.get_type(),
-                        &l.get_type(),
-                    ))
-                }
-            },
-            TokenType::Asterisk | TokenType::AsteriskEqual => match (left, right) {
-                (Val::Float(left), Val::Float(right)) => Val::Float(left * right),
-                (Val::Int(left), Val::Int(right)) => Val::Int(left * right),
-                (Val::Float(left), Val::Int(right)) => Val::Float(left * right as f64),
-                (Val::Int(left), Val::Float(right)) => Val::Float((left as f64) * right),
-                (l, r) => {
-                    return Err(RuntimeError::incompatible_types_error(
-                        operator,
-                        TYPE_NUM,
-                        &r.get_type(),
-                        &l.get_type(),
-                    ))
-                }
-            },
-            // FIXME: add bitwise operations
+            TokenType::Minus | TokenType::MinusEqual => Val::subtract(&lhs, &rhs, operator),
+            TokenType::Plus | TokenType::PlusEqual => Val::add(&lhs, &rhs, operator),
+            TokenType::Slash | TokenType::SlashEqual => Val::divide(&lhs, &rhs, operator),
+            TokenType::Modulus | TokenType::ModulusEqual => Val::modulus(&lhs, &rhs, operator),
+            TokenType::Asterisk | TokenType::AsteriskEqual => Val::multiply(&lhs, &rhs, operator),
             // bitwise
-            // TokenType::BitwiseAnd => match (left, right) {
-            //     (Val::Number(left), Val::Number(right)) => Val::Number(left & right),
-            //     (l, r) => return Err(RuntimeError::incompatible_types_error(operator.clone(), ValType::TYPE_NUM, &r.get_type(), &l.get_type())),
-            // },
-            // TokenType::BitwiseOr => match (left, right) {
-            //     (Val::Number(left), Val::Number(right)) => Val::Number(left | right),
-            //     (l, r) => return Err(RuntimeError::incompatible_types_error(operator.clone(), ValType::TYPE_NUM, &r.get_type(), &l.get_type())),
-            // },
-            _ => {
-                return Err(RuntimeError::from_token(
-                    operator.clone(),
-                    &format!("Unknown binary operator \"{}\"", operator.lexeme),
-                ))
+            TokenType::BitwiseAnd | TokenType::BitwiseAndEqual => {
+                Val::bitwise_and(&lhs, &rhs, operator)
             }
-        };
-
-        Ok(val)
+            TokenType::BitwiseOr | TokenType::BitwiseOrEqual => {
+                Val::bitwise_or(&lhs, &rhs, operator)
+            }
+            TokenType::BitwiseXor | TokenType::BitwiseXorEqual => {
+                Val::bitwise_xor(&lhs, &rhs, operator)
+            }
+            _ => Err(RuntimeError::from_token(
+                operator.clone(),
+                &format!("Unknown binary operator \"{}\"", operator.lexeme),
+            )),
+        }
     }
 
     fn eval_grouping_expr(&mut self, expr: &Grouping) -> Result<Val> {
@@ -1332,6 +1160,7 @@ impl Interpreter {
     }
 }
 
+#[derive(Debug)]
 pub struct RuntimeError {
     pub token: Option<Token>,
     pub pos: Option<Pos>,
@@ -1361,25 +1190,5 @@ impl RuntimeError {
             token: None,
             msg: msg.to_string(),
         }
-    }
-
-    fn incompatible_types_error(token: Token, expected: &str, lhs: &str, rhs: &str) -> Self {
-        Self::from_token(
-            token,
-            &format!(
-                "Both operands must be of type \"{}\". Got \"{}\" and \"{}\"",
-                expected, lhs, rhs,
-            ),
-        )
-    }
-
-    fn equal_types_expected_error(token: Token, lhs: &str, rhs: &str) -> Self {
-        Self::from_token(
-            token,
-            &format!(
-                "Both operands must be of the same type. Got \"{}\" and \"{}\"",
-                lhs, rhs,
-            ),
-        )
     }
 }

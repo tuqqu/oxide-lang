@@ -69,6 +69,11 @@ pub enum TokenType {
 
     BitwiseAnd,
     BitwiseOr,
+    BitwiseXor,
+
+    BitwiseAndEqual,
+    BitwiseOrEqual,
+    BitwiseXorEqual,
 
     Identifier,
     String,
