@@ -3,12 +3,12 @@ use std::result;
 use crate::error_token;
 use crate::lexer::token::{Token, TokenType};
 use crate::parser::expr::Expr::{
-    GetPropExpr, IntLiteralExpr, SetIndexExpr, SetPropExpr, VecIndexExpr,
+    GetPropExpr, IntLiteralExpr, SetIndexExpr, SetPropExpr, TypeCastExpr, VecIndexExpr,
 };
 use crate::parser::expr::{
     CallStruct, EnumDecl, FnSignatureDecl, GetProp, GetStaticProp, ImplDecl, IntLiteral, Lambda,
     Match, MatchArm, ParamList, SelfStatic, Self_, SetIndex, SetProp, StructDecl, TraitDecl,
-    VecIndex, Vec_,
+    TypeCast, VecIndex, Vec_,
 };
 use crate::parser::valtype::ValType;
 
@@ -1040,7 +1040,7 @@ impl Parser {
     }
 
     fn mult_expr(&mut self) -> Result<Expr> {
-        let mut expr = self.unary_expr()?;
+        let mut expr = self.as_expr()?;
 
         while self.match_tokens(vec![
             TokenType::Asterisk,
@@ -1048,8 +1048,20 @@ impl Parser {
             TokenType::Modulus,
         ]) {
             let operator: Token = self.previous().clone();
-            let right: Expr = self.unary_expr()?;
+            let right: Expr = self.as_expr()?;
             expr = BinaryExpr(Binary::new(Box::new(expr), Box::new(right), operator));
+        }
+
+        Ok(expr)
+    }
+
+    fn as_expr(&mut self) -> Result<Expr> {
+        let mut expr = self.unary_expr()?;
+
+        while self.match_token(TokenType::As) {
+            let operator: Token = self.previous().clone();
+            let to_type: ValType = self.consume_type()?;
+            expr = TypeCastExpr(TypeCast::new(Box::new(expr), to_type, operator));
         }
 
         Ok(expr)

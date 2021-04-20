@@ -37,7 +37,7 @@ let y = fn () {
 y();
 
 let g = fn (x: any, y: num, b: bool) -> str {
-    return "string" + x;
+    return "string" + x as str;
 };
 
 let r: str = g(45, 67.87, false);

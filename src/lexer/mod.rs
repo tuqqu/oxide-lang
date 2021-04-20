@@ -52,6 +52,8 @@ impl Lexer {
         keywords.insert("mut".to_string(), TokenType::Mut);
         keywords.insert("const".to_string(), TokenType::Const);
 
+        keywords.insert("as".to_string(), TokenType::As);
+
         keywords.insert("while".to_string(), TokenType::While);
         keywords.insert("for".to_string(), TokenType::For);
         keywords.insert("loop".to_string(), TokenType::Loop);

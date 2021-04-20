@@ -57,7 +57,7 @@ println(x);
 let mut x = "hello" + " world";
 println(x);
 
-let x = "this is ten: " + 10;
+let x = "this is ten: " + 10 as str;
 println(x);
 
 let mut x = "hello";

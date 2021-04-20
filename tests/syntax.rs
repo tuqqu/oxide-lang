@@ -48,6 +48,11 @@ fn test_type_inference() {
 }
 
 #[test]
+fn test_type_casting() {
+    test_script("type_casting");
+}
+
+#[test]
 fn test_while() {
     test_script("while");
 }

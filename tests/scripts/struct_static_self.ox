@@ -10,7 +10,7 @@ impl Circle {
 	}
 
 	pub fn to_str(self) -> str {
-		return ("Circle(radius: " + self.radius + ")");
+		return ("Circle(radius: " + self.radius as str + ")");
 	}
 }
 

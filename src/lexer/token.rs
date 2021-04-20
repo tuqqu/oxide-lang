@@ -104,13 +104,14 @@ pub enum TokenType {
     Loop,
 
     Match,
-
     If,
     Else,
 
     Let,
     Mut,
     Const,
+
+    As,
 
     Enum,
     Struct,

@@ -12,7 +12,7 @@ use crate::parser::expr::{
     Assignment, Binary, Block, BoolLiteral, Call, CallStruct, ConstDecl, EnumDecl, Expr,
     FloatLiteral, FnDecl, GetProp, GetStaticProp, Grouping, If, ImplDecl, IntLiteral, Lambda, Loop,
     Match, NilLiteral, Return, SelfStatic, Self_, SetIndex, SetProp, Stmt, StrLiteral, StructDecl,
-    TraitDecl, Unary, VarDecl, Variable, VecIndex, Vec_,
+    TraitDecl, TypeCast, Unary, VarDecl, Variable, VecIndex, Vec_,
 };
 
 use crate::parser::valtype::{ValType, TYPE_FN, TYPE_INT, TYPE_STRUCT, TYPE_VEC};
@@ -975,6 +975,13 @@ impl Interpreter {
         }
     }
 
+    fn eval_type_cast_expr(&mut self, expr: &TypeCast) -> Result<Val> {
+        let left = self.evaluate(&expr.left)?;
+        let cast = left.cast_to(&expr.to_type, expr.operator.clone())?;
+
+        Ok(cast)
+    }
+
     fn eval_binary_expr(&mut self, expr: &Binary) -> Result<Val> {
         let left = self.evaluate(&expr.left)?;
         let right = self.evaluate(&expr.right)?;
@@ -1063,6 +1070,7 @@ impl Interpreter {
             SetIndexExpr(set_index) => self.eval_set_index_expr(&set_index)?,
             BinaryExpr(binary) => self.eval_binary_expr(&binary)?,
             LogicalBinaryExpr(l_binary) => self.eval_logical_binary_expr(&l_binary)?,
+            TypeCastExpr(type_cast) => self.eval_type_cast_expr(&type_cast)?,
             GroupingExpr(grouping) => self.eval_grouping_expr(&grouping)?,
             VariableExpr(variable) => self.eval_var_expr(&variable)?,
             AssignmentExpr(assignment) => self.eval_assign_expr(&assignment)?,

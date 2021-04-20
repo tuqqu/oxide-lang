@@ -556,15 +556,11 @@ impl Val {
             (Float(lhs), Int(rhs)) => Float(lhs + (*rhs as f64)),
             (Int(lhs), Float(rhs)) => Float((*lhs as f64) + *rhs),
             (Str(lhs), Str(rhs)) => Str(format!("{}{}", lhs, rhs)),
-            (Str(lhs), Nil) => Str(format!("{}{}", lhs, rhs)),
-            (Str(lhs), Bool(rhs)) => Str(format!("{}{}", lhs, rhs)),
-            (Str(lhs), Int(rhs)) => Str(format!("{}{}", lhs, rhs)),
-            (Str(lhs), Float(rhs)) => Str(format!("{}{}", lhs, rhs)),
             (lhs, rhs) => return Err(
                 RuntimeError::from_token(
                     operator,
                     &format!(
-                        "Both operands must be of types \"{}\", \"{}\", or \"{}\" with any other type. Got \"{}\" and \"{}\"",
+                        "Both operands must be of types \"{}\", \"{}\", or \"{}\". Got \"{}\" and \"{}\"",
                         TYPE_INT,
                         TYPE_FLOAT,
                         TYPE_STR,
@@ -702,6 +698,65 @@ impl Val {
                         TYPE_INT,
                         lhs.get_type(),
                         rhs.get_type(),
+                    ),
+                ))
+            }
+        };
+
+        Ok(val)
+    }
+
+    pub fn cast_to(&self, to_type: &ValType, operator: Token) -> Result<Self> {
+        use Val::*;
+        let val = match (&self, to_type) {
+            (Nil, ValType::Int) => Int(0),
+            (Nil, ValType::Float) => Float(0_f64),
+            (Nil, ValType::Bool) => Bool(false),
+            (Nil, ValType::Nil) => Nil,
+            (Nil, ValType::Str) => Str(str::to_string("")),
+
+            (Bool(val), ValType::Int) => Int(if *val { 0 } else { 1 }),
+            (Bool(val), ValType::Float) => Float(if *val { 0_f64 } else { 1_f64 }),
+            (Bool(val), ValType::Bool) => Bool(*val),
+            (Bool(_val), ValType::Nil) => Nil,
+            (Bool(val), ValType::Str) => Str(val.to_string()),
+
+            (Int(val), ValType::Int) => Int(*val),
+            (Int(val), ValType::Float) => Float(*val as f64),
+            (Int(val), ValType::Bool) => Bool(*val != 0),
+            (Int(_val), ValType::Nil) => Nil,
+            (Int(val), ValType::Str) => Str(val.to_string()),
+
+            (Float(val), ValType::Int) => Int(*val as isize),
+            (Float(val), ValType::Float) => Float(*val),
+            (Float(val), ValType::Bool) => Bool(*val != 0_f64),
+            (Float(_val), ValType::Nil) => Nil,
+            (Float(val), ValType::Str) => Str(val.to_string()),
+
+            (Str(val), ValType::Int) => Int(val.parse::<isize>().unwrap_or(0)),
+            (Str(val), ValType::Float) => Float(val.parse::<f64>().unwrap_or(0_f64)),
+            (Str(val), ValType::Bool) => Bool(!val.eq("")),
+            (Str(_val), ValType::Nil) => Nil,
+            (Str(val), ValType::Str) => Str(val.clone()),
+
+            (_, ValType::Any)
+            | (_, ValType::Instance(_))
+            | (_, ValType::Vec(_))
+            | (_, ValType::Fn)
+            | (_, ValType::Num)
+            | (_, ValType::Map) => {
+                return Err(RuntimeError::from_token(
+                    operator,
+                    &format!("Value cannot be cast to type \"{}\"", to_type,),
+                ))
+            }
+            (val, to_type) => {
+                return Err(RuntimeError::from_token(
+                    operator,
+                    &format!(
+                        "Value of type \"{}\" cannot be cast to type \"{}\".",
+                        val.get_type(),
+                        to_type,
                     ),
                 ))
             }

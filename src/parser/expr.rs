@@ -23,6 +23,7 @@ pub enum Expr {
     FnExpr(Lambda),
     BinaryExpr(Binary),
     LogicalBinaryExpr(Binary),
+    TypeCastExpr(TypeCast),
     GroupingExpr(Grouping),
     VariableExpr(Variable),
     AssignmentExpr(Assignment),
@@ -144,6 +145,13 @@ pub struct Lambda {
 pub struct Binary {
     pub left: Box<Expr>,
     pub right: Box<Expr>,
+    pub operator: Token,
+}
+
+#[derive(Debug, Clone)]
+pub struct TypeCast {
+    pub left: Box<Expr>,
+    pub to_type: ValType,
     pub operator: Token,
 }
 
@@ -281,6 +289,16 @@ impl Binary {
         Self {
             left,
             right,
+            operator,
+        }
+    }
+}
+
+impl TypeCast {
+    pub fn new(left: Box<Expr>, to_type: ValType, operator: Token) -> Self {
+        Self {
+            left,
+            to_type,
             operator,
         }
     }
