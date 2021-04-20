@@ -4,6 +4,7 @@ use crate::parser::{
     expr,
     expr::{Expr, Stmt},
 };
+use std::collections::HashMap;
 
 pub struct State {
     in_function_decl: bool,
@@ -21,6 +22,7 @@ impl State {
 
 pub struct Analyser {
     scope_chain: Vec<Scope>,
+    distance_to_def: HashMap<String, Vec<usize>>,
     state: State,
 }
 
@@ -30,6 +32,7 @@ impl Analyser {
     pub fn new() -> Self {
         Self {
             scope_chain: Vec::new(),
+            distance_to_def: HashMap::new(),
             state: State::new(),
         }
     }
@@ -76,15 +79,16 @@ impl Analyser {
     }
 
     fn analyse_variable(&mut self, var: &expr::Variable) -> AnalyserResult {
-        match self.get_binding_in_scope(&var.name.lexeme) {
-            Some(binding) => {
-                if !binding.is_initialised() {
-                    return Err(TypeError::UninitialisedVariableAccess(var.name.clone()));
-                }
-                Ok(binding.get_ty().clone())
-            }
-            None => Err(TypeError::UndefinedVariable(var.name.clone())),
+        let name = &var.name;
+        let binding = match self.get_binding_in_scope(&name.lexeme) {
+            Some(binding) => binding,
+            None => return Err(TypeError::UndefinedVariable(var.name.clone())),
+        };
+
+        if !binding.is_initialised() {
+            return Err(TypeError::UninitialisedVariableAccess(name.clone()));
         }
+        Ok(binding.get_ty().clone())
     }
 
     fn analyse_call_expression(&mut self, call_expr: &expr::Call) -> AnalyserResult {
@@ -93,29 +97,28 @@ impl Analyser {
             Expr::VariableExpr(var_expr) => var_expr,
             _ => return Err(TypeError::NotAFunction),
         };
-        let name = &var_expr.name.lexeme; 
+        let name = &var_expr.name.lexeme;
 
         // Analyse args
-        let arg_tys:Vec<Type> = 
-        call_expr.args.iter().map(|expr| {
-            self.analyse_expression(expr).unwrap_or(Type::Nil)
-        }).collect();
+        let arg_tys: Vec<Type> = call_expr
+            .args
+            .iter()
+            .map(|expr| self.analyse_expression(expr).unwrap_or(Type::Nil))
+            .collect();
 
         let function = match self.get_binding_in_scope(name) {
-            Some(binding) => {
-                match binding.get_ty() {
-                    Type::Function(function) => function,
-                    _ => return Err(TypeError::NotAFunction)
-                }
+            Some(binding) => match binding.get_ty() {
+                Type::Function(function) => function,
+                _ => return Err(TypeError::NotAFunction),
             },
-            None => return Err(TypeError::NotAFunction)
+            None => return Err(TypeError::NotAFunction),
         };
 
         let param_types = &function.param_types;
         let return_type = &function.return_type;
 
         if arg_tys.len() != param_types.len() {
-            return Err(TypeError::ArityMismatch)
+            return Err(TypeError::ArityMismatch);
         }
         for (arg_ty, param_ty) in arg_tys.iter().zip(param_types) {
             if arg_ty != param_ty {
@@ -190,7 +193,13 @@ impl Analyser {
         };
 
         let name = var_decl.name.lexeme.clone();
-        self.create_binding_in_scope(name, typ, var_decl.name.clone(), var_decl.mutable, var_decl.init.is_some());
+        self.create_binding_in_scope(
+            name,
+            typ,
+            var_decl.name.clone(),
+            var_decl.mutable,
+            var_decl.init.is_some(),
+        );
         Ok(Type::Nil)
     }
 
@@ -204,14 +213,13 @@ impl Analyser {
         let param_types: Vec<Type> = (&lambda.params)
             .iter()
             .map(|(token, typ, is_mutable)| {
-                // TODO: Consider mutability of params
                 let typ = Type::from(&typ);
                 self.create_binding_in_scope(
                     token.lexeme.clone(),
                     typ.clone(),
                     token.clone(),
                     *is_mutable,
-                    true, // params are set at the callsite
+                    true, // params are initialised at the callsite
                 );
                 typ
             })
@@ -286,22 +294,91 @@ impl Analyser {
     }
 
     fn exit_scope(&mut self) {
-        self.scope_chain.pop();
+        if let Some(scope) = self.scope_chain.pop() {
+            for (varname, _) in scope.all_bindings_iter() {
+                let stack = self
+                    .distance_to_def
+                    .get_mut(varname)
+                    .expect("Declaration in current scope must have binding");
+                stack.pop().expect("Stack must have entry");
+                if !stack.is_empty() {
+                    continue;
+                }
+                self.distance_to_def.remove_entry(varname);
+            }
+        } else {
+            unreachable!("No scope to exit");
+        }
     }
 
-    fn create_binding_in_scope(&mut self, name: String, ty: Type, at: Token, is_mutable: bool, is_initialised : bool) {
-        self.scope_chain
-            .last_mut()
-            .unwrap()
-            .create_binding_for(name, ty, at, is_mutable, is_initialised)
+    // - Traversing the scope each time makes it inefficient to find the type bindings.
+    //   We should somehow have a way to cache the indexes in the scope chain for new
+    //   bindings. [var_name -> index]
+    // - Each variable declaration for 'x', makes a note of the current position in
+    //   the scope chain.
+    // - Subsequent accesses of the same variable 'x', can be directly looked up in
+    //   that index of the scope chain.
+    // - This information can also be passed to the interpreter to avoid walking the
+    //   environment stack a million times inside a loop.
+    // - Ex:
+    // let x; //: index 0
+    // let x; //: index 0
+    // {
+    //     let x; // index 1
+    //     x; // looked up in index 1
+    // }
+    // x; // looked up in index 0
+    //
+    // Push the index of the current scope in the scope chain onto a stack for each
+    // variables name. [varname -> [index_stack]]
+    // Stack data structure is useful since, when out of scope, we can pop the index.
+
+    fn create_binding_in_scope(
+        &mut self,
+        name: String,
+        ty: Type,
+        at: Token,
+        is_mutable: bool,
+        is_initialised: bool,
+    ) {
+        let index = self.scope_chain.len() - 1;
+        if let Some(stack) = self.distance_to_def.get_mut(&name) {
+            if let Some(item) = stack.last() {
+                if *item != index {
+                    stack.push(index);
+                }
+            } else {
+                stack.push(index);
+            }
+        } else {
+            self.distance_to_def.insert(name.clone(), vec![index]);
+        }
+        self.scope_chain.last_mut().unwrap().create_binding_for(
+            name,
+            ty,
+            at,
+            is_mutable,
+            is_initialised,
+        )
     }
 
     fn get_binding_in_scope(&self, name: &str) -> Option<&TypeBinding> {
-        self.scope_chain.last().unwrap().get_binding_for(name)
+        if let Some(stack) = self.distance_to_def.get(name) {
+            let distance = stack.last().unwrap();
+            self.scope_chain
+                .get(*distance)
+                .unwrap()
+                .get_binding_for(name)
+        } else {
+            None
+        }
     }
 
     fn get_mut_binding_in_scope(&mut self, name: &str) -> Option<&mut TypeBinding> {
-        self.scope_chain.last_mut().unwrap().get_mut_binding_for(name)
+        self.scope_chain
+            .last_mut()
+            .unwrap()
+            .get_mut_binding_for(name)
     }
 
     fn enter_function_decl(&mut self) {

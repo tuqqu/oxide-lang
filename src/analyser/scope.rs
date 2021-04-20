@@ -11,7 +11,12 @@ pub struct TypeBinding {
 
 impl TypeBinding {
     pub fn new(ty: Type, at: Token, is_mutable: bool, is_initialised: bool) -> Self {
-        Self { ty, at, is_mutable, is_initialised }
+        Self {
+            ty,
+            at,
+            is_mutable,
+            is_initialised,
+        }
     }
 
     pub fn get_ty(&self) -> &Type {
@@ -48,7 +53,14 @@ impl Scope {
         self.type_bindings.get_mut(name)
     }
 
-    pub fn create_binding_for(&mut self, name: String, ty: Type, at: Token, is_mutable: bool, is_initialised: bool) {
+    pub fn create_binding_for(
+        &mut self,
+        name: String,
+        ty: Type,
+        at: Token,
+        is_mutable: bool,
+        is_initialised: bool,
+    ) {
         let binding = TypeBinding::new(ty, at, is_mutable, is_initialised);
         self.type_bindings.insert(name, binding);
     }
@@ -57,5 +69,9 @@ impl Scope {
         Self {
             type_bindings: HashMap::new(),
         }
+    }
+
+    pub fn all_bindings_iter(&self) -> std::collections::hash_map::Iter<String, TypeBinding> {
+        self.type_bindings.iter()
     }
 }
