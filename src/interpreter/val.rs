@@ -194,7 +194,7 @@ impl StructInstance {
             if !self.fns.contains_key(&name.lexeme) {
                 Err(RuntimeError::from_token(
                     name.clone(),
-                    format!("No struct property with name \"{}\"", &name.lexeme),
+                    &format!("No struct property with name \"{}\"", &name.lexeme),
                 ))
             } else {
                 let func = self.fns.get(&name.lexeme).unwrap();
@@ -203,7 +203,7 @@ impl StructInstance {
                 } else {
                     Err(RuntimeError::from_token(
                         name.clone(),
-                        format!("Cannot access private method \"{}\"", &name.lexeme),
+                        &format!("Cannot access private method \"{}\"", &name.lexeme),
                     ))
                 }
             }
@@ -219,7 +219,7 @@ impl StructInstance {
                         )
                     };
 
-                    Err(RuntimeError::from_token(name.clone(), msg))
+                    Err(RuntimeError::from_token(name.clone(), &msg))
                 }
                 (val, _, pub_) => {
                     if Self::can_access(*pub_, public_access) {
@@ -227,7 +227,7 @@ impl StructInstance {
                     } else {
                         Err(RuntimeError::from_token(
                             name.clone(),
-                            format!("Cannot access private property \"{}\"", &name.lexeme),
+                            &format!("Cannot access private property \"{}\"", &name.lexeme),
                         ))
                     }
                 }
@@ -239,7 +239,7 @@ impl StructInstance {
         if !self.props.contains_key(&name.lexeme) {
             Err(RuntimeError::from_token(
                 name.clone(),
-                format!("No struct property with name \"{}\"", &name.lexeme),
+                &format!("No struct property with name \"{}\"", &name.lexeme),
             ))
         } else {
             let (_, v_type, public) = self.props.get(&name.lexeme).unwrap();
@@ -247,7 +247,7 @@ impl StructInstance {
             if !*public && public_access {
                 return Err(RuntimeError::from_token(
                     name.clone(),
-                    format!("Cannot access private property \"{}\"", &name.lexeme),
+                    &format!("Cannot access private property \"{}\"", &name.lexeme),
                 ));
             }
 
@@ -261,7 +261,7 @@ impl StructInstance {
             } else {
                 Err(RuntimeError::from_token(
                     name.clone(),
-                    format!(
+                    &format!(
                         "Trying to assign to a variable of type \"{}\" value of type \"{}\"",
                         v_type,
                         val.get_type()
@@ -329,7 +329,7 @@ impl VecInstance {
                 Arc::new(move |_inter, args| {
                     for arg in args {
                         if !vec.borrow_mut().val_type.conforms(arg) {
-                            return Err(RuntimeError::new(format!(
+                            return Err(RuntimeError::new(&format!(
                                 "Cannot push value of type \"{}\" to a vector of type \"{}\"",
                                 ValType::try_from_val(arg).unwrap(), // FIXME: may be an unsuccessful transformation
                                 vec.borrow_mut().val_type
@@ -348,7 +348,7 @@ impl VecInstance {
             _ => {
                 return Err(RuntimeError::from_token(
                     name.clone(),
-                    format!("Unknown vec method \"{}\"", name.lexeme),
+                    &format!("Unknown vec method \"{}\"", name.lexeme),
                 ))
             }
         };

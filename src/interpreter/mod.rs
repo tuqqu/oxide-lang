@@ -123,7 +123,7 @@ impl Interpreter {
                                 } else {
                                     return Err(RuntimeError::from_token(
                                         prop.clone(),
-                                        format!(
+                                        &format!(
                                             "Expected argument \"{}\" of type \"{}\"",
                                             v_type,
                                             param.get_type()
@@ -133,7 +133,7 @@ impl Interpreter {
                             } else {
                                 return Err(RuntimeError::from_token(
                                     prop.clone(),
-                                    format!("Unknown property name \"{}\"", prop.lexeme),
+                                    &format!("Unknown property name \"{}\"", prop.lexeme),
                                 ));
                             }
                         }
@@ -173,7 +173,7 @@ impl Interpreter {
                                 {
                                     return Err(RuntimeError::from_token(
                                         method.clone().name,
-                                        format!(
+                                        &format!(
                                             "Mismatched signature of method \"{}\"",
                                             method.name.lexeme
                                         ),
@@ -187,17 +187,15 @@ impl Interpreter {
                         if !found {
                             return Err(RuntimeError::from_token(
                                 signature.name.clone(),
-                                format!("Method \"{}\" must be implemented", signature.name.lexeme),
+                                &format!(
+                                    "Method \"{}\" must be implemented",
+                                    signature.name.lexeme
+                                ),
                             ));
                         }
                     }
                 }
-                _ => {
-                    return Err(RuntimeError::from_token(
-                        for_name,
-                        "Expected trait name".to_string(),
-                    ))
-                }
+                _ => return Err(RuntimeError::from_token(for_name, "Expected trait name")),
             }
 
             (for_name.lexeme, Some(decl.impl_name.lexeme.clone()))
@@ -275,7 +273,7 @@ impl Interpreter {
             if !v_type.conforms(&val) {
                 return Err(RuntimeError::from_token(
                     stmt.name.clone(),
-                    format!(
+                    &format!(
                         "Trying to initialise variable of type \"{}\" with value of type \"{}\"",
                         v_type,
                         val.get_type()
@@ -288,7 +286,7 @@ impl Interpreter {
                 None => {
                     return Err(RuntimeError::from_token(
                         stmt.name.clone(),
-                        format!(
+                        &format!(
                             "Unrecognised value type in initialisation \"{}\"",
                             val.get_type()
                         ),
@@ -341,7 +339,9 @@ impl Interpreter {
                 StmtVal::Break => {
                     return Ok(StmtVal::None);
                 }
-                _ => {}
+                stmt_val @ StmtVal::Return(_) => {
+                    return Ok(stmt_val);
+                }
             }
 
             self.evaluate(&stmt.inc)?;
@@ -362,7 +362,7 @@ impl Interpreter {
 
         Err(RuntimeError::from_token(
             expr.keyword.clone(),
-            "Match expression must be exhaustive".to_string(),
+            "Match expression must be exhaustive",
         ))
     }
 
@@ -375,7 +375,7 @@ impl Interpreter {
         match env_val.deref() {
             NoValue | Trait(_) => Err(RuntimeError::from_token(
                 expr.name.clone(),
-                format!(
+                &format!(
                     "Trying to access uninitialized variable \"{}\"",
                     expr.name.lexeme
                 ),
@@ -407,7 +407,7 @@ impl Interpreter {
                     _ => {
                         return Err(RuntimeError::from_token(
                             expr.name.clone(),
-                            format!(
+                            &format!(
                                 "Operator \"{}\" can be used only with variables",
                                 expr.operator.lexeme
                             ),
@@ -418,7 +418,7 @@ impl Interpreter {
             _ => {
                 return Err(RuntimeError::from_token(
                     expr.operator.clone(),
-                    "Unrecognised token in an assignment expression".to_string(),
+                    "Unrecognised token in an assignment expression",
                 ))
             }
         };
@@ -476,7 +476,7 @@ impl Interpreter {
                     if !param.1.conforms(&arg) {
                         return Err(RuntimeError::from_token(
                             param.0.clone(),
-                            format!(
+                            &format!(
                                 "Expected argument \"{}\" of type \"{}\", got \"{}\"",
                                 i,
                                 param.1,
@@ -501,13 +501,13 @@ impl Interpreter {
                 let val = match stmt_val {
                     StmtVal::None => Val::Nil,
                     StmtVal::Return(val) => val,
-                    _ => return Err(RuntimeError::new("Unknown statement value".to_string())),
+                    _ => return Err(RuntimeError::new("Unknown statement value")),
                 };
 
                 if func.lambda.ret_type.conforms(&val) {
                     Ok(val)
                 } else {
-                    Err(RuntimeError::new(format!(
+                    Err(RuntimeError::new(&format!(
                         "Function must return \"{}\", got \"{}\"",
                         func.lambda.ret_type,
                         val.get_type()
@@ -547,7 +547,7 @@ impl Interpreter {
                 val => {
                     return Err(RuntimeError::from_token(
                         expr.operator.clone(),
-                        format!("Expected \"bool\" value, got \"{}\"", val.get_type()),
+                        &format!("Expected \"bool\" value, got \"{}\"", val.get_type()),
                     ))
                 }
             },
@@ -557,14 +557,14 @@ impl Interpreter {
                 val => {
                     return Err(RuntimeError::from_token(
                         expr.operator.clone(),
-                        format!("Expected \"num\" value, got \"{}\"", val.get_type()),
+                        &format!("Expected \"num\" value, got \"{}\"", val.get_type()),
                     ))
                 }
             },
             _ => {
                 return Err(RuntimeError::from_token(
                     expr.operator.clone(),
-                    format!("Unknown unary \"{}\"", expr.operator.lexeme),
+                    &format!("Unknown unary \"{}\"", expr.operator.lexeme),
                 ))
             }
         };
@@ -583,7 +583,7 @@ impl Interpreter {
                 }
 
                 if args.len() != callee.arity {
-                    return Err(RuntimeError::new(format!(
+                    return Err(RuntimeError::new(&format!(
                         "Expected {} arguments but got {}",
                         callee.arity,
                         args.len()
@@ -592,7 +592,7 @@ impl Interpreter {
 
                 (callee.call)(self, &args)
             }
-            _ => Err(RuntimeError::new(format!(
+            _ => Err(RuntimeError::new(&format!(
                 "Callable value must be of type \"{}\", got \"{}\"",
                 TYPE_FN,
                 callee.get_type()
@@ -613,13 +613,13 @@ impl Interpreter {
                     EnvVal::Enum(e) => Ok(e.val),
                     _ => Err(RuntimeError::from_token(
                         expr.self_static.clone(),
-                        "Wrong static bind target".to_string(),
+                        "Wrong static bind target",
                     )),
                 }
             }
             None => Err(RuntimeError::from_token(
                 expr.self_static.clone(),
-                "Value \"Self\" can be used in methods only".to_string(),
+                "Value \"Self\" can be used in methods only",
             )),
         }
     }
@@ -631,7 +631,7 @@ impl Interpreter {
             None => {
                 return Err(RuntimeError::from_token(
                     expr.self_.clone(),
-                    "Value \"self\" can be used in methods only".to_string(),
+                    "Value \"self\" can be used in methods only",
                 ))
             }
         };
@@ -653,13 +653,13 @@ impl Interpreter {
                 if args.len() != callee.arity {
                     return Err(RuntimeError::from_token(
                         token,
-                        format!("Expected {} arguments but got {}", callee.arity, args.len()),
+                        &format!("Expected {} arguments but got {}", callee.arity, args.len()),
                     ));
                 }
 
                 (callee.call)(self, &args)
             }
-            _ => Err(RuntimeError::new(format!(
+            _ => Err(RuntimeError::new(&format!(
                 "Callable value must be of type \"{}\", got \"{}\"",
                 TYPE_STRUCT,
                 callee.get_type()
@@ -678,7 +678,7 @@ impl Interpreter {
                 if !val_type.conforms(&val) {
                     return Err(RuntimeError::from_token(
                         expr.token.clone(),
-                        format!(
+                        &format!(
                             "Expected values of type \"{}\", got \"{}\"",
                             val_type,
                             ValType::try_from_val(&val).unwrap()
@@ -718,7 +718,7 @@ impl Interpreter {
         let indx = if let Val::Int(int) = indx {
             int as usize
         } else {
-            return Err(RuntimeError::new(format!(
+            return Err(RuntimeError::new(&format!(
                 "Values of type \"{}\" can have indices of type \"{}\", got \"{}\"",
                 TYPE_VEC,
                 TYPE_INT,
@@ -728,7 +728,7 @@ impl Interpreter {
 
         match val {
             Val::VecInstance(vec) => vec.borrow_mut().get(indx),
-            _ => Err(RuntimeError::new(format!(
+            _ => Err(RuntimeError::new(&format!(
                 "Indexing works with values of type \"{}\", got \"{}\"",
                 TYPE_VEC,
                 val.get_type()
@@ -755,7 +755,7 @@ impl Interpreter {
                             } else {
                                 Err(RuntimeError::from_token(
                                     token,
-                                    format!(
+                                    &format!(
                                         "Cannot access private static member \"{}\"",
                                         static_name
                                     ),
@@ -772,7 +772,7 @@ impl Interpreter {
                             } else {
                                 Err(RuntimeError::from_token(
                                     token,
-                                    format!(
+                                    &format!(
                                         "Cannot access private static member \"{}\"",
                                         static_name
                                     ),
@@ -784,11 +784,11 @@ impl Interpreter {
                     }
                     _ => Err(RuntimeError::from_token(
                         token,
-                        "Unknown static access value".to_string(),
+                        "Unknown static access value",
                     )),
                 }
             }
-            _ => Err(RuntimeError::new(format!(
+            _ => Err(RuntimeError::new(&format!(
                 "Unknown static callee type \"{}\"",
                 static_caller.get_type()
             ))),
@@ -811,7 +811,7 @@ impl Interpreter {
             }
             Val::VecInstance(vec) => VecInstance::get_method(&expr.prop_name, vec),
             // FIXME: add instance methods for enums
-            _ => Err(RuntimeError::new(format!(
+            _ => Err(RuntimeError::new(&format!(
                 "Must be a struct instance, got \"{}\"",
                 instance.get_type()
             ))),
@@ -823,7 +823,7 @@ impl Interpreter {
         let instance = if let Val::StructInstance(i) = instance {
             i
         } else {
-            return Err(RuntimeError::new("Must be a struct instance".to_string()));
+            return Err(RuntimeError::new("Must be a struct instance"));
         };
 
         let val = self.evaluate(&expr.expr)?;
@@ -845,7 +845,7 @@ impl Interpreter {
                     _ => {
                         return Err(RuntimeError::from_token(
                             expr.operator.clone(),
-                            "Must be a property".to_string(),
+                            "Must be a property",
                         ))
                     }
                 };
@@ -855,7 +855,7 @@ impl Interpreter {
             _ => {
                 return Err(RuntimeError::from_token(
                     expr.operator.clone(),
-                    "Unrecognised token in an assignment expression".to_string(),
+                    "Unrecognised token in an assignment expression",
                 ))
             }
         };
@@ -874,9 +874,9 @@ impl Interpreter {
         let vec = if let Val::VecInstance(v) = vec {
             v
         } else if let Val::Uninit = vec {
-            return Err(RuntimeError::new("Out of bounds".to_string()));
+            return Err(RuntimeError::new("Out of bounds"));
         } else {
-            return Err(RuntimeError::new(format!(
+            return Err(RuntimeError::new(&format!(
                 "Must be a vec instance, got \"{}\"",
                 vec
             )));
@@ -888,7 +888,7 @@ impl Interpreter {
         } else {
             return Err(RuntimeError::from_token(
                 expr.operator.clone(),
-                format!(
+                &format!(
                     "Values of type \"{}\" can have indices of type \"{}\", got \"{}\"",
                     TYPE_VEC,
                     TYPE_INT,
@@ -903,7 +903,7 @@ impl Interpreter {
         if !vec.val_type.conforms(&val) {
             return Err(RuntimeError::from_token(
                 expr.operator.clone(),
-                format!(
+                &format!(
                     "Cannot assign value of type \"{}\" to a vector of type \"{}\"",
                     val.get_type(),
                     vec.val_type
@@ -924,7 +924,7 @@ impl Interpreter {
             _ => {
                 return Err(RuntimeError::from_token(
                     expr.operator.clone(),
-                    "Unrecognised token in an assignment expression".to_string(),
+                    "Unrecognised token in an assignment expression",
                 ))
             }
         };
@@ -947,7 +947,7 @@ impl Interpreter {
         } else {
             return Err(RuntimeError::from_token(
                 expr.operator.clone(),
-                format!(
+                &format!(
                     "Only boolean values can be used in logical expressions, got \"{}\"",
                     left.get_type()
                 ),
@@ -960,7 +960,7 @@ impl Interpreter {
         } else {
             Err(RuntimeError::from_token(
                 expr.operator.clone(),
-                format!(
+                &format!(
                     "Only boolean values can be used in logical expressions, got \"{}\"",
                     right.get_type()
                 ),
@@ -999,7 +999,7 @@ impl Interpreter {
                     Val::Bool(v1 != v2)
                 }
                 (l, r) => {
-                    return Err(equal_types_expected_error(
+                    return Err(RuntimeError::equal_types_expected_error(
                         operator,
                         &r.get_type(),
                         &l.get_type(),
@@ -1024,7 +1024,7 @@ impl Interpreter {
                     Val::Bool(v1 == v2)
                 }
                 (l, r) => {
-                    return Err(equal_types_expected_error(
+                    return Err(RuntimeError::equal_types_expected_error(
                         operator,
                         &r.get_type(),
                         &l.get_type(),
@@ -1038,7 +1038,7 @@ impl Interpreter {
                 (Val::Float(left), Val::Int(right)) => Val::Bool(left > (right as f64)),
                 (Val::Int(left), Val::Float(right)) => Val::Bool((left as f64) > right),
                 (l, r) => {
-                    return Err(incompatible_types_error(
+                    return Err(RuntimeError::incompatible_types_error(
                         operator,
                         TYPE_BOOL,
                         &r.get_type(),
@@ -1052,7 +1052,7 @@ impl Interpreter {
                 (Val::Float(left), Val::Int(right)) => Val::Bool(left >= right as f64),
                 (Val::Int(left), Val::Float(right)) => Val::Bool((left as f64) >= right),
                 (l, r) => {
-                    return Err(incompatible_types_error(
+                    return Err(RuntimeError::incompatible_types_error(
                         operator,
                         TYPE_BOOL,
                         &r.get_type(),
@@ -1066,7 +1066,7 @@ impl Interpreter {
                 (Val::Float(left), Val::Int(right)) => Val::Bool(left < right as f64),
                 (Val::Int(left), Val::Float(right)) => Val::Bool((left as f64) < right),
                 (l, r) => {
-                    return Err(incompatible_types_error(
+                    return Err(RuntimeError::incompatible_types_error(
                         operator,
                         TYPE_BOOL,
                         &r.get_type(),
@@ -1080,7 +1080,7 @@ impl Interpreter {
                 (Val::Float(left), Val::Int(right)) => Val::Bool(left <= right as f64),
                 (Val::Int(left), Val::Float(right)) => Val::Bool((left as f64) <= right),
                 (l, r) => {
-                    return Err(incompatible_types_error(
+                    return Err(RuntimeError::incompatible_types_error(
                         operator,
                         TYPE_BOOL,
                         &r.get_type(),
@@ -1095,7 +1095,7 @@ impl Interpreter {
                 (Val::Float(left), Val::Int(right)) => Val::Float(left - right as f64),
                 (Val::Int(left), Val::Float(right)) => Val::Float((left as f64) - right),
                 (l, r) => {
-                    return Err(incompatible_types_error(
+                    return Err(RuntimeError::incompatible_types_error(
                         operator,
                         TYPE_NUM,
                         &r.get_type(),
@@ -1117,7 +1117,7 @@ impl Interpreter {
                 (Val::Str(left), Val::Bool(right)) => Val::Str(format!("{}{}", left, right)),
                 (Val::Bool(left), Val::Str(right)) => Val::Str(format!("{}{}", left, right)),
                 (l, r) => {
-                    return Err(incompatible_types_error(
+                    return Err(RuntimeError::incompatible_types_error(
                         operator,
                         &format!("{}, {}", TYPE_NUM, TYPE_STR),
                         &r.get_type(),
@@ -1131,7 +1131,7 @@ impl Interpreter {
                 (Val::Float(left), Val::Int(right)) => Val::Float(left / right as f64),
                 (Val::Int(left), Val::Float(right)) => Val::Float((left as f64) / right),
                 (l, r) => {
-                    return Err(incompatible_types_error(
+                    return Err(RuntimeError::incompatible_types_error(
                         operator,
                         TYPE_NUM,
                         &r.get_type(),
@@ -1145,7 +1145,7 @@ impl Interpreter {
                 (Val::Float(left), Val::Int(right)) => Val::Float(left % right as f64),
                 (Val::Int(left), Val::Float(right)) => Val::Float((left as f64) % right),
                 (l, r) => {
-                    return Err(incompatible_types_error(
+                    return Err(RuntimeError::incompatible_types_error(
                         operator,
                         TYPE_NUM,
                         &r.get_type(),
@@ -1159,7 +1159,7 @@ impl Interpreter {
                 (Val::Float(left), Val::Int(right)) => Val::Float(left * right as f64),
                 (Val::Int(left), Val::Float(right)) => Val::Float((left as f64) * right),
                 (l, r) => {
-                    return Err(incompatible_types_error(
+                    return Err(RuntimeError::incompatible_types_error(
                         operator,
                         TYPE_NUM,
                         &r.get_type(),
@@ -1171,16 +1171,16 @@ impl Interpreter {
             // bitwise
             // TokenType::BitwiseAnd => match (left, right) {
             //     (Val::Number(left), Val::Number(right)) => Val::Number(left & right),
-            //     (l, r) => return Err(incompatible_types_error(operator.clone(), ValType::TYPE_NUM, &r.get_type(), &l.get_type())),
+            //     (l, r) => return Err(RuntimeError::incompatible_types_error(operator.clone(), ValType::TYPE_NUM, &r.get_type(), &l.get_type())),
             // },
             // TokenType::BitwiseOr => match (left, right) {
             //     (Val::Number(left), Val::Number(right)) => Val::Number(left | right),
-            //     (l, r) => return Err(incompatible_types_error(operator.clone(), ValType::TYPE_NUM, &r.get_type(), &l.get_type())),
+            //     (l, r) => return Err(RuntimeError::incompatible_types_error(operator.clone(), ValType::TYPE_NUM, &r.get_type(), &l.get_type())),
             // },
             _ => {
                 return Err(RuntimeError::from_token(
                     operator.clone(),
-                    format!("Unknown binary operator \"{}\"", operator.lexeme),
+                    &format!("Unknown binary operator \"{}\"", operator.lexeme),
                 ))
             }
         };
@@ -1279,22 +1279,11 @@ impl Interpreter {
 
         for stmt in stmts {
             let stmt_val = self.evaluate_stmt(stmt)?;
-            match stmt_val {
+            match &stmt_val {
                 StmtVal::None => {}
-                StmtVal::Break => {
+                StmtVal::Break | StmtVal::Continue | StmtVal::Return(_) => {
                     self.env = old_env;
-
-                    return Ok(StmtVal::Break);
-                }
-                StmtVal::Continue => {
-                    self.env = old_env;
-
-                    return Ok(StmtVal::Continue);
-                }
-                StmtVal::Return(val) => {
-                    self.env = old_env;
-
-                    return Ok(StmtVal::Return(val));
+                    return Ok(stmt_val);
                 }
             }
         }
@@ -1324,7 +1313,7 @@ impl Interpreter {
         if self.env.borrow().has_definition(&name.lexeme) {
             Err(RuntimeError::from_token(
                 name.clone(),
-                format!("Name \"{}\" is already in use", &name.lexeme),
+                &format!("Name \"{}\" is already in use", &name.lexeme),
             ))
         } else {
             Ok(())
@@ -1335,7 +1324,7 @@ impl Interpreter {
         match val {
             Val::Bool(true) => Ok(true),
             Val::Bool(false) => Ok(false),
-            _ => Err(RuntimeError::new(format!(
+            _ => Err(RuntimeError::new(&format!(
                 "Trying to evaluate value of type \"{}\" as boolean",
                 val.get_type()
             ))),
@@ -1343,7 +1332,6 @@ impl Interpreter {
     }
 }
 
-#[derive(Debug)]
 pub struct RuntimeError {
     pub token: Option<Token>,
     pub pos: Option<Pos>,
@@ -1351,52 +1339,47 @@ pub struct RuntimeError {
 }
 
 impl RuntimeError {
-    pub fn from_pos(pos: Pos, msg: String) -> Self {
+    pub fn from_pos(pos: Pos, msg: &str) -> Self {
         Self {
             pos: Some(pos),
             token: None,
-            msg,
+            msg: msg.to_string(),
         }
     }
 
-    pub fn from_token(token: Token, msg: String) -> Self {
+    pub fn from_token(token: Token, msg: &str) -> Self {
         Self {
             pos: Some(token.pos),
             token: Some(token),
-            msg,
+            msg: msg.to_string(),
         }
     }
 
-    pub fn new(msg: String) -> Self {
+    pub fn new(msg: &str) -> Self {
         Self {
             pos: None,
             token: None,
-            msg,
+            msg: msg.to_string(),
         }
     }
-}
 
-fn incompatible_types_error(
-    token: Token,
-    expected: &str,
-    actual_l: &str,
-    actual_r: &str,
-) -> RuntimeError {
-    return RuntimeError::from_token(
-        token,
-        format!(
-            "Both operands must be of type \"{}\". Got \"{}\" and \"{}\"",
-            expected, actual_l, actual_r,
-        ),
-    );
-}
+    fn incompatible_types_error(token: Token, expected: &str, lhs: &str, rhs: &str) -> Self {
+        Self::from_token(
+            token,
+            &format!(
+                "Both operands must be of type \"{}\". Got \"{}\" and \"{}\"",
+                expected, lhs, rhs,
+            ),
+        )
+    }
 
-fn equal_types_expected_error(token: Token, actual_l: &str, actual_r: &str) -> RuntimeError {
-    return RuntimeError::from_token(
-        token,
-        format!(
-            "Both operands must be of the same type. Got \"{}\" and \"{}\"",
-            actual_l, actual_r,
-        ),
-    );
+    fn equal_types_expected_error(token: Token, lhs: &str, rhs: &str) -> Self {
+        Self::from_token(
+            token,
+            &format!(
+                "Both operands must be of the same type. Got \"{}\" and \"{}\"",
+                lhs, rhs,
+            ),
+        )
+    }
 }

@@ -25,7 +25,7 @@ use self::expr::{
 pub mod expr;
 pub mod valtype;
 
-pub type Result<T> = result::Result<T, ParserError>;
+pub type Result<T> = result::Result<T, ParseError>;
 
 pub struct Parser {
     tokens: Vec<Token>,
@@ -204,13 +204,13 @@ impl Parser {
             if let Some(expr) = self.scalar_expr() {
                 expr
             } else {
-                return Err(ParserError::new(
+                return Err(ParseError::new(
                     &self.tokens[self.current],
                     "Constant must be initialized with a scalar value only",
                 ));
             }
         } else {
-            return Err(ParserError::new(
+            return Err(ParseError::new(
                 &self.tokens[self.current],
                 "Constant must be initialized",
             ));
@@ -244,7 +244,7 @@ impl Parser {
         let lambda = match lambda {
             Expr::FnExpr(l) => l,
             _ => {
-                return Err(ParserError::new(
+                return Err(ParseError::new(
                     &self.tokens[self.current],
                     "Unexpected expression type",
                 ));
@@ -286,9 +286,9 @@ impl Parser {
                 let enum_val = self.consume(TokenType::Identifier, "Expected enum value.")?;
 
                 if values.contains(&enum_val) {
-                    return Err(ParserError::new(
+                    return Err(ParseError::new(
                         &enum_val,
-                        format!(
+                        &format!(
                             "Enum cannot have multiple identical values \"{}\"",
                             enum_val.lexeme
                         ),
@@ -306,9 +306,9 @@ impl Parser {
                     )?;
                 }
             } else {
-                return Err(ParserError::new(
+                return Err(ParseError::new(
                     &self.tokens[self.current],
-                    format!("Unexpected token \"{}\"", self.peek().lexeme),
+                    &format!("Unexpected token \"{}\"", self.peek().lexeme),
                 ));
             }
         }
@@ -356,9 +356,9 @@ impl Parser {
                     )?;
                 }
             } else {
-                return Err(ParserError::new(
+                return Err(ParseError::new(
                     &self.tokens[self.current],
-                    format!("Unexpected token \"{}\"", self.peek().lexeme),
+                    &format!("Unexpected token \"{}\"", self.peek().lexeme),
                 ));
             }
         }
@@ -404,7 +404,10 @@ impl Parser {
         while !self.check(TokenType::RightCurlyBrace) && !self.at_end() {
             let public = if for_name.is_some() {
                 if self.check(TokenType::Pub) {
-                    return Err(ParserError::new(self.peek(), "Trait methods must not be preceded with \"pub\", as they are always public"));
+                    return Err(ParseError::new(
+                        self.peek(),
+                        "Trait methods must not be preceded with \"pub\", as they are always public")
+                    );
                 }
 
                 true
@@ -434,7 +437,7 @@ impl Parser {
                     }
                 };
             } else {
-                return Err(ParserError::new(self.peek(), "Unexpected token"));
+                return Err(ParseError::new(self.peek(), "Unexpected token"));
             }
         }
 
@@ -472,7 +475,7 @@ impl Parser {
 
                 // FIXME: add support for statics
                 if !instance_method {
-                    return Err(ParserError::new(
+                    return Err(ParseError::new(
                         self.peek(),
                         "Static methods are not supported in traits",
                     ));
@@ -539,7 +542,7 @@ impl Parser {
         let body = if let BlockStmt(block) = body {
             block
         } else {
-            return Err(ParserError::new(self.peek(), "Function body error"));
+            return Err(ParseError::new(self.peek(), "Function body error"));
         };
 
         let lambda_expr = Expr::FnExpr(Lambda::new(params, ret_type, body.stmts));
@@ -563,14 +566,14 @@ impl Parser {
             loop {
                 if self.check(TokenType::Self_) {
                     if !expect_method {
-                        return Err(ParserError::new(
+                        return Err(ParseError::new(
                             self.peek(),
                             "Only methods can have \"self\" in parameter list",
                         ));
                     } else if !params.is_empty() {
-                        return Err(ParserError::new(
+                        return Err(ParseError::new(
                             self.peek(),
-                            format!(
+                            &format!(
                                 "\"self\" must be at index 0 in parameter list, got \"{}\"",
                                 params.len() - 1
                             ),
@@ -581,9 +584,9 @@ impl Parser {
                     self.advance();
                 } else {
                     if params.len() > FnDecl::MAX_ARGS {
-                        return Err(ParserError::new(
+                        return Err(ParseError::new(
                             self.peek(),
-                            format!("Cannot have more than {} arguments", FnDecl::MAX_ARGS),
+                            &format!("Cannot have more than {} arguments", FnDecl::MAX_ARGS),
                         ));
                     }
 
@@ -598,9 +601,9 @@ impl Parser {
                     let v_type = if self.match_token(TokenType::Colon) {
                         self.type_decl()?
                     } else {
-                        return Err(ParserError::new(
+                        return Err(ParseError::new(
                             &id,
-                            format!(
+                            &format!(
                                 "Function argument \"{}\" must be explicitly typed",
                                 id.lexeme
                             ),
@@ -816,7 +819,7 @@ impl Parser {
 
     fn break_stmt(&mut self) -> Result<Stmt> {
         if self.loop_depth == 0 {
-            return Err(ParserError::new(
+            return Err(ParseError::new(
                 &self.previous(),
                 "Must be inside a loop to use \"break\"",
             ));
@@ -829,7 +832,7 @@ impl Parser {
 
     fn continue_stmt(&mut self) -> Result<Stmt> {
         if self.loop_depth == 0 {
-            return Err(ParserError::new(
+            return Err(ParseError::new(
                 &self.previous(),
                 "Must be inside a loop to use \"continue\"",
             ));
@@ -845,7 +848,7 @@ impl Parser {
 
     fn return_stmt(&mut self) -> Result<Stmt> {
         if 0 == self.fn_depth {
-            return Err(ParserError::new(
+            return Err(ParseError::new(
                 &self.previous(),
                 "Must be inside a function to use \"return\"",
             ));
@@ -884,7 +887,7 @@ impl Parser {
             return Ok(block_stmt);
         }
 
-        Err(ParserError::new(
+        Err(ParseError::new(
             &self.tokens[self.current],
             "Block statement expected",
         ))
@@ -945,7 +948,7 @@ impl Parser {
                     operator,
                     Box::new(expr_val),
                 ))),
-                _ => Err(ParserError::new(&operator, "Invalid assignment target")),
+                _ => Err(ParseError::new(&operator, "Invalid assignment target")),
             };
         }
 
@@ -1094,9 +1097,9 @@ impl Parser {
         if !self.check(TokenType::RightParen) {
             loop {
                 if args.len() >= FnDecl::MAX_ARGS {
-                    return Err(ParserError::new(
+                    return Err(ParseError::new(
                         self.peek(),
-                        format!("Cannot have more than {} arguments", FnDecl::MAX_ARGS),
+                        &format!("Cannot have more than {} arguments", FnDecl::MAX_ARGS),
                     ));
                 }
 
@@ -1123,9 +1126,9 @@ impl Parser {
 
         loop {
             if args.len() >= FnDecl::MAX_ARGS {
-                return Err(ParserError::new(
+                return Err(ParseError::new(
                     self.peek(),
-                    format!("Cannot have more than {} arguments", FnDecl::MAX_ARGS),
+                    &format!("Cannot have more than {} arguments", FnDecl::MAX_ARGS),
                 ));
             }
 
@@ -1252,7 +1255,7 @@ impl Parser {
             return Ok(EmptyExpr);
         }
 
-        Err(ParserError::new(self.peek(), "Expression expected"))
+        Err(ParseError::new(self.peek(), "Expression expected"))
     }
 
     fn scalar_expr(&mut self) -> Option<Expr> {
@@ -1369,7 +1372,7 @@ impl Parser {
             let v_type = ValType::try_from_token(&v_type_token, None);
             return match v_type {
                 Some(v_type) => Ok(v_type),
-                None => Err(ParserError::new(&v_type_token, "Unrecognised type")),
+                None => Err(ParseError::new(&v_type_token, "Unrecognised type")),
             };
         }
 
@@ -1385,7 +1388,7 @@ impl Parser {
             let v_type = ValType::try_from_token(&v_type_token, generics);
             return match v_type {
                 Some(v_type) => Ok(v_type),
-                None => Err(ParserError::new(&v_type_token, "Unrecognised type")),
+                None => Err(ParseError::new(&v_type_token, "Unrecognised type")),
             };
         }
 
@@ -1394,16 +1397,16 @@ impl Parser {
                 self.advance();
                 return Ok(ValType::Instance(name));
             } else {
-                return Err(ParserError::new(
+                return Err(ParseError::new(
                     &self.advance().clone(),
                     "Type \"Self\" can be used inside \"impl\" blocks only",
                 ));
             }
         }
 
-        Err(ParserError::new(
+        Err(ParseError::new(
             self.peek(),
-            format!("Expected type, got \"{}\"", self.peek().lexeme),
+            &format!("Expected type, got \"{}\"", self.peek().lexeme),
         ))
     }
 
@@ -1429,9 +1432,9 @@ impl Parser {
             generics.push(val_type);
 
             if generics.len() > max {
-                return Err(ParserError::new(
+                return Err(ParseError::new(
                     &self.peek(),
-                    format!("Too many generic types, expected only {}", max),
+                    &format!("Too many generic types, expected only {}", max),
                 ));
             }
 
@@ -1441,9 +1444,9 @@ impl Parser {
         }
 
         if generics.len() < min {
-            return Err(ParserError::new(
+            return Err(ParseError::new(
                 &self.peek(),
-                format!("Too few generic types, expected at least \"{}\"", min),
+                &format!("Too few generic types, expected at least \"{}\"", min),
             ));
         }
 
@@ -1466,13 +1469,13 @@ impl Parser {
 
     fn consume(&mut self, t_type: TokenType, msg: &str) -> Result<Token> {
         if !self.check(t_type) {
-            return Err(ParserError::new(self.peek(), msg));
+            return Err(ParseError::new(self.peek(), msg));
         }
 
         Ok(self.advance().clone())
     }
 
-    fn on_error(&mut self, p_err: ParserError) {
+    fn on_error(&mut self, p_err: ParseError) {
         self.err = true;
         error_token(&p_err.token, &p_err.msg);
         self.try_to_recover();
@@ -1502,16 +1505,16 @@ impl Parser {
 }
 
 #[derive(Debug, Clone)]
-pub struct ParserError {
+pub struct ParseError {
     token: Token,
     msg: String,
 }
 
-impl ParserError {
-    fn new<S: AsRef<str>>(token: &Token, msg: S) -> Self {
+impl ParseError {
+    fn new(token: &Token, msg: &str) -> Self {
         Self {
             token: token.clone(),
-            msg: msg.as_ref().to_string(),
+            msg: msg.to_string(),
         }
     }
 }

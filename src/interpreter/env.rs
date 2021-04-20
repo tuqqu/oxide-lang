@@ -242,15 +242,15 @@ impl EnvVal {
         return match self {
             NoValue => Err(RuntimeError::from_token(
                 name,
-                "Trying to assign to an immutable value.".to_string(),
+                "Trying to assign to an immutable value.",
             )),
             Constant(_c) => Err(RuntimeError::from_token(
                 name,
-                "Trying to assign to a constant.".to_string(),
+                "Trying to assign to a constant.",
             )),
             Function(_f) => Err(RuntimeError::from_token(
                 name,
-                "Trying to assign to an immutable value.".to_string(),
+                "Trying to assign to an immutable value.",
             )),
             Variable(v) => {
                 if let ValType::Uninit = v.v_type {
@@ -262,7 +262,7 @@ impl EnvVal {
                     } else {
                         Err(RuntimeError::from_token(
                             name,
-                            format!(
+                            &format!(
                                 "Cannot infer variable type from value of type \"{}\"",
                                 val.get_type()
                             ),
@@ -271,7 +271,7 @@ impl EnvVal {
                 } else if !v.v_type.conforms(&val) {
                     Err(RuntimeError::from_token(
                         name,
-                        format!(
+                        &format!(
                             "Trying to assign to a variable of type \"{}\" value of type \"{}\"",
                             v.v_type,
                             val.get_type()
@@ -286,13 +286,13 @@ impl EnvVal {
                 } else {
                     Err(RuntimeError::from_token(
                         name,
-                        "Trying to assign to an immutable variable.".to_string(),
+                        "Trying to assign to an immutable variable.",
                     ))
                 }
             }
             EnumValue(_) | Enum(_) | Struct(_) | Trait(_) => Err(RuntimeError::from_token(
                 name,
-                "Trying to assign to a non-value.".to_string(),
+                "Trying to assign to a non-value.",
             )),
         };
     }
@@ -395,7 +395,7 @@ impl Env {
         if self.vals.contains_key(&constant.get_name()) {
             return Err(RuntimeError::from_token(
                 constant.name.clone(),
-                format!("Name \"{}\" is already in use", constant.get_name()),
+                &format!("Name \"{}\" is already in use", constant.get_name()),
             ));
         }
 
@@ -411,7 +411,7 @@ impl Env {
         if self.vals.contains_key(&func.get_name()) {
             return Err(RuntimeError::from_token(
                 func.name.clone(),
-                format!("Name \"{}\" is already in use", func.get_name()),
+                &format!("Name \"{}\" is already in use", func.get_name()),
             ));
         }
 
@@ -454,7 +454,7 @@ impl Env {
 
         Err(RuntimeError::from_pos(
             pos,
-            format!("Trying to access undefined value \"{}\"", name),
+            &format!("Trying to access undefined value \"{}\"", name),
         ))
     }
 
@@ -529,7 +529,7 @@ impl Env {
 
         Err(RuntimeError::from_token(
             name.clone(),
-            format!("Trying to assign to an undefined value \"{}\"", name.lexeme),
+            &format!("Trying to assign to an undefined value \"{}\"", name.lexeme),
         ))
     }
 }
