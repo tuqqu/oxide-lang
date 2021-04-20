@@ -388,3 +388,50 @@ impl Lexer {
         (self.line, self.pos)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_tokenize() {
+        let mut lexer = Lexer::new(str::to_string("let x = 100;"));
+
+        let (tokens, err) = lexer.tokenize();
+        assert!(!err);
+        assert_eq!(
+            tokens,
+            &vec![
+                Token::new(TokenType::Let, "let", "", (1, 1)),
+                Token::new(TokenType::Identifier, "x", "", (1, 5)),
+                Token::new(TokenType::Equal, "=", "", (1, 7)),
+                Token::new(TokenType::NumberInt, "100", "100", (1, 9)),
+                Token::new(TokenType::Semicolon, ";", "", (1, 12)),
+                Token::new(TokenType::Eof, "", "", (1, 13)),
+            ]
+        );
+    }
+
+    #[test]
+    fn test_err_tokenize() {
+        let mut lexer = Lexer::new(str::to_string("const X = \"string"));
+
+        let (tokens, err) = lexer.tokenize();
+        assert!(err);
+        assert_eq!(
+            tokens,
+            &vec![
+                Token::new(TokenType::Const, "const", "", (1, 1)),
+                Token::new(TokenType::Identifier, "X", "", (1, 7)),
+                Token::new(TokenType::Equal, "=", "", (1, 9)),
+                Token::new(TokenType::Eof, "", "", (1, 11)),
+            ]
+        );
+
+        let mut lexer = Lexer::new(str::to_string("/* comment"));
+
+        let (tokens, err) = lexer.tokenize();
+        assert!(err);
+        assert_eq!(tokens, &vec![Token::new(TokenType::Eof, "", "", (1, 1)),]);
+    }
+}

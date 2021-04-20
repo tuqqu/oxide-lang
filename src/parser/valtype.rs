@@ -131,3 +131,74 @@ impl Generics {
         Self { types }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_try_from_token() {
+        let int = Token::new(TokenType::Int, "100", "100", (0, 0));
+        let float = Token::new(TokenType::Float, "10.1", "10.1", (0, 0));
+        let string = Token::new(TokenType::Str, "string", "string", (0, 0));
+        let nil = Token::new(TokenType::Nil, "nil", "nil", (0, 0));
+        let boolean = Token::new(TokenType::Bool, "true", "true", (0, 0));
+
+        assert_eq!(ValType::try_from_token(&int, None).unwrap(), ValType::Int);
+        assert_eq!(
+            ValType::try_from_token(&float, None).unwrap(),
+            ValType::Float
+        );
+        assert_eq!(
+            ValType::try_from_token(&string, None).unwrap(),
+            ValType::Str
+        );
+        assert_eq!(ValType::try_from_token(&nil, None).unwrap(), ValType::Nil);
+        assert_eq!(
+            ValType::try_from_token(&boolean, None).unwrap(),
+            ValType::Bool
+        );
+    }
+
+    #[test]
+    fn test_try_from_val() {
+        let int = Val::Int(100);
+        let float = Val::Float(10.1);
+        let string = Val::Str(str::to_string("string"));
+        let nil = Val::Nil;
+        let boolean = Val::Bool(true);
+
+        assert_eq!(ValType::try_from_val(&int).unwrap(), ValType::Int);
+        assert_eq!(ValType::try_from_val(&float).unwrap(), ValType::Float);
+        assert_eq!(ValType::try_from_val(&string).unwrap(), ValType::Str);
+        assert_eq!(ValType::try_from_val(&nil).unwrap(), ValType::Nil);
+        assert_eq!(ValType::try_from_val(&boolean).unwrap(), ValType::Bool);
+    }
+
+    #[test]
+    fn test_conforms() {
+        let int = Val::Int(100);
+        let float = Val::Float(10.1);
+        let string = Val::Str(str::to_string("string"));
+        let nil = Val::Nil;
+        let boolean = Val::Bool(true);
+
+        assert!(ValType::Int.conforms(&int));
+        assert!(!ValType::Int.conforms(&float));
+        assert!(!ValType::Int.conforms(&string));
+
+        assert!(ValType::Float.conforms(&float));
+        assert!(ValType::Float.conforms(&int));
+        assert!(!ValType::Float.conforms(&string));
+
+        assert!(ValType::Str.conforms(&string));
+        assert!(!ValType::Str.conforms(&int));
+        assert!(!ValType::Str.conforms(&boolean));
+
+        assert!(ValType::Any.conforms(&string));
+        assert!(ValType::Any.conforms(&nil));
+        assert!(ValType::Any.conforms(&boolean));
+        assert!(ValType::Any.conforms(&int));
+        assert!(ValType::Any.conforms(&float));
+    }
+}

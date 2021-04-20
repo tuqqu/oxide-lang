@@ -526,3 +526,59 @@ impl Env {
 pub fn construct_static_name(struct_name: &str, static_field: &str) -> String {
     format!("{}::{}", struct_name, static_field)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::lexer::token::TokenType;
+
+    #[test]
+    fn test_construct_static_name() {
+        assert_eq!(construct_static_name("X", "CONST"), "X::CONST");
+    }
+
+    #[test]
+    fn test_constant_get_name() {
+        let constant = Constant::new(
+            identifier("test_const"),
+            Val::Int(100),
+            Some((identifier("test_struct"), true)),
+        );
+
+        assert_eq!(constant.get_name(), "test_struct::test_const");
+
+        let constant = Constant::new(identifier("test_const"), Val::Int(100), None);
+
+        assert_eq!(constant.get_name(), "test_const");
+    }
+
+    #[test]
+    fn test_function_get_name() {
+        let fun = Function::new(
+            identifier("test_fn"),
+            Val::Int(100),
+            Some((identifier("test_struct"), true)),
+        );
+
+        assert_eq!(fun.get_name(), "test_struct::test_fn");
+
+        let fun = Constant::new(identifier("test_fn"), Val::Int(100), None);
+
+        assert_eq!(fun.get_name(), "test_fn");
+    }
+
+    #[test]
+    fn test_enum_val_get_name() {
+        let enum_val = EnumValue::new(
+            identifier("test_enum_val"),
+            Val::Int(100),
+            identifier("test_struct"),
+        );
+
+        assert_eq!(enum_val.get_name(), "test_struct::test_enum_val");
+    }
+
+    fn identifier(lexeme: &str) -> Token {
+        Token::new(TokenType::Identifier, lexeme, "", (0, 0))
+    }
+}
