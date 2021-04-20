@@ -9,12 +9,21 @@ pub struct Token {
 }
 
 impl Token {
-    pub fn new(token_type: TokenType, lexeme: String, literal: String, pos: Pos) -> Self {
+    pub fn new(token_type: TokenType, lexeme: &str, literal: &str, pos: Pos) -> Self {
         Self {
             token_type,
-            lexeme,
-            literal,
+            lexeme: str::to_string(lexeme),
+            literal: str::to_string(literal),
             pos,
+        }
+    }
+
+    pub fn from_token(token: &Self, lexeme: &str) -> Self {
+        Self {
+            token_type: token.token_type,
+            lexeme: str::to_string(lexeme),
+            literal: token.literal.clone(),
+            pos: token.pos,
         }
     }
 }

@@ -153,10 +153,7 @@ impl Interpreter {
         let decl = stmt.clone();
 
         let (impl_name, trait_name) = if let Some(for_name) = decl.for_name {
-            let trait_ = self
-                .env
-                .borrow_mut()
-                .get_by_str(&decl.impl_name.lexeme, decl.impl_name.pos)?;
+            let trait_ = self.env.borrow_mut().get(&decl.impl_name)?;
             let trait_ = trait_.borrow_mut().deref().clone();
 
             match trait_ {
@@ -364,7 +361,7 @@ impl Interpreter {
     }
 
     fn eval_var_expr(&mut self, expr: &Variable) -> Result<Val> {
-        let env_val = self.env.borrow_mut().get(expr.name.clone())?;
+        let env_val = self.env.borrow_mut().get(&expr.name)?;
         let env_val = env_val.borrow_mut();
 
         use EnvVal::*;
@@ -398,7 +395,7 @@ impl Interpreter {
             | TokenType::BitwiseAndEqual
             | TokenType::BitwiseOrEqual
             | TokenType::BitwiseXorEqual => {
-                let env_val = self.env.borrow_mut().get(expr.name.clone())?;
+                let env_val = self.env.borrow_mut().get(&expr.name)?;
                 let env_val = env_val.borrow_mut();
                 match env_val.deref() {
                     EnvVal::Variable(v) => {
@@ -605,7 +602,8 @@ impl Interpreter {
 
         match self_static {
             Some(s) => {
-                let struct_ = self.env.borrow_mut().get_by_str(&s, expr.self_static.pos)?;
+                let self_token = Token::from_token(&expr.self_static, &s);
+                let struct_ = self.env.borrow_mut().get(&self_token)?;
                 let struct_ = struct_.borrow_mut().deref().clone();
 
                 match struct_ {
@@ -631,7 +629,7 @@ impl Interpreter {
             None => {
                 return Err(RuntimeError::from_token(
                     expr.self_.clone(),
-                    "Value \"self\" can be used in methods only",
+                    "Value \"self\" can be used in non-static methods only",
                 ))
             }
         };
@@ -743,7 +741,10 @@ impl Interpreter {
             Val::Struct(token, _) | Val::Enum(token) => {
                 let static_name = construct_static_name(&token.lexeme, &expr.prop_name.lexeme);
                 let public_access = self.is_public_static_access(token.lexeme.clone());
-                let static_val = self.env.borrow_mut().get_by_str(&static_name, token.pos)?;
+                let static_val = self
+                    .env
+                    .borrow_mut()
+                    .get(&Token::from_token(&token, &static_name))?;
                 let env_val = static_val.borrow_mut();
                 match env_val.deref() {
                     // FIXME: can it lead to a bug? this branch should be possible only in Enum case
@@ -1168,14 +1169,6 @@ pub struct RuntimeError {
 }
 
 impl RuntimeError {
-    pub fn from_pos(pos: Pos, msg: &str) -> Self {
-        Self {
-            pos: Some(pos),
-            token: None,
-            msg: msg.to_string(),
-        }
-    }
-
     pub fn from_token(token: Token, msg: &str) -> Self {
         Self {
             pos: Some(token.pos),

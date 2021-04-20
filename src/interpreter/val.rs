@@ -332,7 +332,7 @@ impl VecInstance {
                         if !vec.borrow_mut().val_type.conforms(arg) {
                             return Err(RuntimeError::new(&format!(
                                 "Cannot push value of type \"{}\" to a vector of type \"{}\"",
-                                ValType::try_from_val(arg).unwrap(), // FIXME: may be an unsuccessful transformation
+                                ValType::try_from_val(arg).unwrap(),
                                 vec.borrow_mut().val_type
                             )));
                         }
@@ -431,92 +431,96 @@ impl Val {
 
     pub fn greater(lhs: &Self, rhs: &Self, operator: Token) -> Result<Self> {
         use Val::*;
-        let val =
-            match (lhs, rhs) {
-                (Int(lhs), Int(rhs)) => lhs > rhs,
-                (Float(lhs), Float(rhs)) => lhs > rhs,
-                (Float(lhs), Int(rhs)) => *lhs > (*rhs as f64),
-                (Int(lhs), Float(rhs)) => (*lhs as f64) > *rhs,
-                (lhs, rhs) => {
-                    return Err(RuntimeError::from_token(
-                        operator,
-                        &format!(
+        let val = match (lhs, rhs) {
+            (Int(lhs), Int(rhs)) => lhs > rhs,
+            (Float(lhs), Float(rhs)) => lhs > rhs,
+            (Float(lhs), Int(rhs)) => *lhs > (*rhs as f64),
+            (Int(lhs), Float(rhs)) => (*lhs as f64) > *rhs,
+            (lhs, rhs) => {
+                return Err(RuntimeError::from_token(
+                    operator,
+                    &format!(
                         "Both operands must be of types \"{}\" or \"{}\". Got \"{}\" and \"{}\"",
-                        TYPE_INT, TYPE_FLOAT,
-                        lhs.get_type(), rhs.get_type(),
+                        TYPE_INT,
+                        TYPE_FLOAT,
+                        lhs.get_type(),
+                        rhs.get_type(),
                     ),
-                    ))
-                }
-            };
+                ))
+            }
+        };
 
         Ok(Self::Bool(val))
     }
 
     pub fn greater_equal(lhs: &Self, rhs: &Self, operator: Token) -> Result<Self> {
         use Val::*;
-        let val =
-            match (lhs, rhs) {
-                (Int(lhs), Int(rhs)) => lhs >= rhs,
-                (Float(lhs), Float(rhs)) => lhs >= rhs,
-                (Float(lhs), Int(rhs)) => *lhs >= (*rhs as f64),
-                (Int(lhs), Float(rhs)) => (*lhs as f64) >= *rhs,
-                (lhs, rhs) => {
-                    return Err(RuntimeError::from_token(
-                        operator,
-                        &format!(
+        let val = match (lhs, rhs) {
+            (Int(lhs), Int(rhs)) => lhs >= rhs,
+            (Float(lhs), Float(rhs)) => lhs >= rhs,
+            (Float(lhs), Int(rhs)) => *lhs >= (*rhs as f64),
+            (Int(lhs), Float(rhs)) => (*lhs as f64) >= *rhs,
+            (lhs, rhs) => {
+                return Err(RuntimeError::from_token(
+                    operator,
+                    &format!(
                         "Both operands must be of types \"{}\" or \"{}\". Got \"{}\" and \"{}\"",
-                        TYPE_INT, TYPE_FLOAT,
-                        lhs.get_type(), rhs.get_type(),
+                        TYPE_INT,
+                        TYPE_FLOAT,
+                        lhs.get_type(),
+                        rhs.get_type(),
                     ),
-                    ))
-                }
-            };
+                ))
+            }
+        };
 
         Ok(Self::Bool(val))
     }
 
     pub fn less(lhs: &Self, rhs: &Self, operator: Token) -> Result<Self> {
         use Val::*;
-        let val =
-            match (lhs, rhs) {
-                (Int(lhs), Int(rhs)) => lhs < rhs,
-                (Float(lhs), Float(rhs)) => lhs < rhs,
-                (Float(lhs), Int(rhs)) => *lhs < (*rhs as f64),
-                (Int(lhs), Float(rhs)) => (*lhs as f64) < *rhs,
-                (lhs, rhs) => {
-                    return Err(RuntimeError::from_token(
-                        operator,
-                        &format!(
+        let val = match (lhs, rhs) {
+            (Int(lhs), Int(rhs)) => lhs < rhs,
+            (Float(lhs), Float(rhs)) => lhs < rhs,
+            (Float(lhs), Int(rhs)) => *lhs < (*rhs as f64),
+            (Int(lhs), Float(rhs)) => (*lhs as f64) < *rhs,
+            (lhs, rhs) => {
+                return Err(RuntimeError::from_token(
+                    operator,
+                    &format!(
                         "Both operands must be of types \"{}\" or \"{}\". Got \"{}\" and \"{}\"",
-                        TYPE_INT, TYPE_FLOAT,
-                        lhs.get_type(), rhs.get_type(),
+                        TYPE_INT,
+                        TYPE_FLOAT,
+                        lhs.get_type(),
+                        rhs.get_type(),
                     ),
-                    ))
-                }
-            };
+                ))
+            }
+        };
 
         Ok(Self::Bool(val))
     }
 
     pub fn less_equal(lhs: &Self, rhs: &Self, operator: Token) -> Result<Self> {
         use Val::*;
-        let val =
-            match (lhs, rhs) {
-                (Int(lhs), Int(rhs)) => lhs <= rhs,
-                (Float(lhs), Float(rhs)) => lhs <= rhs,
-                (Float(lhs), Int(rhs)) => *lhs <= (*rhs as f64),
-                (Int(lhs), Float(rhs)) => (*lhs as f64) <= *rhs,
-                (lhs, rhs) => {
-                    return Err(RuntimeError::from_token(
-                        operator,
-                        &format!(
+        let val = match (lhs, rhs) {
+            (Int(lhs), Int(rhs)) => lhs <= rhs,
+            (Float(lhs), Float(rhs)) => lhs <= rhs,
+            (Float(lhs), Int(rhs)) => *lhs <= (*rhs as f64),
+            (Int(lhs), Float(rhs)) => (*lhs as f64) <= *rhs,
+            (lhs, rhs) => {
+                return Err(RuntimeError::from_token(
+                    operator,
+                    &format!(
                         "Both operands must be of types \"{}\" or \"{}\". Got \"{}\" and \"{}\"",
-                        TYPE_INT, TYPE_FLOAT,
-                        lhs.get_type(), rhs.get_type(),
+                        TYPE_INT,
+                        TYPE_FLOAT,
+                        lhs.get_type(),
+                        rhs.get_type(),
                     ),
-                    ))
-                }
-            };
+                ))
+            }
+        };
 
         Ok(Self::Bool(val))
     }
@@ -561,8 +565,11 @@ impl Val {
                     operator,
                     &format!(
                         "Both operands must be of types \"{}\", \"{}\", or \"{}\" with any other type. Got \"{}\" and \"{}\"",
-                        TYPE_INT, TYPE_FLOAT, TYPE_STR,
-                        lhs.get_type(), rhs.get_type(),
+                        TYPE_INT,
+                        TYPE_FLOAT,
+                        TYPE_STR,
+                        lhs.get_type(),
+                        rhs.get_type(),
                     )
                 )
             ),
@@ -573,69 +580,72 @@ impl Val {
 
     pub fn divide(lhs: &Self, rhs: &Self, operator: Token) -> Result<Self> {
         use Val::*;
-        let val =
-            match (lhs, rhs) {
-                (Int(lhs), Int(rhs)) => Int(lhs / rhs),
-                (Float(lhs), Float(rhs)) => Float(lhs / rhs),
-                (Float(lhs), Int(rhs)) => Float(lhs / (*rhs as f64)),
-                (Int(lhs), Float(rhs)) => Float((*lhs as f64) / rhs),
-                (lhs, rhs) => {
-                    return Err(RuntimeError::from_token(
-                        operator,
-                        &format!(
+        let val = match (lhs, rhs) {
+            (Int(lhs), Int(rhs)) => Int(lhs / rhs),
+            (Float(lhs), Float(rhs)) => Float(lhs / rhs),
+            (Float(lhs), Int(rhs)) => Float(lhs / (*rhs as f64)),
+            (Int(lhs), Float(rhs)) => Float((*lhs as f64) / rhs),
+            (lhs, rhs) => {
+                return Err(RuntimeError::from_token(
+                    operator,
+                    &format!(
                         "Both operands must be of types \"{}\" or \"{}\". Got \"{}\" and \"{}\"",
-                        TYPE_INT, TYPE_FLOAT,
-                        lhs.get_type(), rhs.get_type(),
+                        TYPE_INT,
+                        TYPE_FLOAT,
+                        lhs.get_type(),
+                        rhs.get_type(),
                     ),
-                    ))
-                }
-            };
+                ))
+            }
+        };
 
         Ok(val)
     }
 
     pub fn modulus(lhs: &Self, rhs: &Self, operator: Token) -> Result<Self> {
         use Val::*;
-        let val =
-            match (lhs, rhs) {
-                (Int(lhs), Int(rhs)) => Int(lhs % rhs),
-                (Float(lhs), Float(rhs)) => Float(lhs % rhs),
-                (Float(lhs), Int(rhs)) => Float(lhs % (*rhs as f64)),
-                (Int(lhs), Float(rhs)) => Float((*lhs as f64) % *rhs),
-                (lhs, rhs) => {
-                    return Err(RuntimeError::from_token(
-                        operator,
-                        &format!(
+        let val = match (lhs, rhs) {
+            (Int(lhs), Int(rhs)) => Int(lhs % rhs),
+            (Float(lhs), Float(rhs)) => Float(lhs % rhs),
+            (Float(lhs), Int(rhs)) => Float(lhs % (*rhs as f64)),
+            (Int(lhs), Float(rhs)) => Float((*lhs as f64) % *rhs),
+            (lhs, rhs) => {
+                return Err(RuntimeError::from_token(
+                    operator,
+                    &format!(
                         "Both operands must be of types \"{}\" or \"{}\". Got \"{}\" and \"{}\"",
-                        TYPE_INT, TYPE_FLOAT,
-                        lhs.get_type(), rhs.get_type(),
+                        TYPE_INT,
+                        TYPE_FLOAT,
+                        lhs.get_type(),
+                        rhs.get_type(),
                     ),
-                    ))
-                }
-            };
+                ))
+            }
+        };
 
         Ok(val)
     }
 
     pub fn multiply(lhs: &Self, rhs: &Self, operator: Token) -> Result<Self> {
         use Val::*;
-        let val =
-            match (lhs, rhs) {
-                (Int(lhs), Int(rhs)) => Int(lhs * rhs),
-                (Float(lhs), Float(rhs)) => Float(lhs * rhs),
-                (Float(lhs), Int(rhs)) => Float(lhs * (*rhs as f64)),
-                (Int(lhs), Float(rhs)) => Float((*lhs as f64) * rhs),
-                (lhs, rhs) => {
-                    return Err(RuntimeError::from_token(
-                        operator,
-                        &format!(
+        let val = match (lhs, rhs) {
+            (Int(lhs), Int(rhs)) => Int(lhs * rhs),
+            (Float(lhs), Float(rhs)) => Float(lhs * rhs),
+            (Float(lhs), Int(rhs)) => Float(lhs * (*rhs as f64)),
+            (Int(lhs), Float(rhs)) => Float((*lhs as f64) * rhs),
+            (lhs, rhs) => {
+                return Err(RuntimeError::from_token(
+                    operator,
+                    &format!(
                         "Both operands must be of types \"{}\" or \"{}\". Got \"{}\" and \"{}\"",
-                        TYPE_INT, TYPE_FLOAT,
-                        lhs.get_type(), rhs.get_type(),
+                        TYPE_INT,
+                        TYPE_FLOAT,
+                        lhs.get_type(),
+                        rhs.get_type(),
                     ),
-                    ))
-                }
-            };
+                ))
+            }
+        };
 
         Ok(val)
     }

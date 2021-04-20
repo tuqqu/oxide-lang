@@ -78,12 +78,8 @@ impl Lexer {
             self.token();
         }
 
-        self.tokens.push(Token::new(
-            TokenType::Eof,
-            "".to_string(),
-            "".to_string(),
-            self.pos(),
-        ));
+        self.tokens
+            .push(Token::new(TokenType::Eof, "", "", self.pos()));
 
         (&self.tokens, self.err)
     }
@@ -271,14 +267,14 @@ impl Lexer {
     }
 
     fn add_token(&mut self, token_type: TokenType) {
-        self.add_token_with_literal(token_type, "".to_string());
+        self.add_token_with_literal(token_type, "");
     }
 
-    fn add_token_with_literal(&mut self, token_type: TokenType, literal: String) {
+    fn add_token_with_literal(&mut self, token_type: TokenType, literal: &str) {
         let text = self.src_substr(self.start, self.current);
         let len = text.len();
         self.tokens
-            .push(Token::new(token_type, text, literal, self.pos()));
+            .push(Token::new(token_type, &text, literal, self.pos()));
 
         self.pos += len;
     }
@@ -322,8 +318,8 @@ impl Lexer {
 
         self.advance();
 
-        let val: String = self.src_substr(self.start + 1, self.current - 1);
-        self.add_token_with_literal(TokenType::String, val);
+        let val = self.src_substr(self.start + 1, self.current - 1);
+        self.add_token_with_literal(TokenType::String, &val);
     }
 
     fn src_substr(&self, start: usize, end: usize) -> String {
@@ -365,7 +361,7 @@ impl Lexer {
             } else {
                 TokenType::NumberInt
             },
-            self.src_substr(self.start, self.current),
+            &self.src_substr(self.start, self.current),
         );
     }
 

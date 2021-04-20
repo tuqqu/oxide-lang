@@ -5,7 +5,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 
 use crate::interpreter::Result;
 use crate::interpreter::RuntimeError;
-use crate::lexer::token::{Pos, Token};
+use crate::lexer::token::Token;
 use crate::parser::expr::{ConstDecl, FnDecl, FnSignatureDecl};
 
 use super::val::Val;
@@ -423,14 +423,9 @@ impl Env {
         Ok(())
     }
 
-    // FIXME: remove this function
-    pub fn get(&mut self, name: Token) -> Result<Rc<RefCell<EnvVal>>> {
-        self.get_by_str(&name.lexeme, name.pos)
-    }
-
-    pub fn get_by_str(&mut self, name: &str, pos: Pos) -> Result<Rc<RefCell<EnvVal>>> {
-        if self.vals.contains_key(name) {
-            let val = self.vals.get(name);
+    pub fn get(&mut self, name: &Token) -> Result<Rc<RefCell<EnvVal>>> {
+        if self.vals.contains_key(&name.lexeme) {
+            let val = self.vals.get(&name.lexeme);
 
             return match val {
                 Some(val) => Ok(val.clone()),
@@ -442,19 +437,14 @@ impl Env {
         }
 
         if self.enclosing.is_some() {
-            let val = self
-                .enclosing
-                .as_ref()
-                .unwrap()
-                .borrow_mut()
-                .get_by_str(name, pos);
+            let val = self.enclosing.as_ref().unwrap().borrow_mut().get(&name);
 
             return val;
         }
 
-        Err(RuntimeError::from_pos(
-            pos,
-            &format!("Trying to access undefined value \"{}\"", name),
+        Err(RuntimeError::from_token(
+            name.clone(),
+            &format!("Trying to access undefined value \"{}\"", name.lexeme),
         ))
     }
 
@@ -492,7 +482,6 @@ impl Env {
         None
     }
 
-    /// FIXME: return a whole struct reference here, not only the name
     pub fn get_static_bind(&self) -> Option<String> {
         if self.static_bind.is_some() {
             return self.static_bind.clone();
@@ -507,7 +496,7 @@ impl Env {
 
     pub fn assign(&mut self, name: Token, val: &Val) -> Result<()> {
         if self.vals.contains_key(&name.lexeme) {
-            let env_val = self.get(name.clone())?;
+            let env_val = self.get(&name)?;
             env_val
                 .borrow_mut()
                 .try_to_assign(val.clone(), name.clone())?;
