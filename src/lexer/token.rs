@@ -9,19 +9,19 @@ pub struct Token {
 }
 
 impl Token {
-    pub fn new(token_type: TokenType, lexeme: &str, literal: &str, pos: Pos) -> Self {
+    pub fn new(token_type: TokenType, lexeme: String, literal: String, pos: Pos) -> Self {
         Self {
             token_type,
-            lexeme: str::to_string(lexeme),
-            literal: str::to_string(literal),
+            lexeme,
+            literal,
             pos,
         }
     }
 
-    pub fn from_token(token: &Self, lexeme: &str) -> Self {
+    pub fn from_token(token: &Self, lexeme: String) -> Self {
         Self {
             token_type: token.token_type,
-            lexeme: str::to_string(lexeme),
+            lexeme,
             literal: token.literal.clone(),
             pos: token.pos,
         }
@@ -140,10 +140,10 @@ mod tests {
 
     #[test]
     fn test_token_eq() {
-        let a = Token::new(TokenType::Identifier, "lexeme", "", (0, 0));
-        let b = Token::new(TokenType::Identifier, "lexeme", "", (10, 10));
-        let c = Token::new(TokenType::Identifier, "another_lexeme", "", (0, 0));
-        let d = Token::new(TokenType::String, "lexeme", "", (0, 0));
+        let a = Token::new(TokenType::Identifier, String::from("lexeme"), String::from(""), (0, 0));
+        let b = Token::new(TokenType::Identifier, String::from("lexeme"), String::from(""), (10, 10));
+        let c = Token::new(TokenType::Identifier, String::from("another_lexeme"), String::from(""), (0, 0));
+        let d = Token::new(TokenType::String, String::from("lexeme"), String::from(""), (0, 0));
 
         assert_eq!(a, b);
         assert_ne!(a, c);
@@ -152,8 +152,8 @@ mod tests {
 
     #[test]
     fn test_from_token() {
-        let a = Token::new(TokenType::Identifier, "lexeme", "", (0, 0));
-        let b = Token::from_token(&a, "another_lexeme");
+        let a = Token::new(TokenType::Identifier, String::from("lexeme"), String::from(""), (0, 0));
+        let b = Token::from_token(&a, String::from("another_lexeme"));
 
         assert_ne!(a, b);
 

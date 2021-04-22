@@ -138,11 +138,11 @@ mod tests {
 
     #[test]
     fn test_try_from_token() {
-        let int = Token::new(TokenType::Int, "100", "100", (0, 0));
-        let float = Token::new(TokenType::Float, "10.1", "10.1", (0, 0));
-        let string = Token::new(TokenType::Str, "string", "string", (0, 0));
-        let nil = Token::new(TokenType::Nil, "nil", "nil", (0, 0));
-        let boolean = Token::new(TokenType::Bool, "true", "true", (0, 0));
+        let int = Token::new(TokenType::Int, String::from("100"), String::from("100"), (0, 0));
+        let float = Token::new(TokenType::Float, String::from("10.1"), String::from("10.1"), (0, 0));
+        let string = Token::new(TokenType::Str, String::from("string"), String::from("string"), (0, 0));
+        let nil = Token::new(TokenType::Nil, String::from("nil"), String::from("nil"), (0, 0));
+        let boolean = Token::new(TokenType::Bool, String::from("true"), String::from("true"), (0, 0));
 
         assert_eq!(ValType::try_from_token(&int, None).unwrap(), ValType::Int);
         assert_eq!(

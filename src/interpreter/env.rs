@@ -242,15 +242,15 @@ impl EnvVal {
         return match self {
             NoValue => Err(RuntimeError::from_token(
                 name,
-                "Trying to assign to an immutable value.",
+                String::from("Trying to assign to an immutable value"),
             )),
             Constant(_c) => Err(RuntimeError::from_token(
                 name,
-                "Trying to assign to a constant.",
+                String::from("Trying to assign to a constant"),
             )),
             Function(_f) => Err(RuntimeError::from_token(
                 name,
-                "Trying to assign to an immutable value.",
+                String::from("Trying to assign to an immutable value"),
             )),
             Variable(v) => {
                 if let ValType::Uninit = v.v_type {
@@ -262,7 +262,7 @@ impl EnvVal {
                     } else {
                         Err(RuntimeError::from_token(
                             name,
-                            &format!(
+                            format!(
                                 "Cannot infer variable type from value of type \"{}\"",
                                 val.get_type()
                             ),
@@ -271,28 +271,31 @@ impl EnvVal {
                 } else if !v.v_type.conforms(&val) {
                     Err(RuntimeError::from_token(
                         name,
-                        &format!(
+                        format!(
                             "Trying to assign to a variable of type \"{}\" value of type \"{}\"",
                             v.v_type,
                             val.get_type()
                         ),
                     ))
                 } else if v.mutable {
-                    v.val = val;
+                    v.val = val.clone();
                     Ok(())
                 } else if let Val::Uninit = v.val {
-                    v.val = val;
+                    v.val = val.clone();
                     Ok(())
                 } else {
                     Err(RuntimeError::from_token(
                         name,
-                        "Trying to assign to an immutable variable.",
+                        String::from("Trying to assign to an immutable variable."),
                     ))
                 }
             }
-            EnumValue(_) | Enum(_) | Struct(_) | Trait(_) => Err(RuntimeError::from_token(
+            EnumValue(_)
+            | Enum(_)
+            | Struct(_)
+            | Trait(_) => Err(RuntimeError::from_token(
                 name,
-                "Trying to assign to a non-value.",
+                String::from("Trying to assign to a non-value."),
             )),
         };
     }
@@ -344,7 +347,7 @@ impl Env {
 
     pub fn define_enum(&mut self, enum_: Enum) {
         self.vals.insert(
-            enum_.name.lexeme.clone(),
+            enum_.name.lexeme.to_string().clone(),
             Rc::new(RefCell::new(EnvVal::Enum(enum_))),
         );
     }
@@ -395,7 +398,7 @@ impl Env {
         if self.vals.contains_key(&constant.get_name()) {
             return Err(RuntimeError::from_token(
                 constant.name.clone(),
-                &format!("Name \"{}\" is already in use", constant.get_name()),
+                format!("Name \"{}\" is already in use", constant.get_name()),
             ));
         }
 
@@ -411,7 +414,7 @@ impl Env {
         if self.vals.contains_key(&func.get_name()) {
             return Err(RuntimeError::from_token(
                 func.name.clone(),
-                &format!("Name \"{}\" is already in use", func.get_name()),
+                format!("Name \"{}\" is already in use", func.get_name()),
             ));
         }
 
@@ -444,7 +447,7 @@ impl Env {
 
         Err(RuntimeError::from_token(
             name.clone(),
-            &format!("Trying to access undefined value \"{}\"", name.lexeme),
+            format!("Trying to access undefined value \"{}\"", name.lexeme),
         ))
     }
 
@@ -518,7 +521,7 @@ impl Env {
 
         Err(RuntimeError::from_token(
             name.clone(),
-            &format!("Trying to assign to an undefined value \"{}\"", name.lexeme),
+            format!("Trying to assign to an undefined value \"{}\"", name.lexeme),
         ))
     }
 }
@@ -579,6 +582,6 @@ mod tests {
     }
 
     fn identifier(lexeme: &str) -> Token {
-        Token::new(TokenType::Identifier, lexeme, "", (0, 0))
+        Token::new(TokenType::Identifier, String::from(lexeme), String::from(""), (0, 0))
     }
 }

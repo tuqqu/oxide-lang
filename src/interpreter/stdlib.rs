@@ -151,7 +151,7 @@ impl Stdlib {
     }
 
     fn define_function(lib: &mut Env, name: &str, arity: usize, callable: Func) -> Result<()> {
-        let token = Token::new(TokenType::Identifier, name, "", (0, 0));
+        let token = Token::new(TokenType::Identifier, name.to_string(), String::from(""), (0, 0));
         lib.define_function(env::Function::without_struct(
             token,
             Val::Callable(*Callable::new(arity, callable)),
