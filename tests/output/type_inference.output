@@ -14,10 +14,10 @@ vec<any>
 vec<int>
 vec<int>
 vec<str>
-struct
+S
 vec<S>
 vec<S>
-enum E::A
+E
 vec<E>
 vec<E>
 vec<fn>

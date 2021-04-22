@@ -14,9 +14,7 @@ pub const TYPE_NIL: &str = "nil";
 pub const TYPE_VEC: &str = "vec";
 pub const TYPE_MAP: &str = "map";
 pub const TYPE_STRUCT: &str = "struct";
-pub const TYPE_STRUCT_INSTANCE: &str = "struct";
 pub const TYPE_ENUM: &str = "enum";
-pub const TYPE_ENUM_VALUE: &str = "enum";
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum ValType {
@@ -88,7 +86,10 @@ impl ValType {
             (Self::Float, Val::Float(_)) => true,
             (Self::Float, Val::Int(_)) => true,
             (Self::Str, Val::Str(_)) => true,
-            (Self::Instance(s), Val::StructInstance(i)) => i.borrow_mut().struct_name == *s,
+            (Self::Instance(s), Val::StructInstance(i)) => {
+                let i = i.borrow();
+                i.struct_name == *s || i.impls.contains(s)
+            }
             (Self::Instance(s), Val::EnumValue(e, _, _)) => s == e,
             (Self::Vec(g), Val::VecInstance(v)) => {
                 let v_g_type = g.types.first().unwrap();
@@ -128,5 +129,76 @@ pub struct Generics {
 impl Generics {
     pub fn new(types: Vec<ValType>) -> Self {
         Self { types }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_try_from_token() {
+        let int = Token::new(TokenType::Int, "100", "100", (0, 0));
+        let float = Token::new(TokenType::Float, "10.1", "10.1", (0, 0));
+        let string = Token::new(TokenType::Str, "string", "string", (0, 0));
+        let nil = Token::new(TokenType::Nil, "nil", "nil", (0, 0));
+        let boolean = Token::new(TokenType::Bool, "true", "true", (0, 0));
+
+        assert_eq!(ValType::try_from_token(&int, None).unwrap(), ValType::Int);
+        assert_eq!(
+            ValType::try_from_token(&float, None).unwrap(),
+            ValType::Float
+        );
+        assert_eq!(
+            ValType::try_from_token(&string, None).unwrap(),
+            ValType::Str
+        );
+        assert_eq!(ValType::try_from_token(&nil, None).unwrap(), ValType::Nil);
+        assert_eq!(
+            ValType::try_from_token(&boolean, None).unwrap(),
+            ValType::Bool
+        );
+    }
+
+    #[test]
+    fn test_try_from_val() {
+        let int = Val::Int(100);
+        let float = Val::Float(10.1);
+        let string = Val::Str(str::to_string("string"));
+        let nil = Val::Nil;
+        let boolean = Val::Bool(true);
+
+        assert_eq!(ValType::try_from_val(&int).unwrap(), ValType::Int);
+        assert_eq!(ValType::try_from_val(&float).unwrap(), ValType::Float);
+        assert_eq!(ValType::try_from_val(&string).unwrap(), ValType::Str);
+        assert_eq!(ValType::try_from_val(&nil).unwrap(), ValType::Nil);
+        assert_eq!(ValType::try_from_val(&boolean).unwrap(), ValType::Bool);
+    }
+
+    #[test]
+    fn test_conforms() {
+        let int = Val::Int(100);
+        let float = Val::Float(10.1);
+        let string = Val::Str(str::to_string("string"));
+        let nil = Val::Nil;
+        let boolean = Val::Bool(true);
+
+        assert!(ValType::Int.conforms(&int));
+        assert!(!ValType::Int.conforms(&float));
+        assert!(!ValType::Int.conforms(&string));
+
+        assert!(ValType::Float.conforms(&float));
+        assert!(ValType::Float.conforms(&int));
+        assert!(!ValType::Float.conforms(&string));
+
+        assert!(ValType::Str.conforms(&string));
+        assert!(!ValType::Str.conforms(&int));
+        assert!(!ValType::Str.conforms(&boolean));
+
+        assert!(ValType::Any.conforms(&string));
+        assert!(ValType::Any.conforms(&nil));
+        assert!(ValType::Any.conforms(&boolean));
+        assert!(ValType::Any.conforms(&int));
+        assert!(ValType::Any.conforms(&float));
     }
 }

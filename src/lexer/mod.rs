@@ -25,6 +25,7 @@ impl Lexer {
         keywords.insert("struct".to_string(), TokenType::Struct);
         keywords.insert("fn".to_string(), TokenType::Fn);
         keywords.insert("impl".to_string(), TokenType::Impl);
+        keywords.insert("trait".to_string(), TokenType::Trait);
 
         keywords.insert("pub".to_string(), TokenType::Pub);
 
@@ -33,7 +34,6 @@ impl Lexer {
         keywords.insert("num".to_string(), TokenType::Num);
         keywords.insert("int".to_string(), TokenType::Int);
         keywords.insert("float".to_string(), TokenType::Float);
-        // keywords.insert("func".to_string(), TokenType::Func);
         keywords.insert("any".to_string(), TokenType::Any);
         keywords.insert("vec".to_string(), TokenType::Vec);
         keywords.insert("bool".to_string(), TokenType::Bool);
@@ -47,16 +47,18 @@ impl Lexer {
 
         keywords.insert("Self".to_string(), TokenType::SelfStatic);
         keywords.insert("self".to_string(), TokenType::Self_);
+
         keywords.insert("let".to_string(), TokenType::Let);
         keywords.insert("mut".to_string(), TokenType::Mut);
         keywords.insert("const".to_string(), TokenType::Const);
+
+        keywords.insert("as".to_string(), TokenType::As);
 
         keywords.insert("while".to_string(), TokenType::While);
         keywords.insert("for".to_string(), TokenType::For);
         keywords.insert("loop".to_string(), TokenType::Loop);
 
         keywords.insert("match".to_string(), TokenType::Match);
-
         keywords.insert("if".to_string(), TokenType::If);
         keywords.insert("else".to_string(), TokenType::Else);
 
@@ -78,12 +80,8 @@ impl Lexer {
             self.token();
         }
 
-        self.tokens.push(Token::new(
-            TokenType::Eof,
-            "".to_string(),
-            "".to_string(),
-            self.pos(),
-        ));
+        self.tokens
+            .push(Token::new(TokenType::Eof, "", "", self.pos()));
 
         (&self.tokens, self.err)
     }
@@ -144,6 +142,8 @@ impl Lexer {
             '&' => {
                 let t_type = if self.match_char('&') {
                     TokenType::LogicAnd
+                } else if self.match_char('=') {
+                    TokenType::BitwiseAndEqual
                 } else {
                     TokenType::BitwiseAnd
                 };
@@ -152,6 +152,8 @@ impl Lexer {
             '|' => {
                 let t_type = if self.match_char('|') {
                     TokenType::LogicOr
+                } else if self.match_char('=') {
+                    TokenType::BitwiseOrEqual
                 } else {
                     TokenType::BitwiseOr
                 };
@@ -162,6 +164,14 @@ impl Lexer {
                     TokenType::BangEqual
                 } else {
                     TokenType::Bang
+                };
+                self.add_token(t_type);
+            }
+            '^' => {
+                let t_type = if self.match_char('=') {
+                    TokenType::BitwiseXorEqual
+                } else {
+                    TokenType::BitwiseXor
                 };
                 self.add_token(t_type);
             }
@@ -259,14 +269,14 @@ impl Lexer {
     }
 
     fn add_token(&mut self, token_type: TokenType) {
-        self.add_token_with_literal(token_type, "".to_string());
+        self.add_token_with_literal(token_type, "");
     }
 
-    fn add_token_with_literal(&mut self, token_type: TokenType, literal: String) {
+    fn add_token_with_literal(&mut self, token_type: TokenType, literal: &str) {
         let text = self.src_substr(self.start, self.current);
         let len = text.len();
         self.tokens
-            .push(Token::new(token_type, text, literal, self.pos()));
+            .push(Token::new(token_type, &text, literal, self.pos()));
 
         self.pos += len;
     }
@@ -310,8 +320,8 @@ impl Lexer {
 
         self.advance();
 
-        let val: String = self.src_substr(self.start + 1, self.current - 1);
-        self.add_token_with_literal(TokenType::String, val);
+        let val = self.src_substr(self.start + 1, self.current - 1);
+        self.add_token_with_literal(TokenType::String, &val);
     }
 
     fn src_substr(&self, start: usize, end: usize) -> String {
@@ -353,7 +363,7 @@ impl Lexer {
             } else {
                 TokenType::NumberInt
             },
-            self.src_substr(self.start, self.current),
+            &self.src_substr(self.start, self.current),
         );
     }
 
@@ -378,5 +388,52 @@ impl Lexer {
 
     fn pos(&self) -> Pos {
         (self.line, self.pos)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_tokenize() {
+        let mut lexer = Lexer::new(str::to_string("let x = 100;"));
+
+        let (tokens, err) = lexer.tokenize();
+        assert!(!err);
+        assert_eq!(
+            tokens,
+            &vec![
+                Token::new(TokenType::Let, "let", "", (1, 1)),
+                Token::new(TokenType::Identifier, "x", "", (1, 5)),
+                Token::new(TokenType::Equal, "=", "", (1, 7)),
+                Token::new(TokenType::NumberInt, "100", "100", (1, 9)),
+                Token::new(TokenType::Semicolon, ";", "", (1, 12)),
+                Token::new(TokenType::Eof, "", "", (1, 13)),
+            ]
+        );
+    }
+
+    #[test]
+    fn test_err_tokenize() {
+        let mut lexer = Lexer::new(str::to_string("const X = \"string"));
+
+        let (tokens, err) = lexer.tokenize();
+        assert!(err);
+        assert_eq!(
+            tokens,
+            &vec![
+                Token::new(TokenType::Const, "const", "", (1, 1)),
+                Token::new(TokenType::Identifier, "X", "", (1, 7)),
+                Token::new(TokenType::Equal, "=", "", (1, 9)),
+                Token::new(TokenType::Eof, "", "", (1, 11)),
+            ]
+        );
+
+        let mut lexer = Lexer::new(str::to_string("/* comment"));
+
+        let (tokens, err) = lexer.tokenize();
+        assert!(err);
+        assert_eq!(tokens, &vec![Token::new(TokenType::Eof, "", "", (1, 1)),]);
     }
 }

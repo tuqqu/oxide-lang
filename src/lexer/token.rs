@@ -9,19 +9,28 @@ pub struct Token {
 }
 
 impl Token {
-    pub fn new(token_type: TokenType, lexeme: String, literal: String, pos: Pos) -> Self {
+    pub fn new(token_type: TokenType, lexeme: &str, literal: &str, pos: Pos) -> Self {
         Self {
             token_type,
-            lexeme,
-            literal,
+            lexeme: str::to_string(lexeme),
+            literal: str::to_string(literal),
             pos,
+        }
+    }
+
+    pub fn from_token(token: &Self, lexeme: &str) -> Self {
+        Self {
+            token_type: token.token_type,
+            lexeme: str::to_string(lexeme),
+            literal: token.literal.clone(),
+            pos: token.pos,
         }
     }
 }
 
 impl std::cmp::PartialEq for Token {
     fn eq(&self, other: &Self) -> bool {
-        self.lexeme == other.lexeme
+        self.lexeme == other.lexeme && self.token_type == other.token_type
     }
 }
 
@@ -69,6 +78,11 @@ pub enum TokenType {
 
     BitwiseAnd,
     BitwiseOr,
+    BitwiseXor,
+
+    BitwiseAndEqual,
+    BitwiseOrEqual,
+    BitwiseXorEqual,
 
     Identifier,
     String,
@@ -90,7 +104,6 @@ pub enum TokenType {
     Loop,
 
     Match,
-
     If,
     Else,
 
@@ -98,10 +111,13 @@ pub enum TokenType {
     Mut,
     Const,
 
+    As,
+
     Enum,
     Struct,
     Fn,
     Impl,
+    Trait,
 
     Pub,
 
@@ -116,4 +132,35 @@ pub enum TokenType {
     SelfStatic,
 
     Eof,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_token_eq() {
+        let a = Token::new(TokenType::Identifier, "lexeme", "", (0, 0));
+        let b = Token::new(TokenType::Identifier, "lexeme", "", (10, 10));
+        let c = Token::new(TokenType::Identifier, "another_lexeme", "", (0, 0));
+        let d = Token::new(TokenType::String, "lexeme", "", (0, 0));
+
+        assert_eq!(a, b);
+        assert_ne!(a, c);
+        assert_ne!(a, d);
+    }
+
+    #[test]
+    fn test_from_token() {
+        let a = Token::new(TokenType::Identifier, "lexeme", "", (0, 0));
+        let b = Token::from_token(&a, "another_lexeme");
+
+        assert_ne!(a, b);
+
+        assert_eq!(a.pos, b.pos);
+        assert_eq!(a.token_type, b.token_type);
+        assert_eq!(a.literal, b.literal);
+
+        assert_eq!(b.lexeme, "another_lexeme");
+    }
 }
