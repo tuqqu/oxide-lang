@@ -27,15 +27,15 @@ println(b);
 println(typeof(b));
 
 fn function() {}
-let f: fn = function;
+let f: fn() = function;
 println(f);
 println(typeof(f));
 
-let f: fn = fn () {};
+let f: fn() = fn () {};
 println(f);
 println(typeof(f));
 
-let f2: fn = f;
+let f2: fn() = f;
 println(f2);
 println(typeof(f2));
 
@@ -88,12 +88,24 @@ let v: vec<E> = vec<E>[E::A, e, e];
 println(v);
 println(typeof(v));
 
-let f: fn = fn () {};
-let v: vec<fn> = vec[fn () {}, fn () {}, f, f];
+let f: fn() = fn () {};
+let v: vec<fn()> = vec[fn () {}, fn () {}, f, f];
 println(v);
 println(typeof(v));
 
-let v: vec<fn> = vec<fn>[fn () {}, fn () {}, f, f];
+let v: vec<fn()> = vec<fn()>[fn () {}, fn () {}, f, f];
 println(v);
 println(typeof(v));
 
+let mut func: fn(fn(fn(), fn(int))) -> int;
+func = fn (f: fn(fn(), fn(int))) -> int {
+    return 1;
+};
+
+fn function_x(f: fn(fn(), fn(int))) -> int {
+    return 1;
+}
+
+func = function_x;
+println(func);
+println(typeof(func));

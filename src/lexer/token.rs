@@ -140,10 +140,30 @@ mod tests {
 
     #[test]
     fn test_token_eq() {
-        let a = Token::new(TokenType::Identifier, String::from("lexeme"), String::from(""), (0, 0));
-        let b = Token::new(TokenType::Identifier, String::from("lexeme"), String::from(""), (10, 10));
-        let c = Token::new(TokenType::Identifier, String::from("another_lexeme"), String::from(""), (0, 0));
-        let d = Token::new(TokenType::String, String::from("lexeme"), String::from(""), (0, 0));
+        let a = Token::new(
+            TokenType::Identifier,
+            String::from("lexeme"),
+            String::from(""),
+            (0, 0),
+        );
+        let b = Token::new(
+            TokenType::Identifier,
+            String::from("lexeme"),
+            String::from(""),
+            (10, 10),
+        );
+        let c = Token::new(
+            TokenType::Identifier,
+            String::from("another_lexeme"),
+            String::from(""),
+            (0, 0),
+        );
+        let d = Token::new(
+            TokenType::String,
+            String::from("lexeme"),
+            String::from(""),
+            (0, 0),
+        );
 
         assert_eq!(a, b);
         assert_ne!(a, c);
@@ -152,7 +172,12 @@ mod tests {
 
     #[test]
     fn test_from_token() {
-        let a = Token::new(TokenType::Identifier, String::from("lexeme"), String::from(""), (0, 0));
+        let a = Token::new(
+            TokenType::Identifier,
+            String::from("lexeme"),
+            String::from(""),
+            (0, 0),
+        );
         let b = Token::from_token(&a, String::from("another_lexeme"));
 
         assert_ne!(a, b);

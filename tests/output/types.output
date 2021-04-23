@@ -11,12 +11,12 @@ nil
 nil
 false
 bool
-fn
-fn
-fn
-fn
-fn
-fn
+[fn] fn()
+fn()
+[fn] fn()
+fn()
+[fn] fn()
+fn()
 [vec] []
 vec<any>
 [vec] [1, true, nil]
@@ -40,7 +40,9 @@ E
 vec<E>
 [vec] [[enum] E::A, [enum] E::B, [enum] E::B]
 vec<E>
-[vec] [fn, fn, fn, fn]
-vec<fn>
-[vec] [fn, fn, fn, fn]
-vec<fn>
+[vec] [[fn] fn(), [fn] fn(), [fn] fn(), [fn] fn()]
+vec<fn()>
+[vec] [[fn] fn(), [fn] fn(), [fn] fn(), [fn] fn()]
+vec<fn()>
+[fn] fn(fn(fn(), fn(int))) -> int
+fn(fn(fn(), fn(int))) -> int

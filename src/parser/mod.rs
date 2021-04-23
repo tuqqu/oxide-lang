@@ -10,7 +10,7 @@ use crate::parser::expr::{
     Match, MatchArm, ParamList, SelfStatic, Self_, SetIndex, SetProp, StructDecl, TraitDecl,
     TypeCast, VecIndex, Vec_,
 };
-use crate::parser::valtype::ValType;
+use crate::parser::valtype::{FnType, ValType};
 
 use self::expr::Expr::{
     AssignmentExpr, BinaryExpr, BoolLiteralExpr, EmptyExpr, FloatLiteralExpr, GroupingExpr,
@@ -269,6 +269,39 @@ impl Parser {
         )?;
 
         Ok((fn_signature_decl, instance_method))
+    }
+
+    /// Parses function type.
+    fn fn_type(&mut self) -> Result<FnType> {
+        let v_type_token = self.consume(TokenType::Fn, "\"fn\" expected in function type")?;
+
+        self.consume(
+            TokenType::LeftParen,
+            "Parenthesis \"(\" expected before parameter list in function type",
+        )?;
+
+        let mut param_types: Vec<ValType> = vec![];
+
+        if !self.check(TokenType::RightParen) {
+            loop {
+                let param_type = self.consume_type()?;
+                param_types.push(param_type);
+
+                if !self.match_token(TokenType::Comma) {
+                    break;
+                }
+            }
+        }
+
+        self.consume(
+            TokenType::RightParen,
+            "Parenthesis \")\" expected after parameter list in function type",
+        )?;
+
+        let ret_type = self.return_type()?;
+        let fn_type = FnType::new(Some(v_type_token), param_types, Box::new(ret_type));
+
+        Ok(fn_type)
     }
 
     /// Parses the enum declaration statement.
@@ -1396,7 +1429,6 @@ impl Parser {
             || self.check(Bool)
             || self.check(Map)
             || self.check(Any)
-            || self.check(Fn)
             || self.check(Identifier)
         {
             let v_type_token = self.advance().clone();
@@ -1424,15 +1456,20 @@ impl Parser {
         }
 
         if self.check(SelfStatic) {
-            if let Some(name) = self.current_impl_target.clone() {
+            return if let Some(name) = self.current_impl_target.clone() {
                 self.advance();
-                return Ok(ValType::Instance(name));
+                Ok(ValType::Instance(name))
             } else {
-                return Err(ParseError::new(
+                Err(ParseError::new(
                     &self.advance().clone(),
                     "Type \"Self\" can be used inside \"impl\" blocks only",
-                ));
-            }
+                ))
+            };
+        }
+
+        if self.check(Fn) {
+            let fn_type = self.fn_type()?;
+            return Ok(ValType::Fn(fn_type));
         }
 
         Err(ParseError::new(

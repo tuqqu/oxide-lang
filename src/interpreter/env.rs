@@ -278,10 +278,10 @@ impl EnvVal {
                         ),
                     ))
                 } else if v.mutable {
-                    v.val = val.clone();
+                    v.val = val;
                     Ok(())
                 } else if let Val::Uninit = v.val {
-                    v.val = val.clone();
+                    v.val = val;
                     Ok(())
                 } else {
                     Err(RuntimeError::from_token(
@@ -290,10 +290,7 @@ impl EnvVal {
                     ))
                 }
             }
-            EnumValue(_)
-            | Enum(_)
-            | Struct(_)
-            | Trait(_) => Err(RuntimeError::from_token(
+            EnumValue(_) | Enum(_) | Struct(_) | Trait(_) => Err(RuntimeError::from_token(
                 name,
                 String::from("Trying to assign to a non-value."),
             )),
@@ -347,7 +344,7 @@ impl Env {
 
     pub fn define_enum(&mut self, enum_: Enum) {
         self.vals.insert(
-            enum_.name.lexeme.to_string().clone(),
+            enum_.name.lexeme.to_string(),
             Rc::new(RefCell::new(EnvVal::Enum(enum_))),
         );
     }
@@ -582,6 +579,11 @@ mod tests {
     }
 
     fn identifier(lexeme: &str) -> Token {
-        Token::new(TokenType::Identifier, String::from(lexeme), String::from(""), (0, 0))
+        Token::new(
+            TokenType::Identifier,
+            String::from(lexeme),
+            String::from(""),
+            (0, 0),
+        )
     }
 }

@@ -182,15 +182,17 @@ impl Interpreter {
                         if !found {
                             return Err(RuntimeError::from_token(
                                 signature.name.clone(),
-                                format!(
-                                    "Method \"{}\" must be implemented",
-                                    signature.name.lexeme
-                                ),
+                                format!("Method \"{}\" must be implemented", signature.name.lexeme),
                             ));
                         }
                     }
                 }
-                _ => return Err(RuntimeError::from_token(for_name.clone(), String::from("Expected trait name"))),
+                _ => {
+                    return Err(RuntimeError::from_token(
+                        for_name,
+                        String::from("Expected trait name"),
+                    ))
+                }
             }
 
             (for_name.lexeme, Some(decl.impl_name.lexeme.clone()))
@@ -449,8 +451,18 @@ impl Interpreter {
             Rc::new(RefCell::new(Env::with_enclosing(copy))),
         );
 
+        let ret_type = func.lambda.ret_type.clone();
+        let param_types = func
+            .lambda
+            .params
+            .clone()
+            .into_iter()
+            .map(|(_, vt, _)| vt)
+            .collect();
+
         Val::Callable(*Callable::new(
-            func.param_size(),
+            param_types,
+            ret_type,
             Arc::new(move |inter, args| {
                 let copy = Rc::clone(&func.env);
                 let glob = Rc::new(RefCell::new(Env::with_enclosing(copy)));
@@ -492,8 +504,8 @@ impl Interpreter {
                     env.define_variable(var);
                 }
 
-                let newenv = Rc::new(RefCell::new(env));
-                let stmt_val = inter.evaluate_block(&func.lambda.body, Some(newenv))?;
+                let new_env = Rc::new(RefCell::new(env));
+                let stmt_val = inter.evaluate_block(&func.lambda.body, Some(new_env))?;
 
                 let val = match stmt_val {
                     StmtVal::None => Val::Nil,
@@ -783,7 +795,10 @@ impl Interpreter {
                             Ok(f.val.clone())
                         }
                     }
-                    _ => Err(RuntimeError::from_token(token.clone(), String::from("Unknown static access value"))),
+                    _ => Err(RuntimeError::from_token(
+                        token,
+                        String::from("Unknown static access value"),
+                    )),
                 }
             }
             _ => Err(RuntimeError::new(format!(
@@ -821,7 +836,9 @@ impl Interpreter {
         let instance = if let Val::StructInstance(i) = instance {
             i
         } else {
-            return Err(RuntimeError::new(str::to_string("Must be a struct instance")));
+            return Err(RuntimeError::new(str::to_string(
+                "Must be a struct instance",
+            )));
         };
 
         let val = self.evaluate(&expr.expr)?;
@@ -1008,9 +1025,7 @@ impl Interpreter {
             TokenType::BitwiseAnd | TokenType::BitwiseAndEqual => {
                 Val::bitwise_and(lhs, rhs, operator)
             }
-            TokenType::BitwiseOr | TokenType::BitwiseOrEqual => {
-                Val::bitwise_or(lhs, rhs, operator)
-            }
+            TokenType::BitwiseOr | TokenType::BitwiseOrEqual => Val::bitwise_or(lhs, rhs, operator),
             TokenType::BitwiseXor | TokenType::BitwiseXorEqual => {
                 Val::bitwise_xor(lhs, rhs, operator)
             }
@@ -1158,12 +1173,10 @@ impl Interpreter {
         match val {
             Val::Bool(true) => Ok(true),
             Val::Bool(false) => Ok(false),
-            _ => Err(RuntimeError::new(
-                format!(
-                    "Trying to evaluate value of type \"{}\" as boolean",
-                    val.get_type()
-                )
-            )),
+            _ => Err(RuntimeError::new(format!(
+                "Trying to evaluate value of type \"{}\" as boolean",
+                val.get_type()
+            ))),
         }
     }
 }
@@ -1180,7 +1193,7 @@ impl RuntimeError {
         Self {
             pos: Some(token.pos),
             token: Some(token),
-            msg: msg.to_string(),
+            msg,
         }
     }
 

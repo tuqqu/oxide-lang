@@ -8,6 +8,7 @@ use crate::interpreter::env::{self, Env};
 use crate::interpreter::val::{Callable, Func, Val};
 use crate::interpreter::Result;
 use crate::lexer::token::{Token, TokenType};
+use crate::parser::valtype::ValType;
 
 pub struct Stdlib;
 
@@ -18,7 +19,8 @@ impl Stdlib {
         Self::define_function(
             &mut std,
             "timestamp",
-            0,
+            vec![],
+            ValType::Int,
             Arc::new(|_, _| {
                 let since_the_epoch = SystemTime::now()
                     .duration_since(UNIX_EPOCH)
@@ -30,7 +32,8 @@ impl Stdlib {
         Self::define_function(
             &mut std,
             "println",
-            1,
+            vec![ValType::Any],
+            ValType::Nil,
             Arc::new(|inter, args| {
                 let value = args
                     .first()
@@ -45,7 +48,8 @@ impl Stdlib {
         Self::define_function(
             &mut std,
             "print",
-            1,
+            vec![ValType::Any],
+            ValType::Nil,
             Arc::new(|inter, args| {
                 let value = args
                     .first()
@@ -60,7 +64,8 @@ impl Stdlib {
         Self::define_function(
             &mut std,
             "eprintln",
-            1,
+            vec![ValType::Any],
+            ValType::Nil,
             Arc::new(|inter, args| {
                 let value = args
                     .first()
@@ -75,7 +80,8 @@ impl Stdlib {
         Self::define_function(
             &mut std,
             "eprint",
-            1,
+            vec![ValType::Any],
+            ValType::Nil,
             Arc::new(|i, args| {
                 let value = args.first().unwrap();
 
@@ -88,7 +94,8 @@ impl Stdlib {
         Self::define_function(
             &mut std,
             "file_write",
-            2,
+            vec![ValType::Str, ValType::Str],
+            ValType::Nil,
             Arc::new(|_, args| {
                 if let [file_name, content] = &args[..] {
                     let (file_name, content) = match (file_name, content) {
@@ -117,7 +124,8 @@ impl Stdlib {
         Self::define_function(
             &mut std,
             "read_line",
-            1,
+            vec![ValType::Str],
+            ValType::Nil,
             Arc::new(|_, args| {
                 let prompt = match args.first().unwrap() {
                     Val::Str(prompt) => prompt,
@@ -139,7 +147,8 @@ impl Stdlib {
         Self::define_function(
             &mut std,
             "typeof",
-            1,
+            vec![ValType::Any],
+            ValType::Nil,
             Arc::new(|_, args| {
                 let value = args.first().expect("Cannot retrieve function argument.");
 
@@ -150,11 +159,22 @@ impl Stdlib {
         Ok(std)
     }
 
-    fn define_function(lib: &mut Env, name: &str, arity: usize, callable: Func) -> Result<()> {
-        let token = Token::new(TokenType::Identifier, name.to_string(), String::from(""), (0, 0));
+    fn define_function(
+        lib: &mut Env,
+        name: &str,
+        param_types: Vec<ValType>,
+        ret_type: ValType,
+        callable: Func,
+    ) -> Result<()> {
+        let token = Token::new(
+            TokenType::Identifier,
+            name.to_string(),
+            String::from(""),
+            (0, 0),
+        );
         lib.define_function(env::Function::without_struct(
             token,
-            Val::Callable(*Callable::new(arity, callable)),
+            Val::Callable(*Callable::new(param_types, ret_type, callable)),
         ))?;
 
         Ok(())
