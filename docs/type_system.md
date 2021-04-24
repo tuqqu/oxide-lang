@@ -1,6 +1,6 @@
 ## Type System
 
-There are eleven types `nil`, `num`, `int`, `float`, `bool`, `str`, `fn`, `vec`, `any`, structs and enums.
+There are eleven types `nil`, `num`, `int`, `float`, `bool`, `str`, `fn(T) -> T`, `vec<T>`, `any`, structs and enums.
 Type of any value can be checked by a built-in function `typeof(val: any) -> str`.
 
 ```rust
@@ -32,7 +32,7 @@ String is series of characters, enclosed in double quotes. Strings can be concat
 
 ### Fn
 Functions can be declared with a name or created as a lambda function. In that case to reuse them you should store them in a variable, immediately invoke them or pass to a function as a callable.  [See more](/README.md#functions)
-
+Functions are of `fn(T) -> T` type.
 ```rust
 fn inc(x: int) -> int {         // typeof(add) = "fn(int) -> int"
     return x + 1;

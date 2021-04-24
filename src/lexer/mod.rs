@@ -54,9 +54,10 @@ impl Lexer {
 
         keywords.insert("as".to_string(), TokenType::As);
 
+        keywords.insert("loop".to_string(), TokenType::Loop);
         keywords.insert("while".to_string(), TokenType::While);
         keywords.insert("for".to_string(), TokenType::For);
-        keywords.insert("loop".to_string(), TokenType::Loop);
+        keywords.insert("in".to_string(), TokenType::In);
 
         keywords.insert("match".to_string(), TokenType::Match);
         keywords.insert("if".to_string(), TokenType::If);

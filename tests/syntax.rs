@@ -63,6 +63,11 @@ fn test_for() {
 }
 
 #[test]
+fn test_for_in() {
+    test_script("for_in");
+}
+
+#[test]
 fn test_loop() {
     test_script("loop");
 }

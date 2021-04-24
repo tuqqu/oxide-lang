@@ -46,6 +46,7 @@ pub enum Stmt {
     Impl(ImplDecl),
     Trait(TraitDecl),
     LoopStmt(Loop),
+    ForInStmt(ForIn),
 }
 
 #[derive(Debug, Clone)]
@@ -214,7 +215,7 @@ pub struct FnDecl {
 #[derive(Debug, Clone)]
 pub struct FnSignatureDecl {
     pub name: Token,
-    pub params: Vec<(Token, ValType, bool)>,
+    pub params: ParamList,
     pub ret_type: ValType,
 }
 
@@ -226,13 +227,14 @@ pub struct EnumDecl {
     pub vals: Vec<Token>,
 }
 
+type StructItems<T> = Vec<(T, bool)>;
+
 #[derive(Debug, Clone)]
 pub struct StructDecl {
     /// Struct name.
     pub name: Token,
     /// Vector of properties.
-    /// Bool tells if property is public or not
-    pub props: Vec<(VarDecl, bool)>,
+    pub props: StructItems<VarDecl>,
 }
 
 #[derive(Debug, Clone)]
@@ -242,11 +244,11 @@ pub struct ImplDecl {
     /// For name if present.
     pub for_name: Option<Token>,
     /// Instance methods.
-    pub methods: Vec<(FnDecl, bool)>,
+    pub methods: StructItems<FnDecl>,
     /// Static methods.
-    pub fns: Vec<(FnDecl, bool)>,
+    pub fns: StructItems<FnDecl>,
     /// Associated constants.
-    pub consts: Vec<(ConstDecl, bool)>,
+    pub consts: StructItems<ConstDecl>,
 }
 
 #[derive(Debug, Clone)]
@@ -262,6 +264,13 @@ pub struct Loop {
     pub inc: Box<Expr>,
     pub condition: Box<Expr>,
     pub body: Box<Stmt>,
+}
+
+#[derive(Debug, Clone)]
+pub struct ForIn {
+    pub iter_value: Token,
+    pub iter: Box<Expr>,
+    pub body: Vec<Stmt>,
 }
 
 #[derive(Debug, Clone)]
@@ -475,7 +484,7 @@ impl EnumDecl {
 }
 
 impl StructDecl {
-    pub fn new(name: Token, props: Vec<(VarDecl, bool)>) -> Self {
+    pub fn new(name: Token, props: StructItems<VarDecl>) -> Self {
         Self { name, props }
     }
 }
@@ -484,9 +493,9 @@ impl ImplDecl {
     pub fn new(
         impl_name: Token,
         for_name: Option<Token>,
-        methods: Vec<(FnDecl, bool)>,
-        fns: Vec<(FnDecl, bool)>,
-        consts: Vec<(ConstDecl, bool)>,
+        methods: StructItems<FnDecl>,
+        fns: StructItems<FnDecl>,
+        consts: StructItems<ConstDecl>,
     ) -> Self {
         Self {
             impl_name,
@@ -519,6 +528,16 @@ impl Loop {
         Self {
             inc,
             condition,
+            body,
+        }
+    }
+}
+
+impl ForIn {
+    pub fn new(iter_value: Token, iter: Box<Expr>, body: Vec<Stmt>) -> Self {
+        Self {
+            iter_value,
+            iter,
             body,
         }
     }

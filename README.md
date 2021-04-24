@@ -176,16 +176,22 @@ cargo uninstall
 
 ## Variables and Type System
 
-There are eleven types in Oxide: `nil`, `num`, `int`, `float`, `bool`, `str`, `fn`, `vec`, `any` and user-defined types (via [`structs`](#structs) and [`enums`](#enums)). See [type system][type-system]
+There are eleven types in Oxide: `nil`, `num`, `int`, `float`, `bool`, `str`, `fn(T) -> T`, `vec<T>`, `any` and user-defined types (via [`structs`](#structs) and [`enums`](#enums)). See [type system][type-system]
 
 Variables are typed either explicitly:
 
 ```rust
 let x: int;
 let y: str = "hello" + " world";
-let double: fn(int) -> int = fn (x: int) -> int { return x * 2; };
-let human: Person = Person { name: "Jane" };
 let names: vec<str> = vec["Josh", "Carol", "Steven"];
+
+let jane: Person = Person { 
+    name: "Jane"
+};
+
+let double: fn(int) -> int = fn (x: int) -> int {
+    return x * 2; 
+};
 ```
 
 or their type implicitly inferred:
@@ -212,8 +218,7 @@ To be mutable they must be defined with `mut` keyword.
 
 ```rust
 let mut x: str = "hello";
-x += " world";
-x += "another string"; // ok
+x += " world"; // ok
 ```
 
 ### Shadowing
@@ -265,7 +270,7 @@ if x >= 100 {
 
 ### Match
 
-`match` expression returns the first matching arm evaluated value. Unlike other control flow statements, `match` is an expression and therefore must be terminated with semicolon. It can be used in any place an expression is expected.
+`match` expression returns the first matching arm evaluated value. Unlike other control flow statements, `match` is an expression and therefore must be terminated with a semicolon. It can be used in any place an expression is expected.
 
 ```rust
 let direction = match get_direction() {
@@ -329,9 +334,8 @@ while x != 100 {
 
 ```rust
 loop {
-    i -= 1;
-    x[i] *= 2;
-    if x.len() == 0 {
+    x.push(0);
+    if x.len() > 100 {
         break;
     }
 }
@@ -339,14 +343,22 @@ loop {
 
 ### For
 
-`for` loop is a ~~good~~ old C-like `for` statement, which comprises three parts. You should be familiar with it.
+`for ... in` loops are used to iterate over a vector.
+
+```rust
+for name in vec["John", "Johann", "Jane"] {
+    println(name);
+}
+```
+
+There is also a ~~good~~ old C-like `for` loop.
 ```rust
 for let mut i = 0; i < v.len(); i += 1 {
     println(v[i]);
 }
 ```
 
-Like in C the first or the last parts can be omitted `for ; i < v.len(); {}`, or even all three of them `for ;; {}`
+Like in C, the first or the last parts can be omitted, or even all three of them `for ;; {}`.
 
 ## Functions
 
@@ -358,7 +370,7 @@ Function signature must explicitly list all argument types as well as a return t
 
 Functions that do not have a `return` statement implicitly return `nil` and the explicit return type can be omitted (same as declaring it with `-> nil`)
 
-Each function is of `fn(param_types) -> return_type` type.
+Each function is of `fn(T, [T,]) -> T` type.
 
 ```rust
 fn add(x: int, y: int) -> int {  // typeof(add) = "fn(int, int) -> int"
@@ -439,7 +451,11 @@ fn str_concat(prefix: str, suffix: str) -> str {
     return prefix + suffix;
 }
 
-fn str_transform(callable: fn(str, str) -> str, a: str, b: str) -> any {
+fn str_transform(
+    callable: fn(str, str) -> str, 
+    a: str,
+    b: str
+) -> str {
     return callable(a, b);
 }
 
@@ -450,8 +466,8 @@ Immediately Invoked Function Expressions, short IIFE, are also supported for wha
 
 ```rust
 (fn (names: vec<str>) {
-    for let mut i = 0; i <= names.len(); i += 1 {
-        println(names[i]);
+    for name in names {
+        println(name);
     }
 })(vec["Rob", "Sansa", "Arya", "Jon"]);
 ```
@@ -569,11 +585,10 @@ let star_descr: str = system.star.get_description();
 system.planets[0].set_new_mass(200);
 ```
 
-`::` is used to access constants
+`::` is used to access constants and static methods:
 ```rust
-let dwarf_mass: int = Star::WHITE_DWARF;
-
 impl Star {
+    pub const WHITE_DWARF = 123.3;
     const MAX_AGE = 99999; 
     
     // inside methods Self:: can be used instead
@@ -581,9 +596,12 @@ impl Star {
         return Self::MAX_AGE;
     }
 }
+
+let dwarf_mass: int = Star::WHITE_DWARF;
+let max_age: int = Star::get_max_age();
 ```
 
-Immutable variable will still let you change the struct's fields, but it will prevent you from overwriting the variable itself. Similar to Javascript `const` that holds an object.
+Immutable variable behave similarly to Javascript `const` that holds an object, so it will still let you change the object fields.
 
 ```rust
 system.name = "new name";              // valid

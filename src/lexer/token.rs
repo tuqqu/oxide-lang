@@ -99,9 +99,10 @@ pub enum TokenType {
     Map,
     Any,
 
+    Loop,
     While,
     For,
-    Loop,
+    In,
 
     Match,
     If,

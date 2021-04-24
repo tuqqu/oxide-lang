@@ -10,9 +10,9 @@ use crate::interpreter::val::{StructInstance, VecInstance};
 use crate::lexer::token::{Pos, Token, TokenType};
 use crate::parser::expr::{
     Assignment, Binary, Block, BoolLiteral, Call, CallStruct, ConstDecl, EnumDecl, Expr,
-    FloatLiteral, FnDecl, GetProp, GetStaticProp, Grouping, If, ImplDecl, IntLiteral, Lambda, Loop,
-    Match, NilLiteral, Return, SelfStatic, Self_, SetIndex, SetProp, Stmt, StrLiteral, StructDecl,
-    TraitDecl, TypeCast, Unary, VarDecl, Variable, VecIndex, Vec_,
+    FloatLiteral, FnDecl, ForIn, GetProp, GetStaticProp, Grouping, If, ImplDecl, IntLiteral,
+    Lambda, Loop, Match, NilLiteral, Return, SelfStatic, Self_, SetIndex, SetProp, Stmt,
+    StrLiteral, StructDecl, TraitDecl, TypeCast, Unary, VarDecl, Variable, VecIndex, Vec_,
 };
 
 use crate::parser::valtype::{ValType, TYPE_FN, TYPE_INT, TYPE_STRUCT, TYPE_VEC};
@@ -341,6 +341,49 @@ impl Interpreter {
             }
 
             self.evaluate(&stmt.inc)?;
+        }
+
+        Ok(StmtVal::None)
+    }
+
+    fn eval_for_in_stmt(&mut self, stmt: &ForIn) -> Result<StmtVal> {
+        let iter = &self.evaluate(&stmt.iter)?;
+        match iter {
+            Val::VecInstance(v) => {
+                let var = env::Variable::new(
+                    stmt.iter_value.lexeme.clone(),
+                    Val::Uninit,
+                    true,
+                    v.borrow_mut().val_type.clone(),
+                );
+
+                let env = Rc::new(RefCell::new(Env::with_enclosing(self.env.clone())));
+                env.borrow_mut().define_variable(var);
+
+                for val in &v.borrow_mut().vals {
+                    env.borrow_mut().assign(stmt.iter_value.clone(), val)?;
+                    let v = self.evaluate_block(&stmt.body, Some(env.clone()))?;
+
+                    match v {
+                        StmtVal::None => {}
+                        StmtVal::Continue => {
+                            continue;
+                        }
+                        StmtVal::Break => {
+                            return Ok(StmtVal::None);
+                        }
+                        stmt_val @ StmtVal::Return(_) => {
+                            return Ok(stmt_val);
+                        }
+                    }
+                }
+            }
+            v => {
+                return Err(RuntimeError::new(format!(
+                    "Trying to iterate over a value of type \"{}\"",
+                    v.get_type()
+                )))
+            }
         }
 
         Ok(StmtVal::None)
@@ -1106,6 +1149,7 @@ impl Interpreter {
             IfStmt(if_stmt) => self.eval_if_stmt(if_stmt),
             Fn(f_decl) => self.eval_fn_stmt(f_decl),
             LoopStmt(loop_stmt) => self.eval_loop_stmt(loop_stmt),
+            ForInStmt(for_in_stmt) => self.eval_for_in_stmt(for_in_stmt),
             Enum(enum_decl) => self.eval_enum_stmt(enum_decl),
             Struct(struct_decl) => self.eval_struct_stmt(struct_decl),
             Impl(impl_decl) => self.eval_impl_stmt(impl_decl),

@@ -6,9 +6,9 @@ use crate::parser::expr::Expr::{
     GetPropExpr, IntLiteralExpr, SetIndexExpr, SetPropExpr, TypeCastExpr, VecIndexExpr,
 };
 use crate::parser::expr::{
-    CallStruct, EnumDecl, FnSignatureDecl, GetProp, GetStaticProp, ImplDecl, IntLiteral, Lambda,
-    Match, MatchArm, ParamList, SelfStatic, Self_, SetIndex, SetProp, StructDecl, TraitDecl,
-    TypeCast, VecIndex, Vec_,
+    CallStruct, EnumDecl, FnSignatureDecl, ForIn, GetProp, GetStaticProp, ImplDecl, IntLiteral,
+    Lambda, Match, MatchArm, ParamList, SelfStatic, Self_, SetIndex, SetProp, StructDecl,
+    TraitDecl, TypeCast, VecIndex, Vec_,
 };
 use crate::parser::valtype::{FnType, ValType};
 
@@ -750,6 +750,8 @@ impl Parser {
             Box::new(body),
         ));
 
+        self.loop_depth -= 1;
+
         Ok(while_stmt)
     }
 
@@ -788,6 +790,8 @@ impl Parser {
             };
 
             Some(var_decl)
+        } else if self.check(TokenType::Identifier) && self.check_next(TokenType::In) {
+            return self.for_in_stmt();
         } else {
             let expr_stmt = match self.expr_stmt() {
                 Ok(stmt) => stmt,
@@ -847,7 +851,36 @@ impl Parser {
             for_stmt = Stmt::BlockStmt(Block::new(vec![init.unwrap(), for_stmt]));
         }
 
+        self.loop_depth -= 1;
+
         Ok(for_stmt)
+    }
+
+    fn for_in_stmt(&mut self) -> Result<Stmt> {
+        // loop depth already incremented
+        let iter_value =
+            self.consume(TokenType::Identifier, "Expected iteration item value name.")?;
+
+        self.consume(TokenType::In, "\"in\" expected in a \"for ... in\" loop.")?;
+
+        let iter = self.any_expr()?;
+        let block = match self.block_stmt() {
+            Ok(stmt) => stmt,
+            Err(e) => {
+                self.loop_depth -= 1;
+                return Err(e);
+            }
+        };
+        let block = if let BlockStmt(block) = block {
+            block
+        } else {
+            return Err(ParseError::new(self.peek(), "Loop body error"));
+        };
+
+        let for_in_stmt = Stmt::ForInStmt(ForIn::new(iter_value, Box::new(iter), block.stmts));
+        self.loop_depth -= 1;
+
+        Ok(for_in_stmt)
     }
 
     fn break_stmt(&mut self) -> Result<Stmt> {
@@ -952,7 +985,7 @@ impl Parser {
     fn assign_expr(&mut self) -> Result<Expr> {
         let expr = self.logic_or()?;
 
-        if self.match_tokens(vec![
+        if self.match_tokens(&[
             TokenType::Equal,
             TokenType::SlashEqual,
             TokenType::PlusEqual,
@@ -1018,7 +1051,7 @@ impl Parser {
     fn equality_expr(&mut self) -> Result<Expr> {
         let mut expr = self.comparison_expr()?;
 
-        while self.match_tokens(vec![TokenType::BangEqual, TokenType::EqualEqual]) {
+        while self.match_tokens(&[TokenType::BangEqual, TokenType::EqualEqual]) {
             let operator: Token = self.previous().clone();
             let right: Expr = self.comparison_expr()?;
             expr = BinaryExpr(Binary::new(Box::new(expr), Box::new(right), operator));
@@ -1030,7 +1063,7 @@ impl Parser {
     fn comparison_expr(&mut self) -> Result<Expr> {
         let mut expr = self.bitwise_expr()?;
 
-        while self.match_tokens(vec![
+        while self.match_tokens(&[
             TokenType::Greater,
             TokenType::GreaterEqual,
             TokenType::Less,
@@ -1047,7 +1080,7 @@ impl Parser {
     fn bitwise_expr(&mut self) -> Result<Expr> {
         let mut expr = self.sum_expr()?;
 
-        while self.match_tokens(vec![
+        while self.match_tokens(&[
             TokenType::BitwiseAnd,
             TokenType::BitwiseOr,
             TokenType::BitwiseXor,
@@ -1063,7 +1096,7 @@ impl Parser {
     fn sum_expr(&mut self) -> Result<Expr> {
         let mut expr = self.mult_expr()?;
 
-        while self.match_tokens(vec![TokenType::Minus, TokenType::Plus]) {
+        while self.match_tokens(&[TokenType::Minus, TokenType::Plus]) {
             let operator: Token = self.previous().clone();
             let right: Expr = self.mult_expr()?;
             expr = BinaryExpr(Binary::new(Box::new(expr), Box::new(right), operator));
@@ -1075,11 +1108,7 @@ impl Parser {
     fn mult_expr(&mut self) -> Result<Expr> {
         let mut expr = self.as_expr()?;
 
-        while self.match_tokens(vec![
-            TokenType::Asterisk,
-            TokenType::Slash,
-            TokenType::Modulus,
-        ]) {
+        while self.match_tokens(&[TokenType::Asterisk, TokenType::Slash, TokenType::Modulus]) {
             let operator: Token = self.previous().clone();
             let right: Expr = self.as_expr()?;
             expr = BinaryExpr(Binary::new(Box::new(expr), Box::new(right), operator));
@@ -1101,7 +1130,7 @@ impl Parser {
     }
 
     fn unary_expr(&mut self) -> Result<Expr> {
-        if self.match_tokens(vec![TokenType::Bang, TokenType::Minus]) {
+        if self.match_tokens(&[TokenType::Bang, TokenType::Minus]) {
             let operator: Token = self.previous().clone();
             let right: Expr = self.unary_expr()?;
             let unary = UnaryExpr(Unary::new(Box::new(right), operator));
@@ -1352,9 +1381,9 @@ impl Parser {
         None
     }
 
-    fn match_tokens(&mut self, t_types: Vec<TokenType>) -> bool {
+    fn match_tokens(&mut self, t_types: &[TokenType]) -> bool {
         for t_type in t_types {
-            if self.match_token(t_type) {
+            if self.match_token(*t_type) {
                 return true;
             }
         }
