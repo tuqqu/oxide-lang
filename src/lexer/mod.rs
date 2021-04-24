@@ -80,8 +80,12 @@ impl Lexer {
             self.token();
         }
 
-        self.tokens
-            .push(Token::new(TokenType::Eof, "", "", self.pos()));
+        self.tokens.push(Token::new(
+            TokenType::Eof,
+            String::from(""),
+            String::from(""),
+            self.pos(),
+        ));
 
         (&self.tokens, self.err)
     }
@@ -275,8 +279,12 @@ impl Lexer {
     fn add_token_with_literal(&mut self, token_type: TokenType, literal: &str) {
         let text = self.src_substr(self.start, self.current);
         let len = text.len();
-        self.tokens
-            .push(Token::new(token_type, &text, literal, self.pos()));
+        self.tokens.push(Token::new(
+            token_type,
+            text,
+            literal.to_string(),
+            self.pos(),
+        ));
 
         self.pos += len;
     }
@@ -404,12 +412,37 @@ mod tests {
         assert_eq!(
             tokens,
             &vec![
-                Token::new(TokenType::Let, "let", "", (1, 1)),
-                Token::new(TokenType::Identifier, "x", "", (1, 5)),
-                Token::new(TokenType::Equal, "=", "", (1, 7)),
-                Token::new(TokenType::NumberInt, "100", "100", (1, 9)),
-                Token::new(TokenType::Semicolon, ";", "", (1, 12)),
-                Token::new(TokenType::Eof, "", "", (1, 13)),
+                Token::new(
+                    TokenType::Let,
+                    String::from("let"),
+                    String::from(""),
+                    (1, 1)
+                ),
+                Token::new(
+                    TokenType::Identifier,
+                    String::from("x"),
+                    String::from(""),
+                    (1, 5)
+                ),
+                Token::new(
+                    TokenType::Equal,
+                    String::from("="),
+                    String::from(""),
+                    (1, 7)
+                ),
+                Token::new(
+                    TokenType::NumberInt,
+                    String::from("100"),
+                    String::from("100"),
+                    (1, 9)
+                ),
+                Token::new(
+                    TokenType::Semicolon,
+                    String::from(";"),
+                    String::from(""),
+                    (1, 12)
+                ),
+                Token::new(TokenType::Eof, String::from(""), String::from(""), (1, 13)),
             ]
         );
     }
@@ -423,10 +456,25 @@ mod tests {
         assert_eq!(
             tokens,
             &vec![
-                Token::new(TokenType::Const, "const", "", (1, 1)),
-                Token::new(TokenType::Identifier, "X", "", (1, 7)),
-                Token::new(TokenType::Equal, "=", "", (1, 9)),
-                Token::new(TokenType::Eof, "", "", (1, 11)),
+                Token::new(
+                    TokenType::Const,
+                    String::from("const"),
+                    String::from(""),
+                    (1, 1)
+                ),
+                Token::new(
+                    TokenType::Identifier,
+                    String::from("X"),
+                    String::from(""),
+                    (1, 7)
+                ),
+                Token::new(
+                    TokenType::Equal,
+                    String::from("="),
+                    String::from(""),
+                    (1, 9)
+                ),
+                Token::new(TokenType::Eof, String::from(""), String::from(""), (1, 11)),
             ]
         );
 
@@ -434,6 +482,14 @@ mod tests {
 
         let (tokens, err) = lexer.tokenize();
         assert!(err);
-        assert_eq!(tokens, &vec![Token::new(TokenType::Eof, "", "", (1, 1)),]);
+        assert_eq!(
+            tokens,
+            &vec![Token::new(
+                TokenType::Eof,
+                String::from(""),
+                String::from(""),
+                (1, 1)
+            ),]
+        );
     }
 }

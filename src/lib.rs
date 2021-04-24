@@ -78,7 +78,7 @@ fn run(
         process::exit(1);
     }
 
-    let mut parser = Parser::new(tokens.clone()); //wut? clone??
+    let mut parser = Parser::new(tokens.clone());
     let stmts = match parser.parse() {
         Ok(stmts) => stmts,
         Err(_) => {

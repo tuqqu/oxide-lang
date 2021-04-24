@@ -13,7 +13,7 @@ use crate::interpreter::env::{construct_static_name, internal_id, Impl};
 use crate::interpreter::RuntimeError;
 use crate::lexer::token::Token;
 use crate::parser::valtype::{
-    ValType, TYPE_BOOL, TYPE_ENUM, TYPE_FLOAT, TYPE_FN, TYPE_INT, TYPE_NIL, TYPE_STR, TYPE_STRUCT,
+    FnType, ValType, TYPE_BOOL, TYPE_ENUM, TYPE_FLOAT, TYPE_INT, TYPE_NIL, TYPE_STR, TYPE_STRUCT,
     TYPE_UNINIT, TYPE_VEC,
 };
 use std::collections::HashMap;
@@ -48,6 +48,8 @@ pub type Constructor = Arc<dyn Fn(&mut Interpreter, &Vec<(Token, Val)>) -> Resul
 
 pub struct Callable {
     pub arity: usize,
+    pub param_types: Vec<ValType>,
+    pub ret_type: ValType,
     pub call: Box<Func>,
 }
 
@@ -88,10 +90,6 @@ impl Function {
             env,
         }
     }
-
-    pub fn param_size(&self) -> usize {
-        self.lambda.params.len()
-    }
 }
 
 impl fmt::Debug for Callable {
@@ -115,6 +113,8 @@ impl Clone for Callable {
         Self {
             arity: self.arity,
             call: self.call.clone(),
+            param_types: self.param_types.clone(),
+            ret_type: self.ret_type.clone(),
         }
     }
 }
@@ -129,9 +129,11 @@ impl Clone for StructCallable {
 }
 
 impl Callable {
-    pub fn new(arity: usize, call: Func) -> Box<Self> {
+    pub fn new(param_types: Vec<ValType>, ret_type: ValType, call: Func) -> Box<Self> {
         Box::new(Self {
-            arity,
+            arity: param_types.len(),
+            param_types,
+            ret_type,
             call: Box::new(call),
         })
     }
@@ -157,7 +159,7 @@ impl StructInstance {
         for (prop, public) in struct_.props {
             // we can be sure that v_type is always present
             props.insert(
-                prop.name.lexeme,
+                prop.name.lexeme.to_string(),
                 (Val::Uninit, prop.v_type.unwrap(), public),
             );
         }
@@ -181,9 +183,10 @@ impl StructInstance {
         for impl_ in impls {
             let mut borrowed_self = self_.borrow_mut();
             for (fun, pub_) in impl_.methods {
-                borrowed_self
-                    .fns
-                    .insert(fun.name.lexeme, (fun.lambda, self_.clone(), pub_));
+                borrowed_self.fns.insert(
+                    fun.name.lexeme.to_string(),
+                    (fun.lambda, self_.clone(), pub_),
+                );
             }
         }
 
@@ -195,7 +198,7 @@ impl StructInstance {
             if !self.fns.contains_key(&name.lexeme) {
                 Err(RuntimeError::from_token(
                     name.clone(),
-                    &format!("No struct property with name \"{}\"", &name.lexeme),
+                    format!("No struct property with name \"{}\"", name.lexeme),
                 ))
             } else {
                 let func = self.fns.get(&name.lexeme).unwrap();
@@ -204,7 +207,7 @@ impl StructInstance {
                 } else {
                     Err(RuntimeError::from_token(
                         name.clone(),
-                        &format!("Cannot access private method \"{}\"", &name.lexeme),
+                        format!("Cannot access private method \"{}\"", name.lexeme),
                     ))
                 }
             }
@@ -212,15 +215,12 @@ impl StructInstance {
             match self.props.get(&name.lexeme).unwrap() {
                 (Val::Uninit, _, pub_) => {
                     let msg = if Self::can_access(*pub_, public_access) {
-                        format!("Cannot access private property \"{}\"", &name.lexeme)
+                        format!("Cannot access private property \"{}\"", name.lexeme)
                     } else {
-                        format!(
-                            "Property \"{}\" has not yet been initialized.",
-                            &name.lexeme
-                        )
+                        format!("Property \"{}\" has not yet been initialized.", name.lexeme)
                     };
 
-                    Err(RuntimeError::from_token(name.clone(), &msg))
+                    Err(RuntimeError::from_token(name.clone(), msg))
                 }
                 (val, _, pub_) => {
                     if Self::can_access(*pub_, public_access) {
@@ -228,7 +228,7 @@ impl StructInstance {
                     } else {
                         Err(RuntimeError::from_token(
                             name.clone(),
-                            &format!("Cannot access private property \"{}\"", &name.lexeme),
+                            format!("Cannot access private property \"{}\"", name.lexeme),
                         ))
                     }
                 }
@@ -240,7 +240,7 @@ impl StructInstance {
         if !self.props.contains_key(&name.lexeme) {
             Err(RuntimeError::from_token(
                 name.clone(),
-                &format!("No struct property with name \"{}\"", &name.lexeme),
+                format!("No struct property with name \"{}\"", name.lexeme),
             ))
         } else {
             let (_, v_type, public) = self.props.get(&name.lexeme).unwrap();
@@ -248,7 +248,7 @@ impl StructInstance {
             if !*public && public_access {
                 return Err(RuntimeError::from_token(
                     name.clone(),
-                    &format!("Cannot access private property \"{}\"", &name.lexeme),
+                    format!("Cannot access private property \"{}\"", name.lexeme),
                 ));
             }
 
@@ -256,13 +256,13 @@ impl StructInstance {
             let v_type = v_type.clone();
             if v_type.conforms(&val) {
                 self.props
-                    .insert(name.lexeme.clone(), (val, v_type, public));
+                    .insert(name.lexeme.to_string(), (val, v_type, public));
 
                 Ok(())
             } else {
                 Err(RuntimeError::from_token(
                     name.clone(),
-                    &format!(
+                    format!(
                         "Trying to assign to a variable of type \"{}\" value of type \"{}\"",
                         v_type,
                         val.get_type()
@@ -316,9 +316,12 @@ impl VecInstance {
         const PUSH: &str = "push";
         const LEN: &str = "len";
 
+        let val_type = vec.borrow().val_type.clone();
+
         let callable = match name.lexeme.as_str() {
             POP => Val::Callable(*Callable::new(
-                0,
+                vec![],
+                val_type,
                 Arc::new(move |_inter, _args| {
                     let poped = vec.borrow_mut().vals.pop().unwrap_or(Val::Uninit);
 
@@ -326,11 +329,12 @@ impl VecInstance {
                 }),
             )),
             PUSH => Val::Callable(*Callable::new(
-                1,
+                vec![val_type],
+                ValType::Nil,
                 Arc::new(move |_inter, args| {
                     for arg in args {
                         if !vec.borrow_mut().val_type.conforms(arg) {
-                            return Err(RuntimeError::new(&format!(
+                            return Err(RuntimeError::new(format!(
                                 "Cannot push value of type \"{}\" to a vector of type \"{}\"",
                                 ValType::try_from_val(arg).unwrap(),
                                 vec.borrow_mut().val_type
@@ -343,13 +347,14 @@ impl VecInstance {
                 }),
             )),
             LEN => Val::Callable(*Callable::new(
-                0,
+                vec![],
+                ValType::Int,
                 Arc::new(move |_inter, _args| Ok(Val::Int(vec.borrow_mut().len() as isize))),
             )),
             _ => {
                 return Err(RuntimeError::from_token(
                     name.clone(),
-                    &format!("Unknown vec method \"{}\"", name.lexeme),
+                    format!("Unknown vec method \"{}\"", name.lexeme),
                 ))
             }
         };
@@ -361,7 +366,7 @@ impl VecInstance {
 impl Val {
     pub const FLOAT_ERROR_MARGIN: f64 = f64::EPSILON;
 
-    pub fn equal(lhs: &Self, rhs: &Self, operator: Token) -> Result<Self> {
+    pub fn equal(lhs: &Self, rhs: &Self, operator: &Token) -> Result<Self> {
         use Val::*;
         let val = match (lhs, rhs) {
             (Nil, Nil) => true,
@@ -382,8 +387,8 @@ impl Val {
             }
             (lhs, rhs) => {
                 return Err(RuntimeError::from_token(
-                    operator,
-                    &format!(
+                    operator.clone(),
+                    format!(
                         "Both operands must be of the same type. Got \"{}\" and \"{}\"",
                         lhs.get_type(),
                         rhs.get_type(),
@@ -395,7 +400,7 @@ impl Val {
         Ok(Self::Bool(val))
     }
 
-    pub fn not_equal(lhs: &Self, rhs: &Self, operator: Token) -> Result<Self> {
+    pub fn not_equal(lhs: &Self, rhs: &Self, operator: &Token) -> Result<Self> {
         use Val::*;
         let val = match (lhs, rhs) {
             (Nil, Nil) => false,
@@ -416,8 +421,8 @@ impl Val {
             }
             (lhs, rhs) => {
                 return Err(RuntimeError::from_token(
-                    operator,
-                    &format!(
+                    operator.clone(),
+                    format!(
                         "Both operands must be of the same type. Got \"{}\" and \"{}\"",
                         lhs.get_type(),
                         rhs.get_type(),
@@ -429,7 +434,7 @@ impl Val {
         Ok(Self::Bool(val))
     }
 
-    pub fn greater(lhs: &Self, rhs: &Self, operator: Token) -> Result<Self> {
+    pub fn greater(lhs: &Self, rhs: &Self, operator: &Token) -> Result<Self> {
         use Val::*;
         let val = match (lhs, rhs) {
             (Int(lhs), Int(rhs)) => lhs > rhs,
@@ -438,8 +443,8 @@ impl Val {
             (Int(lhs), Float(rhs)) => (*lhs as f64) > *rhs,
             (lhs, rhs) => {
                 return Err(RuntimeError::from_token(
-                    operator,
-                    &format!(
+                    operator.clone(),
+                    format!(
                         "Both operands must be of types \"{}\" or \"{}\". Got \"{}\" and \"{}\"",
                         TYPE_INT,
                         TYPE_FLOAT,
@@ -453,7 +458,7 @@ impl Val {
         Ok(Self::Bool(val))
     }
 
-    pub fn greater_equal(lhs: &Self, rhs: &Self, operator: Token) -> Result<Self> {
+    pub fn greater_equal(lhs: &Self, rhs: &Self, operator: &Token) -> Result<Self> {
         use Val::*;
         let val = match (lhs, rhs) {
             (Int(lhs), Int(rhs)) => lhs >= rhs,
@@ -462,8 +467,8 @@ impl Val {
             (Int(lhs), Float(rhs)) => (*lhs as f64) >= *rhs,
             (lhs, rhs) => {
                 return Err(RuntimeError::from_token(
-                    operator,
-                    &format!(
+                    operator.clone(),
+                    format!(
                         "Both operands must be of types \"{}\" or \"{}\". Got \"{}\" and \"{}\"",
                         TYPE_INT,
                         TYPE_FLOAT,
@@ -477,7 +482,7 @@ impl Val {
         Ok(Self::Bool(val))
     }
 
-    pub fn less(lhs: &Self, rhs: &Self, operator: Token) -> Result<Self> {
+    pub fn less(lhs: &Self, rhs: &Self, operator: &Token) -> Result<Self> {
         use Val::*;
         let val = match (lhs, rhs) {
             (Int(lhs), Int(rhs)) => lhs < rhs,
@@ -486,8 +491,8 @@ impl Val {
             (Int(lhs), Float(rhs)) => (*lhs as f64) < *rhs,
             (lhs, rhs) => {
                 return Err(RuntimeError::from_token(
-                    operator,
-                    &format!(
+                    operator.clone(),
+                    format!(
                         "Both operands must be of types \"{}\" or \"{}\". Got \"{}\" and \"{}\"",
                         TYPE_INT,
                         TYPE_FLOAT,
@@ -501,7 +506,7 @@ impl Val {
         Ok(Self::Bool(val))
     }
 
-    pub fn less_equal(lhs: &Self, rhs: &Self, operator: Token) -> Result<Self> {
+    pub fn less_equal(lhs: &Self, rhs: &Self, operator: &Token) -> Result<Self> {
         use Val::*;
         let val = match (lhs, rhs) {
             (Int(lhs), Int(rhs)) => lhs <= rhs,
@@ -510,8 +515,8 @@ impl Val {
             (Int(lhs), Float(rhs)) => (*lhs as f64) <= *rhs,
             (lhs, rhs) => {
                 return Err(RuntimeError::from_token(
-                    operator,
-                    &format!(
+                    operator.clone(),
+                    format!(
                         "Both operands must be of types \"{}\" or \"{}\". Got \"{}\" and \"{}\"",
                         TYPE_INT,
                         TYPE_FLOAT,
@@ -525,7 +530,7 @@ impl Val {
         Ok(Self::Bool(val))
     }
 
-    pub fn subtract(lhs: &Self, rhs: &Self, operator: Token) -> Result<Self> {
+    pub fn subtract(lhs: &Self, rhs: &Self, operator: &Token) -> Result<Self> {
         use Val::*;
         let val =
             match (lhs, rhs) {
@@ -535,8 +540,8 @@ impl Val {
                 (Int(lhs), Float(rhs)) => Float((*lhs as f64) - *rhs),
                 (lhs, rhs) => {
                     return Err(RuntimeError::from_token(
-                        operator,
-                        &format!(
+                        operator.clone(),
+                        format!(
                         "Both operands must be of types \"{}\" or \"{}\". Got \"{}\" and \"{}\"",
                         TYPE_INT, TYPE_FLOAT,
                         lhs.get_type(), rhs.get_type(),
@@ -548,7 +553,7 @@ impl Val {
         Ok(val)
     }
 
-    pub fn add(lhs: &Self, rhs: &Self, operator: Token) -> Result<Self> {
+    pub fn add(lhs: &Self, rhs: &Self, operator: &Token) -> Result<Self> {
         use Val::*;
         let val = match (lhs, rhs) {
             (Int(lhs), Int(rhs)) => Int(lhs + rhs),
@@ -558,8 +563,8 @@ impl Val {
             (Str(lhs), Str(rhs)) => Str(format!("{}{}", lhs, rhs)),
             (lhs, rhs) => return Err(
                 RuntimeError::from_token(
-                    operator,
-                    &format!(
+                    operator.clone(),
+                    format!(
                         "Both operands must be of types \"{}\", \"{}\", or \"{}\". Got \"{}\" and \"{}\"",
                         TYPE_INT,
                         TYPE_FLOAT,
@@ -574,7 +579,7 @@ impl Val {
         Ok(val)
     }
 
-    pub fn divide(lhs: &Self, rhs: &Self, operator: Token) -> Result<Self> {
+    pub fn divide(lhs: &Self, rhs: &Self, operator: &Token) -> Result<Self> {
         use Val::*;
         let val = match (lhs, rhs) {
             (Int(lhs), Int(rhs)) => Int(lhs / rhs),
@@ -583,8 +588,8 @@ impl Val {
             (Int(lhs), Float(rhs)) => Float((*lhs as f64) / rhs),
             (lhs, rhs) => {
                 return Err(RuntimeError::from_token(
-                    operator,
-                    &format!(
+                    operator.clone(),
+                    format!(
                         "Both operands must be of types \"{}\" or \"{}\". Got \"{}\" and \"{}\"",
                         TYPE_INT,
                         TYPE_FLOAT,
@@ -598,7 +603,7 @@ impl Val {
         Ok(val)
     }
 
-    pub fn modulus(lhs: &Self, rhs: &Self, operator: Token) -> Result<Self> {
+    pub fn modulus(lhs: &Self, rhs: &Self, operator: &Token) -> Result<Self> {
         use Val::*;
         let val = match (lhs, rhs) {
             (Int(lhs), Int(rhs)) => Int(lhs % rhs),
@@ -607,8 +612,8 @@ impl Val {
             (Int(lhs), Float(rhs)) => Float((*lhs as f64) % *rhs),
             (lhs, rhs) => {
                 return Err(RuntimeError::from_token(
-                    operator,
-                    &format!(
+                    operator.clone(),
+                    format!(
                         "Both operands must be of types \"{}\" or \"{}\". Got \"{}\" and \"{}\"",
                         TYPE_INT,
                         TYPE_FLOAT,
@@ -622,7 +627,7 @@ impl Val {
         Ok(val)
     }
 
-    pub fn multiply(lhs: &Self, rhs: &Self, operator: Token) -> Result<Self> {
+    pub fn multiply(lhs: &Self, rhs: &Self, operator: &Token) -> Result<Self> {
         use Val::*;
         let val = match (lhs, rhs) {
             (Int(lhs), Int(rhs)) => Int(lhs * rhs),
@@ -631,8 +636,8 @@ impl Val {
             (Int(lhs), Float(rhs)) => Float((*lhs as f64) * rhs),
             (lhs, rhs) => {
                 return Err(RuntimeError::from_token(
-                    operator,
-                    &format!(
+                    operator.clone(),
+                    format!(
                         "Both operands must be of types \"{}\" or \"{}\". Got \"{}\" and \"{}\"",
                         TYPE_INT,
                         TYPE_FLOAT,
@@ -646,14 +651,14 @@ impl Val {
         Ok(val)
     }
 
-    pub fn bitwise_and(lhs: &Self, rhs: &Self, operator: Token) -> Result<Self> {
+    pub fn bitwise_and(lhs: &Self, rhs: &Self, operator: &Token) -> Result<Self> {
         use Val::*;
         let val = match (lhs, rhs) {
             (Int(lhs), Int(rhs)) => Int(lhs & rhs),
             (lhs, rhs) => {
                 return Err(RuntimeError::from_token(
-                    operator,
-                    &format!(
+                    operator.clone(),
+                    format!(
                         "Both operands must be of type \"{}\". Got \"{}\" and \"{}\"",
                         TYPE_INT,
                         lhs.get_type(),
@@ -666,14 +671,14 @@ impl Val {
         Ok(val)
     }
 
-    pub fn bitwise_or(lhs: &Self, rhs: &Self, operator: Token) -> Result<Self> {
+    pub fn bitwise_or(lhs: &Self, rhs: &Self, operator: &Token) -> Result<Self> {
         use Val::*;
         let val = match (lhs, rhs) {
             (Int(lhs), Int(rhs)) => Int(lhs | rhs),
             (lhs, rhs) => {
                 return Err(RuntimeError::from_token(
-                    operator,
-                    &format!(
+                    operator.clone(),
+                    format!(
                         "Both operands must be of type \"{}\". Got \"{}\" and \"{}\"",
                         TYPE_INT,
                         lhs.get_type(),
@@ -686,14 +691,14 @@ impl Val {
         Ok(val)
     }
 
-    pub fn bitwise_xor(lhs: &Self, rhs: &Self, operator: Token) -> Result<Self> {
+    pub fn bitwise_xor(lhs: &Self, rhs: &Self, operator: &Token) -> Result<Self> {
         use Val::*;
         let val = match (lhs, rhs) {
             (Int(lhs), Int(rhs)) => Int(lhs ^ rhs),
             (lhs, rhs) => {
                 return Err(RuntimeError::from_token(
-                    operator,
-                    &format!(
+                    operator.clone(),
+                    format!(
                         "Both operands must be of type \"{}\". Got \"{}\" and \"{}\"",
                         TYPE_INT,
                         lhs.get_type(),
@@ -706,7 +711,7 @@ impl Val {
         Ok(val)
     }
 
-    pub fn cast_to(&self, to_type: &ValType, operator: Token) -> Result<Self> {
+    pub fn cast_to(&self, to_type: &ValType, operator: &Token) -> Result<Self> {
         use Val::*;
         let val = match (&self, to_type) {
             (Nil, ValType::Int) => Int(0),
@@ -742,18 +747,18 @@ impl Val {
             (_, ValType::Any)
             | (_, ValType::Instance(_))
             | (_, ValType::Vec(_))
-            | (_, ValType::Fn)
+            | (_, ValType::Fn(_))
             | (_, ValType::Num)
             | (_, ValType::Map) => {
                 return Err(RuntimeError::from_token(
-                    operator,
-                    &format!("Value cannot be cast to type \"{}\"", to_type,),
+                    operator.clone(),
+                    format!("Value cannot be cast to type \"{}\"", to_type,),
                 ))
             }
             (val, to_type) => {
                 return Err(RuntimeError::from_token(
-                    operator,
-                    &format!(
+                    operator.clone(),
+                    format!(
                         "Value of type \"{}\" cannot be cast to type \"{}\".",
                         val.get_type(),
                         to_type,
@@ -775,7 +780,7 @@ impl Val {
             Str(_str) => TYPE_STR.to_string(),
             Int(_isize) => TYPE_INT.to_string(),
             Float(_f64) => TYPE_FLOAT.to_string(),
-            Callable(_f) => TYPE_FN.to_string(),
+            Callable(f) => FnType::get_type(&f.param_types, &f.ret_type),
             Struct(_t, _c) => TYPE_STRUCT.to_string(),
             StructInstance(i) => i.borrow().struct_name.clone(),
             Enum(_e) => TYPE_ENUM.to_string(),
@@ -795,7 +800,7 @@ impl fmt::Display for Val {
             Str(s) => write!(f, "{}", s),
             Int(n) => write!(f, "{}", n),
             Float(n) => write!(f, "{}", n),
-            Callable(_f) => write!(f, "{}", TYPE_FN),
+            Callable(c) => write!(f, "[fn] {}", FnType::get_type(&c.param_types, &c.ret_type)),
             Struct(token, _c) => write!(f, "[struct {}]", token.lexeme),
             StructInstance(i) => {
                 let mut props = vec![];

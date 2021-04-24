@@ -1,6 +1,6 @@
 ## Type System
 
-There are ten types `nil`, `num`, `int`, `float`, `bool`, `str`, `func`, `vec`, `any` and structs.
+There are eleven types `nil`, `num`, `int`, `float`, `bool`, `str`, `fn`, `vec`, `any`, structs and enums.
 Type of any value can be checked by a built-in function `typeof(val: any) -> str`.
 
 ```rust
@@ -9,6 +9,11 @@ let i: int;
 
 typeof(v); // vec
 typeof(i); // int
+typeof(
+    fn (x: int) -> int {   // fn(int) -> int
+        return x;
+    }  
+); 
 ```
 
 ### Nil
@@ -17,7 +22,7 @@ Represented by only one value, `nil` itself. Function that does not return a val
 ### Bool
 Comprises `true` and `false` values. Each logic operation, comparison or equality check produces value of type `bool`.
 
-### Num, Float, Int
+### Int, Float, Num
 An `int` is an integer number. A `float` is floating point number.
 `num` is type alias to make function accept both number types.
 Numbers can be compared and used in math operations.
@@ -25,8 +30,30 @@ Numbers can be compared and used in math operations.
 ### Str
 String is series of characters, enclosed in double quotes. Strings can be concatenated using `+` operator.
 
-### Func
-Functions can be declared with a name or created as lambda function. In that case to reuse them you should store them in a variable, immediately invoke them or pass to a function as a callable.  [See more](/README.md#functions)
+### Fn
+Functions can be declared with a name or created as a lambda function. In that case to reuse them you should store them in a variable, immediately invoke them or pass to a function as a callable.  [See more](/README.md#functions)
+
+```rust
+fn inc(x: int) -> int {         // typeof(add) = "fn(int) -> int"
+    return x + 1;
+}
+
+let x: fn(int) -> int = inc;    // explicit type
+let x = inc;                    // inferred as "fn(int) -> int"
+
+let f = fn() {                  // typeof(f) = "fn()"
+    println("hello");           // "-> nil" is omitted
+}
+
+let f: fn() -> fn(int) -> str;  // function type can be nested
+    
+let f = fn (                    // inferred as "fn(int, fn(vec<str) -> str) -> str
+    x: int, 
+    f: fn(x: vec<str>) -> str
+) -> str {      
+    // ...
+}
+```
 
 ### Vec
 Vectors or arrays of values. [See more](/README.md#vectors)

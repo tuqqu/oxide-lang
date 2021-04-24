@@ -89,7 +89,7 @@ v[0] = E::B;
 println(v[0]);
 println(typeof(v));
 
-let v: vec<fn> = vec<fn>[];
+let v: vec<fn()> = vec<fn()>[];
 println(v);
 println(typeof(v));
 
