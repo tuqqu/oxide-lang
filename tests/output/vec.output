@@ -32,6 +32,6 @@ vec<E>
 [enum] E::B
 vec<E>
 [vec] []
-vec<fn>
-[vec] [fn]
-vec<fn>
+vec<fn()>
+[vec] [[fn] fn()]
+vec<fn()>

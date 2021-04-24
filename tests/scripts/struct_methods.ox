@@ -37,7 +37,7 @@ let mut john: Person = Person {
     last_name: "Doe",
     alive: true,
     pet: dog
- };
+};
 
 john.die();
 

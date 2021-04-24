@@ -11,12 +11,12 @@ nil
 nil
 false
 bool
-fn
-fn
-fn
-fn
-fn
-fn
+[fn] fn()
+fn()
+[fn] fn()
+fn()
+[fn] fn()
+fn()
 [vec] []
 vec<any>
 [vec] [1, true, nil]
@@ -28,19 +28,21 @@ vec<int>
 [vec] [s, t, r]
 vec<str>
 [struct] S {  }
-struct
+S
 [vec] [[struct] S {  }, [struct] S {  }, [struct] S {  }]
 vec<S>
 [vec] [[struct] S {  }, [struct] S {  }, [struct] S {  }]
 vec<S>
 [enum] E::A
-enum E::A
+E
 [enum] E::B
 [vec] [[enum] E::B, [enum] E::B, [enum] E::B]
 vec<E>
 [vec] [[enum] E::A, [enum] E::B, [enum] E::B]
 vec<E>
-[vec] [fn, fn, fn, fn]
-vec<fn>
-[vec] [fn, fn, fn, fn]
-vec<fn>
+[vec] [[fn] fn(), [fn] fn(), [fn] fn(), [fn] fn()]
+vec<fn()>
+[vec] [[fn] fn(), [fn] fn(), [fn] fn(), [fn] fn()]
+vec<fn()>
+[fn] fn(fn(fn(), fn(int))) -> int
+fn(fn(fn(), fn(int))) -> int

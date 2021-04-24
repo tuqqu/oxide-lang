@@ -66,11 +66,11 @@ println(typeof(v));
 let v = vec<E>[E::A, e, e];
 println(typeof(v));
 
-let f: fn = fn () {};
+let f: fn() = fn () {};
 let v = vec[fn () {}, fn () {}, f, f];
 println(typeof(v));
 
-let v = vec<fn>[fn () {}, fn () {}, f, f];
+let v = vec<fn()>[fn () {}, fn () {}, f, f];
 println(typeof(v));
 
 let v;

@@ -48,6 +48,11 @@ fn test_type_inference() {
 }
 
 #[test]
+fn test_type_casting() {
+    test_script("type_casting");
+}
+
+#[test]
 fn test_while() {
     test_script("while");
 }
@@ -60,11 +65,6 @@ fn test_for() {
 #[test]
 fn test_loop() {
     test_script("loop");
-}
-
-#[test]
-fn test_logic_expr() {
-    test_script("logic_expr");
 }
 
 #[test]
@@ -140,4 +140,9 @@ fn test_enum_values() {
 #[test]
 fn test_enum_impl() {
     test_script("enum_impl");
+}
+
+#[test]
+fn test_traits() {
+    test_script("traits");
 }

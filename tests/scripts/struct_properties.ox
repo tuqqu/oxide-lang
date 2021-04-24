@@ -23,7 +23,7 @@ let cloned = clone_person(john);
 println(cloned.age);
 println(cloned.name);
 
-let make_older: fn = fn (person: Person) -> Person {
+let make_older: fn(Person) -> Person = fn (person: Person) -> Person {
     let mut person = person;
     person.age += 40;
 

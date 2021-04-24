@@ -12,12 +12,10 @@ use crate::parser::expr::{
     Assignment, Binary, Block, BoolLiteral, Call, CallStruct, ConstDecl, EnumDecl, Expr,
     FloatLiteral, FnDecl, GetProp, GetStaticProp, Grouping, If, ImplDecl, IntLiteral, Lambda, Loop,
     Match, NilLiteral, Return, SelfStatic, Self_, SetIndex, SetProp, Stmt, StrLiteral, StructDecl,
-    Unary, VarDecl, Variable, VecIndex, Vec_,
+    TraitDecl, TypeCast, Unary, VarDecl, Variable, VecIndex, Vec_,
 };
 
-use crate::parser::valtype::{
-    ValType, TYPE_BOOL, TYPE_FN, TYPE_INT, TYPE_NUM, TYPE_STR, TYPE_STRUCT, TYPE_VEC,
-};
+use crate::parser::valtype::{ValType, TYPE_FN, TYPE_INT, TYPE_STRUCT, TYPE_VEC};
 
 use self::env::{Env, EnvVal};
 use self::val::{Callable, Function, StmtVal, Val};
@@ -66,12 +64,8 @@ impl Interpreter {
     }
 
     fn eval_enum_stmt(&mut self, stmt: &EnumDecl) -> Result<StmtVal> {
-        if self.env.borrow().has_definition(&stmt.name.lexeme) {
-            return Err(RuntimeError::from_token(
-                stmt.name.clone(),
-                format!("Name '{}' is already in use", stmt.name.lexeme),
-            ));
-        }
+        self.check_name(&stmt.name)?;
+
         for (val, name) in stmt.vals.iter().enumerate() {
             let val_name_t = name.clone();
             let name_t = stmt.name.clone();
@@ -93,12 +87,8 @@ impl Interpreter {
     }
 
     fn eval_struct_stmt(&mut self, stmt: &StructDecl) -> Result<StmtVal> {
-        if self.env.borrow().has_definition(&stmt.name.lexeme) {
-            return Err(RuntimeError::from_token(
-                stmt.name.clone(),
-                format!("Name '{}' is already in use", stmt.name.lexeme),
-            ));
-        }
+        self.check_name(&stmt.name)?;
+
         let decl = stmt.clone();
         let struct_ = env::Struct::new(
             stmt.name.lexeme.clone(),
@@ -107,8 +97,14 @@ impl Interpreter {
                 *StructCallable::new(
                     decl.props.len(),
                     Arc::new(move |inter, args| {
-                        let impl_ = inter.env.borrow_mut().get_impl(&decl.name);
-                        let instance = StructInstance::new(decl.clone(), impl_);
+                        let impls = inter.env.borrow_mut().get_impls(&decl.name);
+                        let impls = if let Some(impls) = impls {
+                            impls
+                        } else {
+                            vec![]
+                        };
+
+                        let instance = StructInstance::new(decl.clone(), impls);
 
                         for (prop, param) in args {
                             let mut instance_borrowed = instance.borrow_mut();
@@ -156,6 +152,54 @@ impl Interpreter {
     fn eval_impl_stmt(&mut self, stmt: &ImplDecl) -> Result<StmtVal> {
         let decl = stmt.clone();
 
+        let (impl_name, trait_name) = if let Some(for_name) = decl.for_name {
+            let trait_ = self.env.borrow_mut().get(&decl.impl_name)?;
+            let trait_ = trait_.borrow_mut().deref().clone();
+
+            match trait_ {
+                EnvVal::Trait(t) => {
+                    for signature in &t.methods {
+                        // FIXME: improve traversing
+                        let mut found = false;
+                        for (method, _pub) in &decl.methods {
+                            if method.name == signature.name {
+                                if method.lambda.ret_type != signature.ret_type
+                                    || method.lambda.params != signature.params
+                                {
+                                    return Err(RuntimeError::from_token(
+                                        method.name.clone(),
+                                        format!(
+                                            "Mismatched signature of method \"{}\"",
+                                            method.name.lexeme
+                                        ),
+                                    ));
+                                }
+
+                                found = true;
+                            }
+                        }
+
+                        if !found {
+                            return Err(RuntimeError::from_token(
+                                signature.name.clone(),
+                                format!("Method \"{}\" must be implemented", signature.name.lexeme),
+                            ));
+                        }
+                    }
+                }
+                _ => {
+                    return Err(RuntimeError::from_token(
+                        for_name,
+                        String::from("Expected trait name"),
+                    ))
+                }
+            }
+
+            (for_name.lexeme, Some(decl.impl_name.lexeme.clone()))
+        } else {
+            (decl.impl_name.lexeme.clone(), None)
+        };
+
         for (const_, pub_) in &decl.consts {
             let val: Val = self.evaluate(&const_.init)?;
 
@@ -164,7 +208,7 @@ impl Interpreter {
                 .define_constant(env::Constant::with_struct(
                     const_.name.clone(),
                     val,
-                    (stmt.for_struct.clone(), *pub_),
+                    (stmt.impl_name.clone(), *pub_),
                 ))?;
         }
 
@@ -172,7 +216,7 @@ impl Interpreter {
             let val = self.eval_fn_expr(
                 &fn_.lambda.clone(),
                 None,
-                Some(stmt.for_struct.lexeme.clone()),
+                Some(stmt.impl_name.lexeme.clone()),
             );
 
             self.env
@@ -180,16 +224,28 @@ impl Interpreter {
                 .define_function(env::Function::with_struct(
                     fn_.name.clone(),
                     val,
-                    (stmt.for_struct.clone(), *pub_),
+                    (stmt.impl_name.clone(), *pub_),
                 ))?;
         }
 
         self.env.borrow_mut().define_impl(env::Impl::new(
-            decl.for_struct.lexeme.clone(),
+            impl_name,
+            trait_name,
             decl.methods,
             decl.fns,
             decl.consts,
         ))?;
+
+        Ok(StmtVal::None)
+    }
+
+    fn eval_trait_stmt(&mut self, stmt: &TraitDecl) -> Result<StmtVal> {
+        self.check_name(&stmt.name)?;
+
+        self.env.borrow_mut().define_trait(env::Trait::new(
+            stmt.name.lexeme.clone(),
+            stmt.method_signs.clone(),
+        ));
 
         Ok(StmtVal::None)
     }
@@ -257,8 +313,7 @@ impl Interpreter {
     }
 
     fn eval_if_stmt(&mut self, stmt: &If) -> Result<StmtVal> {
-        let truth: bool = Self::is_true(&self.evaluate(&stmt.condition)?)?;
-        if truth {
+        if Self::is_true(&self.evaluate(&stmt.condition)?)? {
             self.evaluate_stmt(&stmt.then_stmt)
         } else if let Some(else_stmt) = &stmt.else_stmt {
             self.evaluate_stmt(else_stmt)
@@ -280,7 +335,9 @@ impl Interpreter {
                 StmtVal::Break => {
                     return Ok(StmtVal::None);
                 }
-                _ => {}
+                stmt_val @ StmtVal::Return(_) => {
+                    return Ok(stmt_val);
+                }
             }
 
             self.evaluate(&stmt.inc)?;
@@ -294,25 +351,25 @@ impl Interpreter {
 
         for arm in &expr.arms {
             let br_cond: Val = self.evaluate(&arm.expr)?;
-            if Val::equal(&cond, &br_cond) {
+            if let Val::Bool(true) = Val::equal(&cond, &br_cond, &expr.keyword)? {
                 return self.evaluate(&arm.body);
             }
         }
 
         Err(RuntimeError::from_token(
             expr.keyword.clone(),
-            "Match expression must be exhaustive".to_string(),
+            str::to_string("Match expression must be exhaustive"),
         ))
     }
 
     fn eval_var_expr(&mut self, expr: &Variable) -> Result<Val> {
-        let env_val = self.env.borrow_mut().get(expr.name.clone())?;
+        let env_val = self.env.borrow_mut().get(&expr.name)?;
         let env_val = env_val.borrow_mut();
 
         use EnvVal::*;
 
         match env_val.deref() {
-            NoValue => Err(RuntimeError::from_token(
+            NoValue | Trait(_) => Err(RuntimeError::from_token(
                 expr.name.clone(),
                 format!(
                     "Trying to access uninitialized variable \"{}\"",
@@ -336,12 +393,15 @@ impl Interpreter {
             | TokenType::MinusEqual
             | TokenType::AsteriskEqual
             | TokenType::SlashEqual
-            | TokenType::ModulusEqual => {
-                let env_val = self.env.borrow_mut().get(expr.name.clone())?;
+            | TokenType::ModulusEqual
+            | TokenType::BitwiseAndEqual
+            | TokenType::BitwiseOrEqual
+            | TokenType::BitwiseXorEqual => {
+                let env_val = self.env.borrow_mut().get(&expr.name)?;
                 let env_val = env_val.borrow_mut();
                 match env_val.deref() {
                     EnvVal::Variable(v) => {
-                        Self::evaluate_two_operands(expr.operator.clone(), v.val.clone(), val)?
+                        Self::evaluate_two_operands(&expr.operator, &v.val, &val)?
                     }
                     _ => {
                         return Err(RuntimeError::from_token(
@@ -357,7 +417,7 @@ impl Interpreter {
             _ => {
                 return Err(RuntimeError::from_token(
                     expr.operator.clone(),
-                    "Unrecognised token in an assignment expression".to_string(),
+                    str::to_string("Unrecognised token in an assignment expression"),
                 ))
             }
         };
@@ -391,8 +451,18 @@ impl Interpreter {
             Rc::new(RefCell::new(Env::with_enclosing(copy))),
         );
 
+        let ret_type = func.lambda.ret_type.clone();
+        let param_types = func
+            .lambda
+            .params
+            .clone()
+            .into_iter()
+            .map(|(_, vt, _)| vt)
+            .collect();
+
         Val::Callable(*Callable::new(
-            func.param_size(),
+            param_types,
+            ret_type,
             Arc::new(move |inter, args| {
                 let copy = Rc::clone(&func.env);
                 let glob = Rc::new(RefCell::new(Env::with_enclosing(copy)));
@@ -400,13 +470,13 @@ impl Interpreter {
 
                 if self_.is_some() {
                     let cur_instance = self_.clone().unwrap();
-                    env.define_static_bind(cur_instance.borrow().struct_name.clone())?;
-                    env.define_self(cur_instance)?;
+                    env.define_static_bind(cur_instance.borrow().struct_name.clone());
+                    env.define_self(cur_instance);
                 }
 
                 if self_static.is_some() {
                     let static_bind = self_static.clone().unwrap();
-                    env.define_static_bind(static_bind)?;
+                    env.define_static_bind(static_bind);
                 }
 
                 for (i, param) in func.lambda.params.iter().enumerate() {
@@ -434,13 +504,13 @@ impl Interpreter {
                     env.define_variable(var);
                 }
 
-                let newenv = Rc::new(RefCell::new(env));
-                let stmt_val = inter.evaluate_block(&func.lambda.body, Some(newenv))?;
+                let new_env = Rc::new(RefCell::new(env));
+                let stmt_val = inter.evaluate_block(&func.lambda.body, Some(new_env))?;
 
                 let val = match stmt_val {
                     StmtVal::None => Val::Nil,
                     StmtVal::Return(val) => val,
-                    _ => return Err(RuntimeError::new("Unknown statement value".to_string())),
+                    _ => return Err(RuntimeError::new(str::to_string("Unknown statement value"))),
                 };
 
                 if func.lambda.ret_type.conforms(&val) {
@@ -544,7 +614,8 @@ impl Interpreter {
 
         match self_static {
             Some(s) => {
-                let struct_ = self.env.borrow_mut().get_by_str(&s, expr.self_static.pos)?;
+                let self_token = Token::from_token(&expr.self_static, s);
+                let struct_ = self.env.borrow_mut().get(&self_token)?;
                 let struct_ = struct_.borrow_mut().deref().clone();
 
                 match struct_ {
@@ -552,13 +623,13 @@ impl Interpreter {
                     EnvVal::Enum(e) => Ok(e.val),
                     _ => Err(RuntimeError::from_token(
                         expr.self_static.clone(),
-                        "Wrong static bind target".to_string(),
+                        str::to_string("Wrong static bind target"),
                     )),
                 }
             }
             None => Err(RuntimeError::from_token(
                 expr.self_static.clone(),
-                "Value \"Self\" can be used in methods only".to_string(),
+                str::to_string("Value \"Self\" can be used in methods only"),
             )),
         }
     }
@@ -570,7 +641,7 @@ impl Interpreter {
             None => {
                 return Err(RuntimeError::from_token(
                     expr.self_.clone(),
-                    "Value \"self\" can be used in methods only".to_string(),
+                    str::to_string("Value \"self\" can be used in non-static methods only"),
                 ))
             }
         };
@@ -682,7 +753,10 @@ impl Interpreter {
             Val::Struct(token, _) | Val::Enum(token) => {
                 let static_name = construct_static_name(&token.lexeme, &expr.prop_name.lexeme);
                 let public_access = self.is_public_static_access(token.lexeme.clone());
-                let static_val = self.env.borrow_mut().get_by_str(&static_name, token.pos)?;
+                let static_val = self
+                    .env
+                    .borrow_mut()
+                    .get(&Token::from_token(&token, static_name.clone()))?;
                 let env_val = static_val.borrow_mut();
                 match env_val.deref() {
                     // FIXME: can it lead to a bug? this branch should be possible only in Enum case
@@ -723,7 +797,7 @@ impl Interpreter {
                     }
                     _ => Err(RuntimeError::from_token(
                         token,
-                        "Unknown static access value".to_string(),
+                        String::from("Unknown static access value"),
                     )),
                 }
             }
@@ -762,7 +836,9 @@ impl Interpreter {
         let instance = if let Val::StructInstance(i) = instance {
             i
         } else {
-            return Err(RuntimeError::new("Must be a struct instance".to_string()));
+            return Err(RuntimeError::new(str::to_string(
+                "Must be a struct instance",
+            )));
         };
 
         let val = self.evaluate(&expr.expr)?;
@@ -772,7 +848,10 @@ impl Interpreter {
             | TokenType::MinusEqual
             | TokenType::AsteriskEqual
             | TokenType::SlashEqual
-            | TokenType::ModulusEqual => {
+            | TokenType::ModulusEqual
+            | TokenType::BitwiseAndEqual
+            | TokenType::BitwiseOrEqual
+            | TokenType::BitwiseXorEqual => {
                 let struct_name = instance.borrow().struct_name.clone();
                 let public_access = self.is_public_access(struct_name);
 
@@ -784,17 +863,17 @@ impl Interpreter {
                     _ => {
                         return Err(RuntimeError::from_token(
                             expr.operator.clone(),
-                            "Must be a property".to_string(),
+                            str::to_string("Must be a property"),
                         ))
                     }
                 };
 
-                Self::evaluate_two_operands(expr.operator.clone(), val, r_val)?
+                Self::evaluate_two_operands(&expr.operator, &val, &r_val)?
             }
             _ => {
                 return Err(RuntimeError::from_token(
                     expr.operator.clone(),
-                    "Unrecognised token in an assignment expression".to_string(),
+                    str::to_string("Unrecognised token in an assignment expression"),
                 ))
             }
         };
@@ -813,7 +892,7 @@ impl Interpreter {
         let vec = if let Val::VecInstance(v) = vec {
             v
         } else if let Val::Uninit = vec {
-            return Err(RuntimeError::new("Out of bounds".to_string()));
+            return Err(RuntimeError::new(str::to_string("Out of bounds")));
         } else {
             return Err(RuntimeError::new(format!(
                 "Must be a vec instance, got \"{}\"",
@@ -856,14 +935,17 @@ impl Interpreter {
             | TokenType::MinusEqual
             | TokenType::AsteriskEqual
             | TokenType::SlashEqual
-            | TokenType::ModulusEqual => {
+            | TokenType::ModulusEqual
+            | TokenType::BitwiseAndEqual
+            | TokenType::BitwiseOrEqual
+            | TokenType::BitwiseXorEqual => {
                 let l_val = vec.get(index)?;
-                Self::evaluate_two_operands(expr.operator.clone(), l_val, val)?
+                Self::evaluate_two_operands(&expr.operator, &l_val, &val)?
             }
             _ => {
                 return Err(RuntimeError::from_token(
                     expr.operator.clone(),
-                    "Unrecognised token in an assignment expression".to_string(),
+                    str::to_string("Unrecognised token in an assignment expression"),
                 ))
             }
         };
@@ -907,224 +989,51 @@ impl Interpreter {
         }
     }
 
+    fn eval_type_cast_expr(&mut self, expr: &TypeCast) -> Result<Val> {
+        let left = self.evaluate(&expr.left)?;
+        let cast = left.cast_to(&expr.to_type, &expr.operator)?;
+
+        Ok(cast)
+    }
+
     fn eval_binary_expr(&mut self, expr: &Binary) -> Result<Val> {
         let left = self.evaluate(&expr.left)?;
         let right = self.evaluate(&expr.right)?;
 
-        let val = Self::evaluate_two_operands(expr.operator.clone(), left, right)?;
+        let val = Self::evaluate_two_operands(&expr.operator, &left, &right)?;
 
         Ok(val)
     }
 
-    fn evaluate_two_operands(operator: Token, left: Val, right: Val) -> Result<Val> {
-        let val = match operator.token_type {
+    fn evaluate_two_operands(operator: &Token, lhs: &Val, rhs: &Val) -> Result<Val> {
+        match operator.token_type {
             //equality
-            TokenType::BangEqual => match (left, right) {
-                (Val::Float(left), Val::Float(right)) => {
-                    Val::Bool((left - right).abs() > Val::FLOAT_ERROR_MARGIN)
-                }
-                (Val::Int(left), Val::Int(right)) => Val::Bool(left != right),
-                (Val::Int(left), Val::Float(right)) => {
-                    Val::Bool(((left as f64) - right).abs() > Val::FLOAT_ERROR_MARGIN)
-                }
-                (Val::Float(left), Val::Int(right)) => {
-                    Val::Bool((left - (right as f64)).abs() > Val::FLOAT_ERROR_MARGIN)
-                }
-
-                (Val::Str(left), Val::Str(right)) => Val::Bool(left != right),
-                (Val::Bool(left), Val::Bool(right)) => Val::Bool(left != right),
-                (Val::Nil, Val::Nil) => Val::Bool(true),
-                (Val::EnumValue(e1, _, v1), Val::EnumValue(e2, _, v2)) if e1 == e2 => {
-                    Val::Bool(v1 != v2)
-                }
-                (l, r) => {
-                    return Err(equal_types_expected_error(
-                        operator,
-                        &r.get_type(),
-                        &l.get_type(),
-                    ))
-                }
-            },
-            TokenType::EqualEqual => match (left, right) {
-                (Val::Float(left), Val::Float(right)) => {
-                    Val::Bool((left - right).abs() < Val::FLOAT_ERROR_MARGIN)
-                }
-                (Val::Int(left), Val::Int(right)) => Val::Bool(left == right),
-                (Val::Float(left), Val::Int(right)) => {
-                    Val::Bool((left - (right as f64)).abs() < Val::FLOAT_ERROR_MARGIN)
-                }
-                (Val::Int(left), Val::Float(right)) => {
-                    Val::Bool(((left as f64) - right).abs() < Val::FLOAT_ERROR_MARGIN)
-                }
-                (Val::Str(left), Val::Str(right)) => Val::Bool(left == right),
-                (Val::Bool(left), Val::Bool(right)) => Val::Bool(left == right),
-                (Val::Nil, Val::Nil) => Val::Bool(true),
-                (Val::EnumValue(e1, _, v1), Val::EnumValue(e2, _, v2)) if e1 == e2 => {
-                    Val::Bool(v1 == v2)
-                }
-                (l, r) => {
-                    return Err(equal_types_expected_error(
-                        operator,
-                        &r.get_type(),
-                        &l.get_type(),
-                    ))
-                }
-            },
+            TokenType::EqualEqual => Val::equal(lhs, rhs, operator),
+            TokenType::BangEqual => Val::not_equal(lhs, rhs, operator),
             // comparison
-            TokenType::Greater => match (left, right) {
-                (Val::Float(left), Val::Float(right)) => Val::Bool(left > right),
-                (Val::Int(left), Val::Int(right)) => Val::Bool(left > right),
-                (Val::Float(left), Val::Int(right)) => Val::Bool(left > (right as f64)),
-                (Val::Int(left), Val::Float(right)) => Val::Bool((left as f64) > right),
-                (l, r) => {
-                    return Err(incompatible_types_error(
-                        operator,
-                        TYPE_BOOL,
-                        &r.get_type(),
-                        &l.get_type(),
-                    ))
-                }
-            },
-            TokenType::GreaterEqual => match (left, right) {
-                (Val::Float(left), Val::Float(right)) => Val::Bool(left >= right),
-                (Val::Int(left), Val::Int(right)) => Val::Bool(left >= right),
-                (Val::Float(left), Val::Int(right)) => Val::Bool(left >= right as f64),
-                (Val::Int(left), Val::Float(right)) => Val::Bool((left as f64) >= right),
-                (l, r) => {
-                    return Err(incompatible_types_error(
-                        operator,
-                        TYPE_BOOL,
-                        &r.get_type(),
-                        &l.get_type(),
-                    ))
-                }
-            },
-            TokenType::Less => match (left, right) {
-                (Val::Float(left), Val::Float(right)) => Val::Bool(left < right),
-                (Val::Int(left), Val::Int(right)) => Val::Bool(left < right),
-                (Val::Float(left), Val::Int(right)) => Val::Bool(left < right as f64),
-                (Val::Int(left), Val::Float(right)) => Val::Bool((left as f64) < right),
-                (l, r) => {
-                    return Err(incompatible_types_error(
-                        operator,
-                        TYPE_BOOL,
-                        &r.get_type(),
-                        &l.get_type(),
-                    ))
-                }
-            },
-            TokenType::LessEqual => match (left, right) {
-                (Val::Float(left), Val::Float(right)) => Val::Bool(left <= right),
-                (Val::Int(left), Val::Int(right)) => Val::Bool(left <= right),
-                (Val::Float(left), Val::Int(right)) => Val::Bool(left <= right as f64),
-                (Val::Int(left), Val::Float(right)) => Val::Bool((left as f64) <= right),
-                (l, r) => {
-                    return Err(incompatible_types_error(
-                        operator,
-                        TYPE_BOOL,
-                        &r.get_type(),
-                        &l.get_type(),
-                    ))
-                }
-            },
+            TokenType::Greater => Val::greater(lhs, rhs, operator),
+            TokenType::GreaterEqual => Val::greater_equal(lhs, rhs, operator),
+            TokenType::Less => Val::less(lhs, rhs, operator),
+            TokenType::LessEqual => Val::less_equal(lhs, rhs, operator),
             // math
-            TokenType::Minus | TokenType::MinusEqual => match (left, right) {
-                (Val::Float(left), Val::Float(right)) => Val::Float(left - right),
-                (Val::Int(left), Val::Int(right)) => Val::Int(left - right),
-                (Val::Float(left), Val::Int(right)) => Val::Float(left - right as f64),
-                (Val::Int(left), Val::Float(right)) => Val::Float((left as f64) - right),
-                (l, r) => {
-                    return Err(incompatible_types_error(
-                        operator,
-                        TYPE_NUM,
-                        &r.get_type(),
-                        &l.get_type(),
-                    ))
-                }
-            },
-            TokenType::Plus | TokenType::PlusEqual => match (left, right) {
-                (Val::Float(left), Val::Float(right)) => Val::Float(left + right),
-                (Val::Int(left), Val::Int(right)) => Val::Int(left + right),
-                (Val::Float(left), Val::Int(right)) => Val::Float(left + right as f64),
-                (Val::Int(left), Val::Float(right)) => Val::Float((left as f64) + right),
-
-                (Val::Str(left), Val::Str(right)) => Val::Str(format!("{}{}", left, right)),
-                (Val::Str(left), Val::Float(right)) => Val::Str(format!("{}{}", left, right)),
-                (Val::Str(left), Val::Int(right)) => Val::Str(format!("{}{}", left, right)),
-                (Val::Float(left), Val::Str(right)) => Val::Str(format!("{}{}", left, right)),
-                (Val::Int(left), Val::Str(right)) => Val::Str(format!("{}{}", left, right)),
-                (Val::Str(left), Val::Bool(right)) => Val::Str(format!("{}{}", left, right)),
-                (Val::Bool(left), Val::Str(right)) => Val::Str(format!("{}{}", left, right)),
-                (l, r) => {
-                    return Err(incompatible_types_error(
-                        operator,
-                        &format!("{}, {}", TYPE_NUM, TYPE_STR),
-                        &r.get_type(),
-                        &l.get_type(),
-                    ))
-                }
-            },
-            TokenType::Slash | TokenType::SlashEqual => match (left, right) {
-                (Val::Float(left), Val::Float(right)) => Val::Float(left / right),
-                (Val::Int(left), Val::Int(right)) => Val::Int(left / right),
-                (Val::Float(left), Val::Int(right)) => Val::Float(left / right as f64),
-                (Val::Int(left), Val::Float(right)) => Val::Float((left as f64) / right),
-                (l, r) => {
-                    return Err(incompatible_types_error(
-                        operator,
-                        TYPE_NUM,
-                        &r.get_type(),
-                        &l.get_type(),
-                    ))
-                }
-            },
-            TokenType::Modulus | TokenType::ModulusEqual => match (left, right) {
-                (Val::Float(left), Val::Float(right)) => Val::Float(left % right),
-                (Val::Int(left), Val::Int(right)) => Val::Int(left % right),
-                (Val::Float(left), Val::Int(right)) => Val::Float(left % right as f64),
-                (Val::Int(left), Val::Float(right)) => Val::Float((left as f64) % right),
-                (l, r) => {
-                    return Err(incompatible_types_error(
-                        operator,
-                        TYPE_NUM,
-                        &r.get_type(),
-                        &l.get_type(),
-                    ))
-                }
-            },
-            TokenType::Asterisk | TokenType::AsteriskEqual => match (left, right) {
-                (Val::Float(left), Val::Float(right)) => Val::Float(left * right),
-                (Val::Int(left), Val::Int(right)) => Val::Int(left * right),
-                (Val::Float(left), Val::Int(right)) => Val::Float(left * right as f64),
-                (Val::Int(left), Val::Float(right)) => Val::Float((left as f64) * right),
-                (l, r) => {
-                    return Err(incompatible_types_error(
-                        operator,
-                        TYPE_NUM,
-                        &r.get_type(),
-                        &l.get_type(),
-                    ))
-                }
-            },
-            // FIXME: add bitwise operations
+            TokenType::Minus | TokenType::MinusEqual => Val::subtract(lhs, rhs, operator),
+            TokenType::Plus | TokenType::PlusEqual => Val::add(lhs, rhs, operator),
+            TokenType::Slash | TokenType::SlashEqual => Val::divide(lhs, rhs, operator),
+            TokenType::Modulus | TokenType::ModulusEqual => Val::modulus(lhs, rhs, operator),
+            TokenType::Asterisk | TokenType::AsteriskEqual => Val::multiply(lhs, rhs, operator),
             // bitwise
-            // TokenType::BitwiseAnd => match (left, right) {
-            //     (Val::Number(left), Val::Number(right)) => Val::Number(left & right),
-            //     (l, r) => return Err(incompatible_types_error(operator.clone(), ValType::TYPE_NUM, &r.get_type(), &l.get_type())),
-            // },
-            // TokenType::BitwiseOr => match (left, right) {
-            //     (Val::Number(left), Val::Number(right)) => Val::Number(left | right),
-            //     (l, r) => return Err(incompatible_types_error(operator.clone(), ValType::TYPE_NUM, &r.get_type(), &l.get_type())),
-            // },
-            _ => {
-                return Err(RuntimeError::from_token(
-                    operator.clone(),
-                    format!("Unknown binary operator \"{}\"", operator.lexeme),
-                ))
+            TokenType::BitwiseAnd | TokenType::BitwiseAndEqual => {
+                Val::bitwise_and(lhs, rhs, operator)
             }
-        };
-
-        Ok(val)
+            TokenType::BitwiseOr | TokenType::BitwiseOrEqual => Val::bitwise_or(lhs, rhs, operator),
+            TokenType::BitwiseXor | TokenType::BitwiseXorEqual => {
+                Val::bitwise_xor(lhs, rhs, operator)
+            }
+            _ => Err(RuntimeError::from_token(
+                operator.clone(),
+                format!("Unknown binary operator \"{}\"", operator.lexeme),
+            )),
+        }
     }
 
     fn eval_grouping_expr(&mut self, expr: &Grouping) -> Result<Val> {
@@ -1173,6 +1082,7 @@ impl Interpreter {
             SetIndexExpr(set_index) => self.eval_set_index_expr(&set_index)?,
             BinaryExpr(binary) => self.eval_binary_expr(&binary)?,
             LogicalBinaryExpr(l_binary) => self.eval_logical_binary_expr(&l_binary)?,
+            TypeCastExpr(type_cast) => self.eval_type_cast_expr(&type_cast)?,
             GroupingExpr(grouping) => self.eval_grouping_expr(&grouping)?,
             VariableExpr(variable) => self.eval_var_expr(&variable)?,
             AssignmentExpr(assignment) => self.eval_assign_expr(&assignment)?,
@@ -1199,6 +1109,7 @@ impl Interpreter {
             Enum(enum_decl) => self.eval_enum_stmt(enum_decl),
             Struct(struct_decl) => self.eval_struct_stmt(struct_decl),
             Impl(impl_decl) => self.eval_impl_stmt(impl_decl),
+            Trait(trait_decl) => self.eval_trait_stmt(trait_decl),
         }
     }
 
@@ -1217,22 +1128,11 @@ impl Interpreter {
 
         for stmt in stmts {
             let stmt_val = self.evaluate_stmt(stmt)?;
-            match stmt_val {
+            match &stmt_val {
                 StmtVal::None => {}
-                StmtVal::Break => {
+                StmtVal::Break | StmtVal::Continue | StmtVal::Return(_) => {
                     self.env = old_env;
-
-                    return Ok(StmtVal::Break);
-                }
-                StmtVal::Continue => {
-                    self.env = old_env;
-
-                    return Ok(StmtVal::Continue);
-                }
-                StmtVal::Return(val) => {
-                    self.env = old_env;
-
-                    return Ok(StmtVal::Return(val));
+                    return Ok(stmt_val);
                 }
             }
         }
@@ -1258,6 +1158,17 @@ impl Interpreter {
         }
     }
 
+    fn check_name(&self, name: &Token) -> Result<()> {
+        if self.env.borrow().has_definition(&name.lexeme) {
+            Err(RuntimeError::from_token(
+                name.clone(),
+                format!("Name \"{}\" is already in use", &name.lexeme),
+            ))
+        } else {
+            Ok(())
+        }
+    }
+
     fn is_true(val: &Val) -> Result<bool> {
         match val {
             Val::Bool(true) => Ok(true),
@@ -1278,14 +1189,6 @@ pub struct RuntimeError {
 }
 
 impl RuntimeError {
-    pub fn from_pos(pos: Pos, msg: String) -> Self {
-        Self {
-            pos: Some(pos),
-            token: None,
-            msg,
-        }
-    }
-
     pub fn from_token(token: Token, msg: String) -> Self {
         Self {
             pos: Some(token.pos),
@@ -1301,29 +1204,4 @@ impl RuntimeError {
             msg,
         }
     }
-}
-
-fn incompatible_types_error(
-    token: Token,
-    expected: &str,
-    actual_l: &str,
-    actual_r: &str,
-) -> RuntimeError {
-    return RuntimeError::from_token(
-        token,
-        format!(
-            "Both operands must be of type \"{}\". Got \"{}\" and \"{}\"",
-            expected, actual_l, actual_r,
-        ),
-    );
-}
-
-fn equal_types_expected_error(token: Token, actual_l: &str, actual_r: &str) -> RuntimeError {
-    return RuntimeError::from_token(
-        token,
-        format!(
-            "Both operands must be of the same type. Got \"{}\" and \"{}\"",
-            actual_l, actual_r,
-        ),
-    );
 }

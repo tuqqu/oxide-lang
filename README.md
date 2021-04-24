@@ -4,49 +4,21 @@ Interpreted C-like language with a Rust influenced syntax. [Latest release][late
 ## Example programs
 
 ```rust
-/// recursive function calls to compute n-th
-/// fibonacci sequence number
-
-fn fib(n: int) -> int {
-    if n <= 1 {
-        return n;
-    }
-
-    return fib(n - 2) + fib(n - 1);
-}
-
-let nums = vec<int>[];
-for let mut i = 0; i < 30; i += 1 {
-    nums.push(fib(i));
-}
-```
-
-```rust
 /// structs
 
-struct Circle {                 // struct declaration
-    pub radius: float,          // public field
-    center: Point,              // private field
-    tangents: vec<Tangent>,     
+struct Circle {                   // struct declaration
+    pub radius: float,            // public field
+    center: Point,                // private field
 }
 
-impl Circle {                   // struct implementation
-    const PI = 3.14159;         // private associated constant
+impl Circle {                     // struct implementation
+    const PI = 3.14159;           // private associated constant
 
-    pub fn new(radius: float, center: Point) -> Self {    // public static method
+    pub fn new(r: float, c: Point) -> Self {    // public static method
         return Self {
-            radius: radius,
-            center: center,
-            tangents: vec[],
-        }
-    }
-  
-    pub fn calc_area(self) -> float {                     // public method
-        return Self::PI * self.radius * self.radius;
-    }
-  
-    pub fn add_tangent(self, t: Tangent) {      
-        self.tangents.push(t);
+            radius: r,
+            center: c,
+        };
     }
 }
 
@@ -55,24 +27,33 @@ struct Point {
     pub y: int,
 }
 
-struct Tangent {
-    p: Point,
+/// traits
+
+trait Shape {                     // trait declaration
+    fn calc_area(self) -> float;  // trait methods are always public
 }
 
-// instantiation via static constructor
-let circle_a = Circle::new(200, Point { x: 1, y: 5 });
+impl Shape for Circle {            // trait implementation
+    fn calc_area(self) -> float {  
+        return Self::PI * self.radius * self.radius;
+    }
+}
 
-// direct instantiation
-let circle_b = Circle {      
+let circle_a = Circle::new(       // instantiation via static constructor
+    200,
+    Point { x: 1, y: 5 }
+); 
+
+let circle_b = Circle {           // direct instantiation
     radius: 103.5,
-    center: Point { x: 1, y: 5 } ,             // inner structs instantiation
-    tangents: vec[                             // inner vector of structs instantiation
-        Tangent { p: Point { x: 4, y: 3 } },
-        Tangent { p: Point { x: 1, y: 0 } },
-    ],
+    center: Point { x: 1, y: 5 }  // inner structs instantiation
 };
 
-let area = circle_a.calc_area();  // 33653.4974775
+let area = circle_a.calc_area();  // 125663.59999
+
+println(
+    "circle area: " + area as str // type casting
+); 
 ```
 
 ```rust
@@ -90,7 +71,7 @@ fn insertion_sort(input: vec<int>) {
             input[j] = temp;
       
             if j == 0 {
-              break;
+                break;
             }
     
             j -= 1;
@@ -103,22 +84,6 @@ let input: vec<int> = vec[4, 13, 0, 3, -3, 4, 19, 1];
 insertion_sort(input);
 
 println(input); // [vec] [-3, 0, 1, 3, 4, 4, 13, 19]
-```
-
-```rust
-/// first-class functions
-
-let make_adder = fn (x: num) -> fn {
-    return fn (y: num) -> num {
-        return x + y;
-    };
-};
-
-let add5: fn = make_adder(5);
-let add7: fn = make_adder(7);
-
-println(add5(2)); // 7
-println(add7(2)); // 9
 ```
 
 ```rust
@@ -146,6 +111,9 @@ let order = Ordering::compare(10, 5); // Ordering::Greater
 [More examples][examples]
 
 ## Usage
+
+Download the [latest release][latest-releases] and put the executable in your PATH.
+
 ### Interpret a file
 ```shell
 oxide [script.ox]
@@ -183,6 +151,7 @@ cargo uninstall
 * [Variables and Type System](#variables-and-type-system)
     * [Mutability](#mutability)
     * [Shadowing](#shadowing)
+    * [Casting](#casting)
 * [Control Flow and Loops](#control-flow-and-loops)
     * [If](#if)
     * [Match](#match)
@@ -191,8 +160,10 @@ cargo uninstall
     * [For](#for)
 * [Functions](#functions)
     * [Declared functions](#declared-functions)
-    * [Closures and Lambdas](#closures-and-lambdas)
+    * [Closures and Lambdas](#closures)
 * [Structs](#structs)
+  * [Public and Private](#public-and-private)
+* [Traits](#traits)
 * [Enums](#enums)
 * [Vectors](#vectors)
 * [Constants](#constants)
@@ -205,60 +176,39 @@ cargo uninstall
 
 ## Variables and Type System
 
-There are eleven types embodied in the language: `nil`, `num`, `int`, `float`, `bool`, `str`, `fn`, `vec`, `any` and user-defined types (via [`structs`](#structs) and [`enums`](#enums)). See [type system][type-system]
+There are eleven types in Oxide: `nil`, `num`, `int`, `float`, `bool`, `str`, `fn`, `vec`, `any` and user-defined types (via [`structs`](#structs) and [`enums`](#enums)). See [type system][type-system]
 
-Each variable has a type associated with it, either explicitly declared with the variable itself:
+Variables are typed either explicitly:
 
 ```rust
 let x: int;
-
-let mut y: str = "hello" + " world";
-
-let double: fn = fn (x: num) -> num { return x * 2; };
-
+let y: str = "hello" + " world";
+let double: fn(int) -> int = fn (x: int) -> int { return x * 2; };
 let human: Person = Person { name: "Jane" };
-
 let names: vec<str> = vec["Josh", "Carol", "Steven"];
 ```
 
-or implicitly inferred by the interpreter the first time it is being assigned:
+or their type implicitly inferred:
 
 ```rust
+let x = 1;                         // inferred as "float"
+let dog = Dog::new("Good Boy");    // inferred as "Dog"
+let ordering = Ordering::Less;     // inferred as "Ordering"
+
 let x;
-x = true || false;              // inferred as "bool"
-
-let y = vec<bool>[];            // inferred as "vec<bool>"
-
-let dog;
-dog = Dog::new("Good Boy");     // inferred as "Dog"
-
-let ordering = Ordering::Less; // inferred as "Ordering"
-```
-
-Mutable variables cannot be assigned to a value of another type, unless they are of type `any`:
-
-```rust
-let mut s: str = "string";
-s = vec[];                      //! type error
-
-let mut a: any = Rectangle { 
-    height: 10,                 // height is of type int
-    width: 10 
-};
-a.height = "string";            //! type error
-a = 45.34;                      // valid
+x = vec[1, 2, 3];                   // inferred as "vec<int>" the first time it is being assigned
 ```
 
 ### Mutability
 
-Variables can be immutable and mutable. Immutable ones cannot be reassigned after having been assigned to a value.
+Variables are immutable by default:
 
 ```rust
-let x = "a";
-x = "b"; //! error, x is immutable
+let x = 100;
+x += 1; //! error, x is immutable
 ```
 
-However, mutable ones behave like you would expect a variable to behave in most other languages:
+To be mutable they must be defined with `mut` keyword.
 
 ```rust
 let mut x: str = "hello";
@@ -268,12 +218,33 @@ x += "another string"; // ok
 
 ### Shadowing
 
-One important thing is that variables can be redeclared in other words, shadowed. Each variable declaration "shadows" the previous one and ignores its type and mutability. Consider:
+Variables can be shadowed. Each variable declaration "shadows" the previous one and ignores its type and mutability. Consider:
 
 ```rust
 let x: int = 100;
 let x: Circle = Circle::new(10, Point { x: x, y: 5 });
 let x: vec<any> = vec[];
+```
+
+### Casting
+
+Explicit type conversion, i.e. type casting, can be performed using the `as` keyword.
+Primitive types `int`, `float`, `nil`, `bool`, `str` can be cast to other primitive types.
+
+```rust
+let x = 32 as str;              // typeof(x) = str, x = "32"
+let x = "350" as int;           // typeof(x) = int, x = 350
+let x = 0.0 as bool;            // typeof(x) = bool, x = false
+
+let x = 10;
+"this is x: " + x as str;       // values must be cast to str for concatenation
+```
+
+Vector, enum, function and struct types cannot be used in type casting.
+
+```rust
+let x = Ordering::Less as int;  //! type error
+let x = vec[] as Ordering;      //! type error
 ```
 
 ## Control Flow and Loops
@@ -373,28 +344,9 @@ loop {
 for let mut i = 0; i < v.len(); i += 1 {
     println(v[i]);
 }
-
-// the first or the last parts can be omitted
-let mut i = 0;
-
-for ; i < v.len(); {
-    println(v[i]);
-    i += 0;
-}
-
-// or all three of them
-// this is basically "while true" or "loop"
-let mut i = 0;
-
-for ;; {
-    println(v[i]);
-    i -= 1;
-
-    if i < v.len() {
-        break;
-    }
-}
 ```
+
+Like in C the first or the last parts can be omitted `for ; i < v.len(); {}`, or even all three of them `for ;; {}`
 
 ## Functions
 
@@ -406,26 +358,28 @@ Function signature must explicitly list all argument types as well as a return t
 
 Functions that do not have a `return` statement implicitly return `nil` and the explicit return type can be omitted (same as declaring it with `-> nil`)
 
+Each function is of `fn(param_types) -> return_type` type.
+
 ```rust
-fn add(x: num, y: num) -> num {
+fn add(x: int, y: int) -> int {  // typeof(add) = "fn(int, int) -> int"
     return x + y;
 }
 
-let sum = add(1, 100); // 101
+let sum = add(1, 100);
 
-fn clone(c: Circle) -> Circle {
+fn clone(c: Circle) -> Circle {  // typeof(clone) = "fn(Circle) -> Circle"
     return Circle {
         radius: c.radius,
         center: c.center,
-        tangents: vec<Tangent>[],
     };
 }
 
 let cloned = clone(circle);
 
-// since this function returns nothing, the return type can be omitted
-fn log(level: str, msg: str) {
-    println("Level: " + level + ", message: " + msg);
+fn log(level: int, msg: str) {   // typeof(log) = "fn(int, str)" 
+    println(
+      "Level: " + level as str + ", message: " + msg
+    );
 }
 ```
 
@@ -435,7 +389,7 @@ Defining a function argument as `mut` lets you mutate it in the function body. B
 /// compute the greatest common divisor 
 /// of two integers using Euclids algorithm
 
-fn gcd(mut n: int, mut m: int) -> int {
+fn gcd(mut n: int, mut m: int) -> int {   // typeof(gcd) = "fn(int, int) -> int"
     while m != 0 {
         if m < n {
           let t = m;
@@ -453,15 +407,15 @@ gcd(15, 5); // 5
 
 Redeclaring a function results in a runtime error.
 
-### Closures and Lambdas
+### Closures
 
-Functions are first-class citizens of the language, they can be stored in a variable of type `fn`, passed to or/and returned from another function.
+Functions are first-class citizens of the language, they can be stored in a variable of type `fn()`, passed to or/and returned from another function.
 
 ```rust
 /// function returns closure
 /// which captures the internal value i
 /// each call to the closure increments the captured value
-fn create_counter() -> fn {
+fn create_counter() -> fn() {
     let mut i = 0;
 
     return fn () {                  // returns closure
@@ -470,7 +424,8 @@ fn create_counter() -> fn {
     };
 }
 
-let counter = create_counter();     // inferred as "fn"
+let counter = create_counter();     // inferred as "fn() -> fn()"
+let another_counter: fn() -> fn() = counter;
 
 counter(); // 1
 counter(); // 2
@@ -484,7 +439,7 @@ fn str_concat(prefix: str, suffix: str) -> str {
     return prefix + suffix;
 }
 
-fn str_transform(callable: fn, a: str, b: str) -> any {
+fn str_transform(callable: fn(str, str) -> str, a: str, b: str) -> any {
     return callable(a, b);
 }
 
@@ -654,6 +609,61 @@ system.age = 100;                //! access error, "age" is private
 system.planets[0].mass;          //! access error, "mass" is private
 system.planets[0].is_heavier(p); //! access error, "is_heavier()" is private
 Star::MAX_AGE;                   //! access error, "Star::MAX_AGE" is private
+```
+
+## Traits
+
+Traits are similar to Rust traits and are used to define shared behavior.
+
+Because all trait methods are always public they are defined with no `pub` keyword.
+
+_Note: no static methods allowed._
+
+```rust
+trait Shape {
+    fn calc_area(self) -> float;
+  
+    fn calc_perimeter(self) -> float;
+}
+```
+
+Trait body lists function signatures that must be implemented when implementing the trait:
+
+```rust
+impl Shape for RightTriangle {
+    fn calc_area(self) -> float {
+        return self.a * self.b / 2;
+    }
+  
+    fn calc_perimeter(self) -> float {
+        return self.a + self.b + self.c;
+    }
+}
+
+impl Shape for Rectangle {
+    fn calc_area(self) -> float {
+        return self.a * self.b;
+    }
+  
+    fn calc_perimeter(self) -> float {
+        return (self.a + self.b) * 2;
+    }
+}
+```
+
+All structs that implement the `Shape` trait can be used wherever a shape is expected:
+
+```rust
+fn print_shape_values(shape: Shape) {
+    let area = shape.calc_area();
+    let perimeter = shape.calc_perimeter();
+
+    println("The area is " + area as str);
+    println("The perimeter is " + perimeter as str);
+}
+
+let a = Rectangle::new(10, 30);
+print_shape_values(a); 
 ```
 
 ## Enums
@@ -863,15 +873,17 @@ let e = Math::get_e(); // ok
 
 ### Unary
 - `!` negates boolean value
-- `-` negates number 
+- `-` negates number
 
 ### Binary
 - `&&`, `||` logic, operate on `bool` values
 - `<`, `>`, `<=`, `>=`, comparison, operate on `int`, `float` values
 - `==`, `!=` equality, operate on values of the **same** type
-- `-`, `/`, `+`, `*`, `%` math operations on numbers
-- `+` string concatenation, also casts any other value in the same expression to `str`
-- `=`, `+=`, `-=`, `/=`, `%=`, `*=` various corresponding assignment operators
+- `-`, `/`, `+`, `*`, `%` math operations on on `int`, `float` values
+- `&`, `|`, `^` bitwise operations on integers
+- `+` string concatenation
+- `as` type cast operator, used to convert primitives to some type: `30 as bool`
+- `=`, `+=`, `-=`, `/=`, `%=`, `*=`, `&=`, `|=`, `^=` various corresponding assignment operators
 
 ## Comments
 
@@ -900,7 +912,6 @@ A small set of built-in functionality is available anywhere in the code.
 - `typeof(val: any) -> str` returns type of given value or variable
 
 
-
 [latest-releases]: https://github.com/tuqqu/oxide-lang/releases/latest
 [examples]: https://github.com/tuqqu/oxide-lang/tree/master/examples
-[type-system]: /doc/type_system.md
+[type-system]: /docs/type_system.md

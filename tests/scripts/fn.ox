@@ -37,18 +37,18 @@ fn func_z(x: any, mut y: num, z: bool, e: float, i: any) {
 func_z("hi", 9, true, 45.56, nil);
 
 /// return value
-fn func_a(a: num) -> num {
+fn func_a(a: int) -> int {
     return a + 10;
 }
 
 println(func_a(10));
 
-/// accepts closure and calls it
-fn func_b(closure: fn) {
+/// accepts closure of type fn(int) and calls it
+fn func_b(closure: fn(int) -> int) {
     closure(10);
 }
 
-fn closure(x: num) -> num {
+fn closure(x: int) -> int {
     return x + 100;
 }
 
@@ -57,7 +57,7 @@ let value = func_b(closure);
 println(value);
 
 /// inner loop
-fn func_c(mut x: num) {
+fn func_c(mut x: int) {
     while x > 10 {
         println(x);
         x = x - 1;

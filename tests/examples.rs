@@ -31,3 +31,8 @@ fn test_matrix_multiplication() {
 fn test_gcd() {
     test_example("gcd");
 }
+
+#[test]
+fn test_fib() {
+    test_example("fib");
+}

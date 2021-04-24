@@ -20,7 +20,7 @@ pub fn run_file(path: String) {
     run_file_with_streams(path, None, None, None);
 }
 
-/// Runs file with changed std streams.
+/// Runs file with std streams.
 ///
 /// Primarily used by tests to capture output, although there is nothing specific
 /// to tests. Can be used to run scripts and prevent and/or capture output.
@@ -79,7 +79,7 @@ fn run(
         process::exit(1);
     }
 
-    let mut parser = Parser::new(tokens.clone()); //wut? clone??
+    let mut parser = Parser::new(tokens.clone());
     let stmts = match parser.parse() {
         Ok(stmts) => stmts,
         Err(_) => {
@@ -159,6 +159,12 @@ fn error_runtime(rte: &RuntimeError) {
 
 /// Internal error printing, should not be used directly.
 fn print_error(err_token: &str, message: &str, pos: Option<Pos>) {
+    let err_token = if !err_token.is_empty() {
+        format!("\"{}\"", err_token)
+    } else {
+        err_token.to_string()
+    };
+
     let pos = if let Some(pos) = pos {
         format!(" at [{}:{}]", pos.0, pos.1)
     } else {

@@ -1,7 +1,7 @@
 /// lambda returns closure
 /// which captures the internal value i
 /// each call to the closure increments the captured value
-let x = fn () -> fn {
+let x = fn () -> fn() {
     let mut i = 0;
 
     fn count() {
@@ -19,8 +19,8 @@ counter();
 counter();
 counter();
 
-let y: fn = x;
-let counter_2: fn = y();
+let y: fn() -> fn() = x;
+let counter_2: fn() = y();
 
 counter_2();
 
@@ -37,7 +37,7 @@ let y = fn () {
 y();
 
 let g = fn (x: any, y: num, b: bool) -> str {
-    return "string" + x;
+    return "string" + x as str;
 };
 
 let r: str = g(45, 67.87, false);
