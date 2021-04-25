@@ -3,6 +3,8 @@ use crate::lexer::token::{Token, TokenType};
 use crate::parser::{
     expr,
     expr::{Expr, Stmt},
+    valtype,
+    valtype::ValType,
 };
 use std::collections::HashMap;
 
@@ -58,6 +60,9 @@ impl Analyser {
             Expr::VariableExpr(variable) => self.analyse_variable(variable),
             Expr::CallExpr(call_expr) => self.analyse_call_expression(call_expr),
             Expr::AssignmentExpr(assignment) => self.analyse_assignment(assignment),
+            Expr::TypeCastExpr(type_cast) => self.analyse_type_cast(type_cast),
+            Expr::GetPropExpr(get_prop) => self.analyse_get_property(get_prop),
+            Expr::CallStructExpr(call_expr) => self.analyse_call_struct(call_expr),
             _ => Ok(Type::Nil),
         }
     }
@@ -161,6 +166,44 @@ impl Analyser {
         binding.make_initialised();
         Ok(expr_ty)
     }
+
+    fn analyse_type_cast(&mut self, type_cast: &expr::TypeCast) -> AnalyserResult {
+        self.analyse_type(&type_cast.to_type)
+    }
+
+    fn analyse_get_property(&mut self, get_prop: &expr::GetProp) -> AnalyserResult {
+        let instance_type = self.analyse_expression(&*get_prop.name)?;
+        let property_name = &get_prop.prop_name;
+        let struct_type = instance_type.to_struct_instance()?;
+
+        if struct_type
+            .instance_properties
+            .contains_key(&property_name.lexeme)
+        {
+            Ok(instance_type)
+        } else {
+            Err(TypeError::NoSuchProperty(property_name.clone()))
+        }
+    }
+
+    fn analyse_call_struct(&mut self, call_expr: &expr::CallStruct) -> AnalyserResult {
+        let ty = self.analyse_expression(&*call_expr.callee)?;
+        let struct_type = ty.to_struct_type()?;
+        // TODO: Check if call is valid
+        let result: Result<Vec<_>, _> = call_expr
+            .args
+            .iter()
+            .map(|(key, _)| {
+                if !struct_type.instance_properties.contains_key(&key.lexeme) {
+                    return Err(TypeError::NoSuchProperty(key.clone()));
+                }
+                Ok(())
+            })
+            .collect();
+        result?;
+        let instance = Type::Instance(struct_type);
+        Ok(instance)
+    }
 }
 
 // MARK: Analyse Statements
@@ -173,83 +216,9 @@ impl Analyser {
             Stmt::Fn(fn_decl) => self.analyse_fn_decl(fn_decl),
             Stmt::Return(return_stmt) => self.analyse_return_statement(return_stmt),
             Stmt::IfStmt(if_stmt) => self.analyse_if_statement(if_stmt),
+            Stmt::Struct(struct_decl) => self.analyse_struct_decl(struct_decl),
             _ => Ok(Type::Nil),
         }
-    }
-
-    fn analyse_var_decl(&mut self, var_decl: &expr::VarDecl) -> AnalyserResult {
-        let typ = match (&*var_decl.init, &var_decl.v_type) {
-            (Some(expr), Some(typ)) => {
-                let expr_type = self.analyse_expression(expr)?;
-                let typ = Type::from(&typ);
-                if typ != expr_type {
-                    return Err(TypeError::AmbiguousTypes);
-                }
-                expr_type
-            }
-            (Some(expr), None) => self.analyse_expression(expr)?,
-            (None, Some(typ)) => Type::from(typ),
-            _ => return Err(TypeError::CannotResolveType),
-        };
-
-        let name = var_decl.name.lexeme.clone();
-        self.create_binding_in_scope(
-            name,
-            typ,
-            var_decl.name.clone(),
-            var_decl.mutable,
-            var_decl.init.is_some(),
-        );
-        Ok(Type::Nil)
-    }
-
-    fn analyse_fn_decl(&mut self, function: &expr::FnDecl) -> AnalyserResult {
-        let lambda = &function.lambda;
-        let return_type = Type::from(&lambda.ret_type);
-
-        self.enter_function_decl();
-
-        // Bind params to scope
-        let param_types: Vec<Type> = (&lambda.params)
-            .iter()
-            .map(|(token, typ, is_mutable)| {
-                let typ = Type::from(&typ);
-                self.create_binding_in_scope(
-                    token.lexeme.clone(),
-                    typ.clone(),
-                    token.clone(),
-                    *is_mutable,
-                    true, // params are initialised at the callsite
-                );
-                typ
-            })
-            .collect();
-
-        // Analyse FunctionBody
-        for stmt in &lambda.body {
-            self.analyse_statement(stmt)?;
-        }
-
-        // Check returns
-        // TODO: Return Err(TypeError::MissingReturn)
-        for (return_ty, token) in &self.state.returns {
-            if *return_ty != return_type {
-                return Err(TypeError::return_type_mismatch(
-                    return_type,
-                    function.name.clone(),
-                    return_ty.clone(),
-                    token.clone(),
-                ));
-            }
-        }
-
-        self.exit_function_decl();
-        let fn_ty = FunctionType::new(return_type, param_types);
-        let fn_name = function.name.lexeme.clone();
-        let ty = Type::Function(Box::new(fn_ty));
-
-        self.create_binding_in_scope(fn_name, ty, function.name.clone(), false, true);
-        Ok(Type::Nil)
     }
 
     fn analyse_if_statement(&mut self, if_stmt: &expr::If) -> AnalyserResult {
@@ -282,7 +251,145 @@ impl Analyser {
         self.state
             .returns
             .push((expr_type, return_stmt.keyword.clone()));
+
         Ok(Type::Nil)
+    }
+}
+
+// MARK: Analyse Decl
+
+impl Analyser {
+    fn analyse_var_decl(&mut self, var_decl: &expr::VarDecl) -> AnalyserResult {
+        let typ = match (&*var_decl.init, &var_decl.v_type) {
+            (Some(expr), Some(typ)) => {
+                let expr_type = self.analyse_expression(expr)?;
+                let typ = self.analyse_type(typ)?;
+                if typ != expr_type {
+                    return Err(TypeError::AmbiguousTypes);
+                }
+                expr_type
+            }
+            (Some(expr), None) => self.analyse_expression(expr)?,
+            (None, Some(typ)) => self.analyse_type(typ)?,
+            _ => return Err(TypeError::CannotResolveType),
+        };
+
+        let name = var_decl.name.lexeme.clone();
+        self.create_binding_in_scope(
+            name,
+            typ,
+            var_decl.name.clone(),
+            var_decl.mutable,
+            var_decl.init.is_some(),
+        );
+        Ok(Type::Nil)
+    }
+
+    fn analyse_fn_decl(&mut self, function: &expr::FnDecl) -> AnalyserResult {
+        let lambda = &function.lambda;
+        let return_type = self.analyse_type(&lambda.ret_type)?;
+
+        self.enter_function_decl();
+
+        // Bind params to scope
+        let param_types: Result<Vec<_>, _> = (&lambda.params)
+            .iter()
+            .map(|(token, typ, is_mutable)| {
+                let typ = self.analyse_type(&typ)?;
+                self.create_binding_in_scope(
+                    token.lexeme.clone(),
+                    typ.clone(),
+                    token.clone(),
+                    *is_mutable,
+                    true, // params are initialised at the callsite
+                );
+                Ok(typ)
+            })
+            .collect();
+        let param_types = param_types?;
+
+        // Analyse FunctionBody
+        for stmt in &lambda.body {
+            self.analyse_statement(stmt)?;
+        }
+
+        // Check returns
+        // TODO: Return Err(TypeError::MissingReturn)
+        for (return_ty, token) in &self.state.returns {
+            if *return_ty != return_type {
+                return Err(TypeError::return_type_mismatch(
+                    return_type,
+                    function.name.clone(),
+                    return_ty.clone(),
+                    token.clone(),
+                ));
+            }
+        }
+
+        self.exit_function_decl();
+        let fn_ty = FunctionType::new(return_type, param_types);
+        let fn_name = function.name.lexeme.clone();
+        let ty = Type::Function(Box::new(fn_ty));
+
+        self.create_binding_in_scope(fn_name, ty, function.name.clone(), false, true);
+        Ok(Type::Nil)
+    }
+
+    fn analyse_struct_decl(&mut self, struct_decl: &expr::StructDecl) -> AnalyserResult {
+        let properties: Result<Vec<(String, (Type, bool))>, _> = struct_decl
+            .props
+            .iter()
+            .map(|property| {
+                let var_decl = &property.0;
+                let ty = self.analyse_type(&var_decl.v_type.as_ref().unwrap())?;
+                let name = var_decl.name.lexeme.clone();
+
+                Ok((name, (ty, property.1)))
+            })
+            .collect();
+
+        let properties = properties?;
+        let name = &struct_decl.name.lexeme;
+        let properties = properties.into_iter().collect();
+
+        let struct_type = Type::new_struct_type(name.clone(), properties);
+        self.create_binding_in_scope(
+            name.clone(),
+            struct_type.clone(),
+            struct_decl.name.clone(),
+            false,
+            true,
+        );
+
+        Ok(struct_type)
+    }
+}
+
+// MARK: Analyse Type
+
+impl Analyser {
+    fn analyse_fn_type(&self, fn_type: &valtype::FnType) -> Result<Type, TypeError> {
+        let return_type = self.analyse_type(&*fn_type.ret_type)?;
+
+        let param_types: Result<Vec<_>, _> = fn_type
+            .param_types
+            .iter()
+            .map(|ty| self.analyse_type(ty))
+            .collect();
+
+        let param_types = param_types?;
+
+        Ok(Type::new_function(return_type, param_types))
+    }
+
+    fn analyse_type(&self, ty: &ValType) -> Result<Type, TypeError> {
+        match ty {
+            ValType::Bool | ValType::Nil | ValType::Int | ValType::Str | ValType::Float => {
+                Ok(Type::from(ty))
+            }
+            ValType::Fn(fn_type) => self.analyse_fn_type(&fn_type),
+            _ => Err(TypeError::CannotResolveType),
+        }
     }
 }
 

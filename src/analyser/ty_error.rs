@@ -16,6 +16,9 @@ pub enum TypeError {
     FunctionParamsArgsTypeMismatch,
     ConditionNotBool,
     CannotMutateVariable(CannotMutateVariable),
+    NoSuchProperty(Token),
+    NotAStruct,
+    NotAnInstance,
 }
 
 #[derive(Debug, Clone)]

@@ -136,9 +136,9 @@ impl Generics {
 
 #[derive(Debug, Clone)]
 pub struct FnType {
-    token: Option<Token>,
-    param_types: Vec<ValType>,
-    ret_type: Box<ValType>,
+    pub token: Option<Token>,
+    pub param_types: Vec<ValType>,
+    pub ret_type: Box<ValType>,
 }
 
 impl FnType {
