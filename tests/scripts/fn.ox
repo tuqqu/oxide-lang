@@ -6,7 +6,7 @@ fn func_x() {
 func_x();
 
 /// one argument
-fn func_y(x: any) {
+fn func_y(x: int) {
     println(x);
 }
 const D = 10;

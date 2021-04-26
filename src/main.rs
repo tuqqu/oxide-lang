@@ -14,7 +14,7 @@ fn main() {
             process::exit(1);
         }
         Ordering::Equal => {
-            if args[1] == "version" {
+            if args[1] == "--version" || args[1] == "-v" {
                 print_version();
             } else {
                 run_file(args[1].clone());

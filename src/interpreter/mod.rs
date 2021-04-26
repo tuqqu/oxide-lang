@@ -421,7 +421,7 @@ impl Interpreter {
             )),
             Function(f) => Ok(f.val.clone()),
             Constant(c) => Ok(c.val.clone()),
-            Variable(v) => Ok(v.val.clone()),
+            Variable(v) => Ok(v.val()),
             Enum(e) => Ok(e.val.clone()),
             EnumValue(e) => Ok(e.val.clone()),
             Struct(s) => Ok(s.val.clone()),

@@ -13,8 +13,8 @@ use crate::interpreter::env::{construct_static_name, internal_id, Impl};
 use crate::interpreter::RuntimeError;
 use crate::lexer::token::Token;
 use crate::parser::valtype::{
-    FnType, ValType, TYPE_BOOL, TYPE_ENUM, TYPE_FLOAT, TYPE_INT, TYPE_NIL, TYPE_STR, TYPE_STRUCT,
-    TYPE_UNINIT, TYPE_VEC,
+    FnType, ValType, TYPE_ANY, TYPE_BOOL, TYPE_ENUM, TYPE_FLOAT, TYPE_INT, TYPE_NIL, TYPE_STR,
+    TYPE_STRUCT, TYPE_UNINIT, TYPE_VEC,
 };
 use std::collections::HashMap;
 use std::ops::Deref;
@@ -33,6 +33,7 @@ pub enum Val {
     Enum(Token),
     EnumValue(String, String, usize),
     VecInstance(Rc<RefCell<VecInstance>>),
+    Any(Box<Self>),
 }
 
 #[derive(Debug)]
@@ -282,6 +283,10 @@ impl StructInstance {
 }
 
 impl VecInstance {
+    const POP: &'static str = "pop";
+    const PUSH: &'static str = "push";
+    const LEN: &'static str = "len";
+
     pub fn new(vals: Vec<Val>, val_type: ValType) -> Self {
         Self {
             id: internal_id(),
@@ -312,14 +317,10 @@ impl VecInstance {
     }
 
     pub fn get_method(name: &Token, vec: Rc<RefCell<VecInstance>>) -> Result<Val> {
-        const POP: &str = "pop";
-        const PUSH: &str = "push";
-        const LEN: &str = "len";
-
         let val_type = vec.borrow().val_type.clone();
 
         let callable = match name.lexeme.as_str() {
-            POP => Val::Callable(*Callable::new(
+            Self::POP => Val::Callable(*Callable::new(
                 vec![],
                 val_type,
                 Arc::new(move |_inter, _args| {
@@ -328,7 +329,7 @@ impl VecInstance {
                     Ok(poped)
                 }),
             )),
-            PUSH => Val::Callable(*Callable::new(
+            Self::PUSH => Val::Callable(*Callable::new(
                 vec![val_type],
                 ValType::Nil,
                 Arc::new(move |_inter, args| {
@@ -346,7 +347,7 @@ impl VecInstance {
                     Ok(Val::VecInstance(vec.clone()))
                 }),
             )),
-            LEN => Val::Callable(*Callable::new(
+            Self::LEN => Val::Callable(*Callable::new(
                 vec![],
                 ValType::Int,
                 Arc::new(move |_inter, _args| Ok(Val::Int(vec.borrow_mut().len() as isize))),
@@ -744,6 +745,8 @@ impl Val {
             (Str(_val), ValType::Nil) => Nil,
             (Str(val), ValType::Str) => Str(val.clone()),
 
+            (Any(val), vt) => val.cast_to(vt, operator)?,
+
             (_, ValType::Any)
             | (_, ValType::Instance(_))
             | (_, ValType::Vec(_))
@@ -786,6 +789,7 @@ impl Val {
             Enum(_e) => TYPE_ENUM.to_string(),
             EnumValue(e, _n, _v) => e.clone(),
             VecInstance(v) => format!("{}<{}>", TYPE_VEC, v.borrow_mut().val_type),
+            Any(_v) => TYPE_ANY.to_string(),
         }
     }
 }
@@ -825,6 +829,7 @@ impl fmt::Display for Val {
 
                 write!(f, "[vec] [{}]", vals.join(", "))
             }
+            Any(v) => write!(f, "[any] {}", v),
         }
     }
 }

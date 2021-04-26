@@ -128,7 +128,7 @@ oxide
 
 To print current Oxide version
 ```shell
-oxide version
+oxide --version
 ```
 
 ## Building from source
@@ -228,7 +228,7 @@ Variables can be shadowed. Each variable declaration "shadows" the previous one 
 ```rust
 let x: int = 100;
 let x: Circle = Circle::new(10, Point { x: x, y: 5 });
-let x: vec<any> = vec[];
+let x: vec<int> = vec[1, 2];
 ```
 
 ### Casting
@@ -250,6 +250,13 @@ Vector, enum, function and struct types cannot be used in type casting.
 ```rust
 let x = Ordering::Less as int;  //! type error
 let x = vec[] as Ordering;      //! type error
+```
+
+`any` type must be explicitly cast to be used in expressions:
+
+```rust
+let x: any = 1;
+let d = 100 + x as int; // omitting cast would produce an error
 ```
 
 ## Control Flow and Loops

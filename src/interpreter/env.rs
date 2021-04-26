@@ -115,6 +115,14 @@ impl Variable {
             v_type,
         }
     }
+
+    pub fn val(&self) -> Val {
+        if self.v_type == ValType::Any {
+            Val::Any(Box::new(self.val.clone()))
+        } else {
+            self.val.clone()
+        }
+    }
 }
 
 impl Constant {

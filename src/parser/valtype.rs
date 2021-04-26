@@ -69,6 +69,7 @@ impl ValType {
                 c.param_types.clone(),
                 Box::new(c.ret_type.clone()),
             )),
+            Val::Any(_) => Self::Any,
             _ => return None,
         })
     }
