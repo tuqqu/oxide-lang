@@ -1,12 +1,14 @@
 use std::cell::RefCell;
 use std::io::{Read, Write};
+use std::ops::Deref;
 use std::rc::Rc;
 use std::sync::Arc;
 use std::{mem, result};
 
-use crate::interpreter::val::{PropFuncVal, StructCallable};
-use crate::interpreter::val::{StructInstance, VecInstance};
-
+use self::env::{Env, EnvVal};
+use self::val::{Callable, Function, StmtVal, Val};
+use crate::interpreter::env::construct_static_name;
+use crate::interpreter::val::{PropFuncVal, StructCallable, StructInstance, VecInstance};
 use crate::lexer::token::{Pos, Token, TokenType};
 use crate::parser::expr::{
     Assignment, Binary, Block, BoolLiteral, Call, CallStruct, ConstDecl, EnumDecl, Expr,
@@ -14,13 +16,7 @@ use crate::parser::expr::{
     Lambda, Loop, Match, NilLiteral, Return, SelfStatic, Self_, SetIndex, SetProp, Stmt,
     StrLiteral, StructDecl, TraitDecl, TypeCast, Unary, VarDecl, Variable, VecIndex, Vec_,
 };
-
 use crate::parser::valtype::{ValType, TYPE_FN, TYPE_INT, TYPE_STRUCT, TYPE_VEC};
-
-use self::env::{Env, EnvVal};
-use self::val::{Callable, Function, StmtVal, Val};
-use crate::interpreter::env::construct_static_name;
-use std::ops::Deref;
 
 pub mod env;
 pub mod stdlib;

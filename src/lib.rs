@@ -1,8 +1,7 @@
 use std::cell::RefCell;
-use std::fs;
 use std::io::{self, Read, Write};
-use std::process;
 use std::rc::Rc;
+use std::{fs, process};
 
 use crate::interpreter::stdlib::Stdlib;
 use crate::interpreter::{Interpreter, RuntimeError};

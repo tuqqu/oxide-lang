@@ -5,7 +5,7 @@ use common::compare_output;
 const EXAMPLES_PATH: &str = "./examples";
 const EXAMPLES_OUTPUT_PATH: &str = "./tests/examples_output";
 
-pub fn test_example(script: &str) {
+fn test_example(script: &str) {
     let sample_file: String = format!("{}/{}.ox", EXAMPLES_PATH, script);
     let output_file: String = format!("{}/{}.output", EXAMPLES_OUTPUT_PATH, script);
 

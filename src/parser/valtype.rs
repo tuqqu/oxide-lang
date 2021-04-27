@@ -1,6 +1,7 @@
+use std::fmt;
+
 use crate::interpreter::val::Val;
 use crate::lexer::token::{Token, TokenType};
-use std::fmt;
 
 pub const TYPE_UNINIT: &str = "uninit";
 pub const TYPE_ANY: &str = "any";
@@ -62,7 +63,7 @@ impl ValType {
             Val::Nil => Self::Nil,
             Val::Str(_) => Self::Str,
             Val::StructInstance(i) => Self::Instance(i.borrow_mut().struct_name.clone()),
-            Val::EnumValue(e, _, _) => Self::Instance(e.clone()),
+            Val::EnumValue(e, ..) => Self::Instance(e.clone()),
             Val::VecInstance(v) => Self::Vec(Generics::new(vec![v.borrow_mut().val_type.clone()])),
             Val::Callable(c) => Self::Fn(FnType::new(
                 None,
@@ -93,7 +94,7 @@ impl ValType {
                 let i = i.borrow();
                 i.struct_name == *s || i.impls.contains(s)
             }
-            (Self::Instance(s), Val::EnumValue(e, _, _)) => s == e,
+            (Self::Instance(s), Val::EnumValue(e, ..)) => s == e,
             (Self::Vec(g), Val::VecInstance(v)) => {
                 let v_g_type = g.types.first().unwrap();
                 let vi_g_type = v.borrow_mut().val_type.clone();

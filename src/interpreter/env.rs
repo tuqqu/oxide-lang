@@ -3,13 +3,11 @@ use std::collections::HashMap;
 use std::rc::Rc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
-use crate::interpreter::Result;
-use crate::interpreter::RuntimeError;
-use crate::lexer::token::Token;
-use crate::parser::expr::{ConstDecl, FnDecl, FnSignatureDecl};
-
 use super::val::Val;
 use crate::interpreter::val::StructInstance;
+use crate::interpreter::{Result, RuntimeError};
+use crate::lexer::token::Token;
+use crate::parser::expr::{ConstDecl, FnDecl, FnSignatureDecl};
 use crate::parser::valtype::ValType;
 
 static COUNTER: AtomicUsize = AtomicUsize::new(1);

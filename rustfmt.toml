@@ -1,0 +1,4 @@
+use_field_init_shorthand = true
+condense_wildcard_suffixes = true
+imports_granularity = "Module"
+group_imports = "StdExternalCrate"

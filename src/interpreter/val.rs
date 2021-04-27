@@ -1,23 +1,20 @@
 use std::cell::RefCell;
+use std::collections::HashMap;
 use std::fmt;
+use std::ops::Deref;
 use std::rc::Rc;
 use std::sync::Arc;
 
-use crate::parser::expr::{Lambda, StructDecl};
-
 use super::env::Env;
-use super::Interpreter;
-use super::Result;
-
+use super::{Interpreter, Result};
 use crate::interpreter::env::{construct_static_name, internal_id, Impl};
 use crate::interpreter::RuntimeError;
 use crate::lexer::token::Token;
+use crate::parser::expr::{Lambda, StructDecl};
 use crate::parser::valtype::{
     FnType, ValType, TYPE_ANY, TYPE_BOOL, TYPE_ENUM, TYPE_FLOAT, TYPE_INT, TYPE_NIL, TYPE_STR,
     TYPE_STRUCT, TYPE_UNINIT, TYPE_VEC,
 };
-use std::collections::HashMap;
-use std::ops::Deref;
 
 #[derive(Debug, Clone)]
 pub enum Val {

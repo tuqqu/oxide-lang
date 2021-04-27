@@ -1,8 +1,6 @@
 use std::collections::HashMap;
 
-use self::token::Pos;
-use self::token::Token;
-use self::token::TokenType;
+use self::token::{Pos, Token, TokenType};
 use crate::error_at;
 
 pub mod token;

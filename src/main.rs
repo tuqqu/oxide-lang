@@ -1,6 +1,5 @@
 use std::cmp::Ordering;
-use std::env;
-use std::process;
+use std::{env, process};
 
 use oxide::{print_version, run_file, run_repl};
 
