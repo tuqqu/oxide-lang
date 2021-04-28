@@ -1,7 +1,6 @@
 mod common;
 
 use common::compare_output;
-use oxide::run_file_with_streams_top_level;
 
 const SAMPLE_PATH: &str = "./tests/scripts";
 const OUTPUT_PATH: &str = "./tests/output";
@@ -10,7 +9,7 @@ fn test_script(script: &str) {
     let sample_file: &str = &format!("{}/{}.ox", SAMPLE_PATH, script);
     let output_file: &str = &format!("{}/{}.output", OUTPUT_PATH, script);
 
-    compare_output(sample_file, output_file, run_file_with_streams_top_level)
+    compare_output(sample_file, output_file, true)
 }
 
 #[test]

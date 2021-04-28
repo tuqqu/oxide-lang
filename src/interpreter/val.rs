@@ -313,6 +313,10 @@ impl VecInstance {
         self.vals.len()
     }
 
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
     pub fn get_method(name: &Token, vec: Rc<RefCell<VecInstance>>) -> Result<Val> {
         let val_type = vec.borrow().val_type.clone();
 

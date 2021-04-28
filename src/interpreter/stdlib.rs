@@ -7,7 +7,8 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use crate::interpreter::env::{self, Env};
 use crate::interpreter::val::{Callable, Func, Val};
 use crate::interpreter::Result;
-use crate::lexer::token::{Token, TokenType};
+use crate::lexer::token::token_type::TokenType;
+use crate::lexer::token::{Pos, Token};
 use crate::parser::valtype::ValType;
 
 pub struct Stdlib;
@@ -170,7 +171,7 @@ impl Stdlib {
             TokenType::Identifier,
             name.to_string(),
             String::from(""),
-            (0, 0),
+            Pos(0, 0),
         );
         lib.define_function(env::Function::without_struct(
             token,

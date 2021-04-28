@@ -1,8 +1,10 @@
 use std::collections::HashMap;
 
-use self::token::{Pos, Token, TokenType};
-use crate::error_at;
+use self::error::LexerError;
+use self::token::token_type::TokenType;
+use self::token::{Pos, Token};
 
+mod error;
 pub mod token;
 
 pub struct Lexer {
@@ -12,55 +14,22 @@ pub struct Lexer {
     current: usize,
     line: usize,
     pos: usize,
-    err: bool,
-    keywords: HashMap<String, TokenType>,
+    keywords: HashMap<&'static str, TokenType>,
+    errors: Vec<LexerError>,
 }
 
 impl Lexer {
     pub fn new(src: String) -> Self {
+        use TokenType::*;
+
         let mut keywords = HashMap::new();
-        keywords.insert("enum".to_string(), TokenType::Enum);
-        keywords.insert("struct".to_string(), TokenType::Struct);
-        keywords.insert("fn".to_string(), TokenType::Fn);
-        keywords.insert("impl".to_string(), TokenType::Impl);
-        keywords.insert("trait".to_string(), TokenType::Trait);
-        keywords.insert("mod".to_string(), TokenType::Mod);
-
-        keywords.insert("pub".to_string(), TokenType::Pub);
-
-        keywords.insert("nil".to_string(), TokenType::Nil);
-        keywords.insert("str".to_string(), TokenType::Str);
-        keywords.insert("num".to_string(), TokenType::Num);
-        keywords.insert("int".to_string(), TokenType::Int);
-        keywords.insert("float".to_string(), TokenType::Float);
-        keywords.insert("any".to_string(), TokenType::Any);
-        keywords.insert("vec".to_string(), TokenType::Vec);
-        keywords.insert("bool".to_string(), TokenType::Bool);
-        keywords.insert("map".to_string(), TokenType::Map);
-        keywords.insert("false".to_string(), TokenType::False);
-        keywords.insert("true".to_string(), TokenType::True);
-
-        keywords.insert("continue".to_string(), TokenType::Continue);
-        keywords.insert("break".to_string(), TokenType::Break);
-        keywords.insert("return".to_string(), TokenType::Return);
-
-        keywords.insert("Self".to_string(), TokenType::SelfStatic);
-        keywords.insert("self".to_string(), TokenType::Self_);
-
-        keywords.insert("let".to_string(), TokenType::Let);
-        keywords.insert("mut".to_string(), TokenType::Mut);
-        keywords.insert("const".to_string(), TokenType::Const);
-
-        keywords.insert("as".to_string(), TokenType::As);
-
-        keywords.insert("loop".to_string(), TokenType::Loop);
-        keywords.insert("while".to_string(), TokenType::While);
-        keywords.insert("for".to_string(), TokenType::For);
-        keywords.insert("in".to_string(), TokenType::In);
-
-        keywords.insert("match".to_string(), TokenType::Match);
-        keywords.insert("if".to_string(), TokenType::If);
-        keywords.insert("else".to_string(), TokenType::Else);
+        for token_t in &[
+            Enum, Struct, Fn, Impl, Trait, Mod, Const, Pub, As, Nil, Str, Num, Int, Float, Any,
+            Vec, Bool, Map, False, True, Continue, Break, Return, SelfStatic, Self_, Let, Mut,
+            Loop, While, For, In, Match, If, Else,
+        ] {
+            keywords.insert(token_t.value().unwrap(), *token_t);
+        }
 
         Self {
             src,
@@ -70,11 +39,11 @@ impl Lexer {
             line: 1,
             pos: 1,
             keywords,
-            err: false,
+            errors: vec![],
         }
     }
 
-    pub fn tokenize(&mut self) -> (&Vec<Token>, bool) {
+    pub fn tokenize(&mut self) -> (&[Token], &[LexerError]) {
         while !self.is_at_end() {
             self.start = self.current;
             self.token();
@@ -87,7 +56,7 @@ impl Lexer {
             self.pos(),
         ));
 
-        (&self.tokens, self.err)
+        (&self.tokens, &self.errors)
     }
 
     fn token(&mut self) {
@@ -226,8 +195,7 @@ impl Lexer {
                         }
 
                         if count != 0 && self.is_at_end() {
-                            self.err = true;
-                            error_at(self.pos(), "Unclosed comment");
+                            self.errors.push(LexerError::UnclosedComment(self.pos()));
                             return;
                         }
 
@@ -255,8 +223,9 @@ impl Lexer {
                 } else if self.is_alphabetic(c) {
                     self.identifier();
                 } else {
-                    self.err = true;
-                    error_at(self.pos(), "Unknown character");
+                    self.pos += 1;
+                    self.errors
+                        .push(LexerError::UnknownCharacter(self.pos(), c));
                 }
             }
         };
@@ -321,8 +290,7 @@ impl Lexer {
         }
 
         if self.is_at_end() {
-            self.err = true;
-            error_at(self.pos(), "Unterminated string");
+            self.errors.push(LexerError::UnterminatedString(self.pos()));
             return;
         }
 
@@ -381,7 +349,10 @@ impl Lexer {
         }
 
         let text = self.src_substr(self.start, self.current);
-        let token_type = *self.keywords.get(&text).unwrap_or(&TokenType::Identifier);
+        let token_type = *self
+            .keywords
+            .get(&text as &str)
+            .unwrap_or(&TokenType::Identifier);
 
         self.add_token(token_type);
     }
@@ -395,7 +366,7 @@ impl Lexer {
     }
 
     fn pos(&self) -> Pos {
-        (self.line, self.pos)
+        Pos(self.line, self.pos)
     }
 }
 
@@ -407,8 +378,8 @@ mod tests {
     fn test_tokenize() {
         let mut lexer = Lexer::new(str::to_string("let x = 100;"));
 
-        let (tokens, err) = lexer.tokenize();
-        assert!(!err);
+        let (tokens, errs) = lexer.tokenize();
+        assert!(errs.is_empty());
         assert_eq!(
             tokens,
             &vec![
@@ -416,33 +387,38 @@ mod tests {
                     TokenType::Let,
                     String::from("let"),
                     String::from(""),
-                    (1, 1)
+                    Pos(1, 1)
                 ),
                 Token::new(
                     TokenType::Identifier,
                     String::from("x"),
                     String::from(""),
-                    (1, 5)
+                    Pos(1, 5)
                 ),
                 Token::new(
                     TokenType::Equal,
                     String::from("="),
                     String::from(""),
-                    (1, 7)
+                    Pos(1, 7)
                 ),
                 Token::new(
                     TokenType::NumberInt,
                     String::from("100"),
                     String::from("100"),
-                    (1, 9)
+                    Pos(1, 9)
                 ),
                 Token::new(
                     TokenType::Semicolon,
                     String::from(";"),
                     String::from(""),
-                    (1, 12)
+                    Pos(1, 12)
                 ),
-                Token::new(TokenType::Eof, String::from(""), String::from(""), (1, 13)),
+                Token::new(
+                    TokenType::Eof,
+                    String::from(""),
+                    String::from(""),
+                    Pos(1, 13)
+                ),
             ]
         );
     }
@@ -450,9 +426,8 @@ mod tests {
     #[test]
     fn test_err_tokenize() {
         let mut lexer = Lexer::new(str::to_string("const X = \"string"));
-
-        let (tokens, err) = lexer.tokenize();
-        assert!(err);
+        let (tokens, errs) = lexer.tokenize();
+        assert!(!errs.is_empty());
         assert_eq!(
             tokens,
             &vec![
@@ -460,35 +435,39 @@ mod tests {
                     TokenType::Const,
                     String::from("const"),
                     String::from(""),
-                    (1, 1)
+                    Pos(1, 1)
                 ),
                 Token::new(
                     TokenType::Identifier,
                     String::from("X"),
                     String::from(""),
-                    (1, 7)
+                    Pos(1, 7)
                 ),
                 Token::new(
                     TokenType::Equal,
                     String::from("="),
                     String::from(""),
-                    (1, 9)
+                    Pos(1, 9)
                 ),
-                Token::new(TokenType::Eof, String::from(""), String::from(""), (1, 11)),
+                Token::new(
+                    TokenType::Eof,
+                    String::from(""),
+                    String::from(""),
+                    Pos(1, 11)
+                ),
             ]
         );
 
         let mut lexer = Lexer::new(str::to_string("/* comment"));
-
-        let (tokens, err) = lexer.tokenize();
-        assert!(err);
+        let (tokens, errs) = lexer.tokenize();
+        assert!(!errs.is_empty());
         assert_eq!(
             tokens,
             &vec![Token::new(
                 TokenType::Eof,
                 String::from(""),
                 String::from(""),
-                (1, 1)
+                Pos(1, 1)
             ),]
         );
     }

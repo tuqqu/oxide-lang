@@ -9,7 +9,8 @@ use self::env::{Env, EnvVal};
 use self::val::{Callable, Function, StmtVal, Val};
 use crate::interpreter::env::construct_static_name;
 use crate::interpreter::val::{PropFuncVal, StructCallable, StructInstance, VecInstance};
-use crate::lexer::token::{Pos, Token, TokenType};
+use crate::lexer::token::token_type::TokenType;
+use crate::lexer::token::{Pos, Token};
 use crate::parser::expr::{
     Assignment, Binary, Block, BoolLiteral, Call, CallStruct, ConstDecl, EnumDecl, Expr,
     FloatLiteral, FnDecl, ForIn, GetProp, GetStaticProp, Grouping, If, ImplDecl, IntLiteral,
@@ -88,6 +89,7 @@ impl Interpreter {
 
         match self.mode.clone() {
             Mode::EntryPoint(f) => {
+                let f = if let Some(f) = f { Some(*f) } else { None };
                 match f {
                     Some(env::Function {
                         val: main @ Val::Callable(_),
@@ -523,7 +525,7 @@ impl Interpreter {
         if fn_decl.name.lexeme == Self::ENTRY_POINT {
             if let Mode::EntryPoint(entry_point) = &self.mode {
                 match entry_point {
-                    None => self.mode = Mode::EntryPoint(Some(func)),
+                    None => self.mode = Mode::EntryPoint(Some(Box::new(func))),
                     Some(_) => {
                         return Err(RuntimeError::from_token(
                             fn_decl.name.clone(),
@@ -1213,7 +1215,7 @@ impl Interpreter {
             | (Mode::EntryPoint(_), Stmt::LoopStmt(_))
             | (Mode::EntryPoint(_), Stmt::ForInStmt(_)) => Err(RuntimeError::new(String::from(
                 "Only item (\"const\", \"impl\", \"struct\", \"fn\", \"enum\", \
-                    \"trait\") declarations are allowed on the top-level.",
+                    \"trait\") declarations are allowed on the top-level",
             ))),
 
             (Mode::TopLevel, Stmt::Expr(expr_stmt)) => self.eval_expr_stmt(expr_stmt),
@@ -1309,7 +1311,7 @@ enum Mode {
     TopLevel,
     /// Only item declaration allowed on the top-level.
     /// Execution starts from "main".
-    EntryPoint(Option<env::Function>),
+    EntryPoint(Option<Box<env::Function>>),
 }
 
 #[derive(Debug)]

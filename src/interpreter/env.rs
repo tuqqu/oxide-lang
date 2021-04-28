@@ -304,14 +304,17 @@ impl EnvVal {
                     ))
                 }
             }
-            EnumValue(_)
-            | Enum(_)
-            | Struct(_)
-            | Trait(_) => Err(RuntimeError::from_token(
+            EnumValue(_) | Enum(_) | Struct(_) | Trait(_) => Err(RuntimeError::from_token(
                 name,
                 String::from("Trying to assign to a non-value."),
             )),
         };
+    }
+}
+
+impl Default for Env {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -547,7 +550,8 @@ pub fn construct_static_name(struct_name: &str, static_field: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::lexer::token::TokenType;
+    use crate::lexer::token::token_type::TokenType;
+    use crate::lexer::token::Pos;
 
     #[test]
     fn test_construct_static_name() {
@@ -600,7 +604,7 @@ mod tests {
             TokenType::Identifier,
             String::from(lexeme),
             String::from(""),
-            (0, 0),
+            Pos(0, 0),
         )
     }
 }

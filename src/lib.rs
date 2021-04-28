@@ -1,102 +1,44 @@
 use std::cell::RefCell;
-use std::io::{self, Read, Write};
+use std::io::{Read, Write};
 use std::rc::Rc;
-use std::{fs, process};
+use std::{error, process};
 
 use crate::interpreter::stdlib::Stdlib;
 use crate::interpreter::{Interpreter, RuntimeError};
-use crate::lexer::token::{Pos, Token, TokenType};
+use crate::lexer::token::token_type::TokenType;
+use crate::lexer::token::{Pos, Token};
 use crate::lexer::Lexer;
 use crate::parser::Parser;
 
-mod interpreter;
-mod lexer;
-mod parser;
-
-/// Runs script from file.
-pub fn run_file(path: &str) {
-    run_file_with_streams(path, None, None, None);
-}
-
-/// Runs file with std streams.
-///
-/// Primarily used by tests to capture output, although there is nothing specific
-/// to tests. Can be used to run scripts and prevent and/or capture output.
-pub fn run_file_with_streams(
-    path: &str,
-    stdout: Option<Rc<RefCell<dyn Write>>>,
-    stderr: Option<Rc<RefCell<dyn Write>>>,
-    stdin: Option<Rc<RefCell<dyn Read>>>,
-) {
-    let contents = fs::read_to_string(path).expect(&format!(
-        "Something went wrong while reading the file \"{}\"",
-        path
-    ));
-    run(contents, stdout, stderr, stdin);
-}
-
-/// Runs script from file.
-pub fn run_file_top_level(path: &str) {
-    run_file_with_streams_top_level(path, None, None, None);
-}
-
-/// Runs file with std streams.
-///
-/// Primarily used by tests to capture output, although there is nothing specific
-/// to tests. Can be used to run scripts and prevent and/or capture output.
-pub fn run_file_with_streams_top_level(
-    path: &str,
-    stdout: Option<Rc<RefCell<dyn Write>>>,
-    stderr: Option<Rc<RefCell<dyn Write>>>,
-    stdin: Option<Rc<RefCell<dyn Read>>>,
-) {
-    let contents = fs::read_to_string(path).expect(&format!(
-        "Something went wrong while reading the file \"{}\"",
-        path
-    ));
-    run_top_level(contents, stdout, stderr, stdin);
-}
-
-/// Runs REPL mode from stdin.
-pub fn run_repl() {
-    let stdin = io::stdin();
-
-    loop {
-        print!("> ");
-        io::stdout()
-            .flush()
-            .expect("Error while flushing output to stdout.");
-        let mut line: String = String::new();
-        stdin
-            .read_line(&mut line)
-            .expect("Error while reading a line.");
-
-        if line == "\n" {
-            break;
-        }
-
-        run(line.to_string(), None, None, None);
-    }
-}
+pub mod interpreter;
+pub mod lexer;
+pub mod parser;
 
 /// Runs code from string.
-fn run(
+pub fn run(
     src: String,
     stdout: Option<Rc<RefCell<dyn Write>>>,
     stderr: Option<Rc<RefCell<dyn Write>>>,
     stdin: Option<Rc<RefCell<dyn Read>>>,
+    top_level: bool,
 ) {
     let mut scanner = Lexer::new(src);
-    let (tokens, invalid) = scanner.tokenize();
+    let (tokens, errors) = scanner.tokenize();
 
-    if invalid {
+    if !errors.is_empty() {
+        for error in errors {
+            eprint_error(error);
+        }
         process::exit(1);
     }
 
-    let mut parser = Parser::new(tokens.clone());
+    let mut parser = Parser::new(tokens.to_vec());
     let stmts = match parser.parse() {
         Ok(stmts) => stmts,
-        Err(_) => {
+        Err(errors) => {
+            for error in errors {
+                eprint_error(error);
+            }
             process::exit(1);
         }
     };
@@ -110,50 +52,11 @@ fn run(
         }
     };
 
-    let mut interpreter = Interpreter::new(lib, stdout, stderr, stdin);
-    let res = interpreter.interpret(&stmts);
-
-    match res {
-        Ok(_) => {}
-        Err(e) => {
-            error_runtime(&e);
-            process::exit(1);
-        }
+    let mut interpreter = if top_level {
+        Interpreter::top_level(lib, stdout, stderr, stdin)
+    } else {
+        Interpreter::new(lib, stdout, stderr, stdin)
     };
-}
-
-/// Runs code from string.
-fn run_top_level(
-    src: String,
-    stdout: Option<Rc<RefCell<dyn Write>>>,
-    stderr: Option<Rc<RefCell<dyn Write>>>,
-    stdin: Option<Rc<RefCell<dyn Read>>>,
-) {
-    let mut scanner = Lexer::new(src);
-    let (tokens, invalid) = scanner.tokenize();
-
-    if invalid {
-        process::exit(1);
-    }
-
-    let mut parser = Parser::new(tokens.clone());
-    let stmts = match parser.parse() {
-        Ok(stmts) => stmts,
-        Err(_) => {
-            process::exit(1);
-        }
-    };
-
-    let lib = Stdlib::env();
-    let lib = match lib {
-        Ok(env) => env,
-        Err(e) => {
-            error_runtime(&e);
-            process::exit(1);
-        }
-    };
-
-    let mut interpreter = Interpreter::top_level(lib, stdout, stderr, stdin);
     let res = interpreter.interpret(&stmts);
 
     match res {
@@ -166,12 +69,7 @@ fn run_top_level(
 }
 
 /// Language version is taken from Cargo.toml.
-const VERSION: &str = env!("CARGO_PKG_VERSION");
-
-/// Prints language version.
-pub fn print_version() {
-    println!("Oxide {}", VERSION);
-}
+pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 /// Prints error at position, when there is no token.
 fn error_at(pos: Pos, msg: &str) {
@@ -223,4 +121,8 @@ fn print_error(err_token: &str, message: &str, pos: Option<Pos>) {
     };
 
     eprintln!("\x1b[0;31mError {}: {}{}.\x1b[0m", err_token, message, pos);
+}
+
+fn eprint_error(err: impl error::Error) {
+    eprintln!("\x1b[0;31m{}\x1b[0m", err);
 }

@@ -1,7 +1,8 @@
 use std::fmt;
 
 use crate::interpreter::val::Val;
-use crate::lexer::token::{Token, TokenType};
+use crate::lexer::token::token_type::TokenType;
+use crate::lexer::token::Token;
 
 pub const TYPE_UNINIT: &str = "uninit";
 pub const TYPE_ANY: &str = "any";
@@ -187,6 +188,7 @@ impl PartialEq for FnType {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::lexer::token::Pos;
 
     #[test]
     fn test_try_from_token() {
@@ -194,31 +196,31 @@ mod tests {
             TokenType::Int,
             String::from("100"),
             String::from("100"),
-            (0, 0),
+            Pos(0, 0),
         );
         let float = Token::new(
             TokenType::Float,
             String::from("10.1"),
             String::from("10.1"),
-            (0, 0),
+            Pos(0, 0),
         );
         let string = Token::new(
             TokenType::Str,
             String::from("string"),
             String::from("string"),
-            (0, 0),
+            Pos(0, 0),
         );
         let nil = Token::new(
             TokenType::Nil,
             String::from("nil"),
             String::from("nil"),
-            (0, 0),
+            Pos(0, 0),
         );
         let boolean = Token::new(
             TokenType::Bool,
             String::from("true"),
             String::from("true"),
-            (0, 0),
+            Pos(0, 0),
         );
 
         assert_eq!(ValType::try_from_token(&int, None).unwrap(), ValType::Int);
