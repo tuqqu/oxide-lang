@@ -1,7 +1,7 @@
 use std::cmp::Ordering;
 use std::{env, process};
 
-use oxide::{print_version, run_file, run_repl};
+use oxide::{print_version, run_file, run_repl, run_file_top_level};
 
 fn main() {
     let args: Vec<String> = env::args().collect();
@@ -15,8 +15,10 @@ fn main() {
         Ordering::Equal => {
             if args[1] == "--version" || args[1] == "-v" {
                 print_version();
+            } else if args[1] == "--no-entry-point" || args[1] == "-n" {
+                run_file_top_level(&args[1]);
             } else {
-                run_file(args[1].clone());
+                run_file(&args[1]);
             }
         }
         Ordering::Less => {

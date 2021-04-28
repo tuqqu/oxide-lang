@@ -6,13 +6,13 @@ Interpreted C-like language with a Rust influenced syntax. [Latest release][late
 ```rust
 /// structs
 
-struct Circle {                   // struct declaration
-    pub radius: float,            // public field
-    center: Point,                // private field
+struct Circle {                                 // struct declaration
+    pub radius: float,                          // public field
+    center: Point,                              // private field
 }
 
-impl Circle {                     // struct implementation
-    const PI = 3.14159;           // private associated constant
+impl Circle {                                   // struct implementation
+    const PI = 3.14159;                         // private associated constant
 
     pub fn new(r: float, c: Point) -> Self {    // public static method
         return Self {
@@ -29,31 +29,48 @@ struct Point {
 
 /// traits
 
-trait Shape {                     // trait declaration
-    fn calc_area(self) -> float;  // trait methods are always public
+trait Shape {                                   // trait declaration
+    fn calc_area(self) -> float;                // trait methods are always public
 }
 
-impl Shape for Circle {            // trait implementation
+impl Shape for Circle {                         // trait implementation
     fn calc_area(self) -> float {  
         return Self::PI * self.radius * self.radius;
     }
 }
 
-let circle_a = Circle::new(       // instantiation via static constructor
-    200,
-    Point { x: 1, y: 5 }
-); 
+// program entry point
+fn main() {                                     
+    let a = Circle::new(200.0, Point { x: 1, y: 5 });
+    let area = a.calc_area();                   
+  
+    println("circle area: " + area as str);     // type casting
+}
 
-let circle_b = Circle {           // direct instantiation
-    radius: 103.5,
-    center: Point { x: 1, y: 5 }  // inner structs instantiation
-};
+```
 
-let area = circle_a.calc_area();  // 125663.59999
+```rust
+/// enums
 
-println(
-    "circle area: " + area as str // type casting
-); 
+enum Ordering {
+    Less,
+    Equal,
+    Greater
+}
+
+impl Ordering {
+    pub fn compare(a: int, b: int) -> Self {
+        return match true {
+            a < b  => Self::Less,
+            a == b => Self::Equal,
+            a > b  => Self::Greater,
+        };
+    }
+}
+
+fn main() {
+    let order = Ordering::compare(10, 5); // Ordering::Greater
+}
 ```
 
 ```rust
@@ -79,33 +96,12 @@ fn insertion_sort(input: vec<int>) {
     }
 }
 
-let input: vec<int> = vec[4, 13, 0, 3, -3, 4, 19, 1];
-
-insertion_sort(input);
-
-println(input); // [vec] [-3, 0, 1, 3, 4, 4, 13, 19]
-```
-
-```rust
-/// enums
-
-enum Ordering {
-    Less,
-    Equal,
-    Greater
+fn main() {
+    let input: vec<int> = vec[4, 13, 0, 3, -3, 4, 19, 1];
+    insertion_sort(input);
+    println(input); // [vec] [-3, 0, 1, 3, 4, 4, 13, 19]
 }
 
-impl Ordering {
-    pub fn compare(a: int, b: int) -> Self {
-        return match true {
-            a < b  => Self::Less,
-            a == b => Self::Equal,
-            a > b  => Self::Greater,
-        };
-    }
-}
-
-let order = Ordering::compare(10, 5); // Ordering::Greater
 ```
 
 [More examples][examples]
@@ -148,6 +144,7 @@ cargo uninstall
 
 # Quick Overview
 
+* [Program Structure](#program-structure)
 * [Variables and Type System](#variables-and-type-system)
     * [Mutability](#mutability)
     * [Shadowing](#shadowing)
@@ -173,6 +170,30 @@ cargo uninstall
 * [Comments](#comments)
 * [Standard library](#standard-library)
 
+## Program Structure
+
+In Oxide, the entry point of a program is a function named `main`.
+
+```rust
+fn main() {
+    // code goes here
+}
+```
+
+On the top level only item (`const`, `fn`, `struct`, `enum`, `trait`) declarations are possible.
+
+```rust
+const C = 0;
+struct S {}
+trait T {}
+enum E {}
+```
+
+However, if you for some reason wish to run your code with top-level instructions and no entry point, you may run it like this:
+
+```shell
+oxide --no-entry-point "script.ox"
+```
 
 ## Variables and Type System
 
@@ -182,27 +203,22 @@ Variables are typed either explicitly:
 
 ```rust
 let x: int;
-let y: str = "hello" + " world";
-let names: vec<str> = vec["Josh", "Carol", "Steven"];
-
-let jane: Person = Person { 
-    name: "Jane"
-};
-
-let double: fn(int) -> int = fn (x: int) -> int {
-    return x * 2; 
-};
+let y: str = "hello world";
+let nums: vec<int> = vec[1, 2, 3];
+let jane: Person = Person { name: "Jane" };
+// functions are their own type
+let double: fn(int) -> int = fn (x: int) -> int { return x * 2; };
 ```
 
 or their type implicitly inferred:
 
 ```rust
-let x = 1;                         // inferred as "float"
+let x = 1;                         // inferred as "int"
 let dog = Dog::new("Good Boy");    // inferred as "Dog"
 let ordering = Ordering::Less;     // inferred as "Ordering"
 
 let x;
-x = vec[1, 2, 3];                   // inferred as "vec<int>" the first time it is being assigned
+x = vec[1, 2, 3];                  // inferred as "vec<int>" the first time it is being assigned
 ```
 
 ### Mutability
@@ -223,7 +239,7 @@ x += " world"; // ok
 
 ### Shadowing
 
-Variables can be shadowed. Each variable declaration "shadows" the previous one and ignores its type and mutability. Consider:
+Variables can be shadowed. Each variable declaration "shadows" the previous one:
 
 ```rust
 let x: int = 100;
@@ -318,7 +334,9 @@ impl HttpStatus {
     }
 }
 
-let status = HttpStatus::code(HttpStatus::Ok); // 200
+fn main() {
+    let status = HttpStatus::code(HttpStatus::Ok); // 200
+}
 ```
 
 ### While
@@ -375,7 +393,7 @@ Functions are declared with a `fn` keyword.
 
 Function signature must explicitly list all argument types as well as a return type.
 
-Functions that do not have a `return` statement implicitly return `nil` and the explicit return type can be omitted (same as declaring it with `-> nil`)
+Functions that do not have a `return` statement implicitly return `nil` and the `-> nil` may be omitted.
 
 Each function is of `fn(T, [T,]) -> T` type.
 
@@ -384,16 +402,12 @@ fn add(x: int, y: int) -> int {  // typeof(add) = "fn(int, int) -> int"
     return x + y;
 }
 
-let sum = add(1, 100);
-
 fn clone(c: Circle) -> Circle {  // typeof(clone) = "fn(Circle) -> Circle"
     return Circle {
         radius: c.radius,
         center: c.center,
     };
 }
-
-let cloned = clone(circle);
 
 fn log(level: int, msg: str) {   // typeof(log) = "fn(int, str)" 
     println(
@@ -424,17 +438,15 @@ fn gcd(mut n: int, mut m: int) -> int {   // typeof(gcd) = "fn(int, int) -> int"
 gcd(15, 5); // 5
 ```
 
-Redeclaring a function results in a runtime error.
-
 ### Closures
 
-Functions are first-class citizens of the language, they can be stored in a variable of type `fn()`, passed to or/and returned from another function.
+Functions are first-class citizens of the language, they can be stored in a variable of type `fn(T) -> T`, passed to or/and returned from another function.
 
 ```rust
 /// function returns closure
 /// which captures the internal value i
 /// each call to the closure increments the captured value
-fn create_counter() -> fn() {
+fn create_counter() -> fn() {       // typeof(create_counter) = "fn() -> fn()"
     let mut i = 0;
 
     return fn () {                  // returns closure
@@ -444,18 +456,17 @@ fn create_counter() -> fn() {
 }
 
 let counter = create_counter();     // inferred as "fn() -> fn()"
-let another_counter: fn() -> fn() = counter;
 
 counter(); // 1
 counter(); // 2
 counter(); // 3
 ```
 
-Declared functions can be passed by their name directly
+Functions can be passed by their name directly
 
 ```rust
-fn str_concat(prefix: str, suffix: str) -> str {
-    return prefix + suffix;
+fn str_concat(a: str, b: str) -> str {
+    return a + b;
 }
 
 fn str_transform(
@@ -758,7 +769,7 @@ Vectors have built-in methods:
 * `vec.len() -> int` get vectors length
 
 ```rust
-let planets = vec<str>["Mercury", "Venus", "Earth", "Mars"];
+let planets = vec["Mercury", "Venus", "Earth", "Mars"];
 
 planents.push("Jupiter");    // "Jupiter" is now the last value in a vector
 let jupiter = planets.pop(); // "Jupiter" is no longer in a vector.
@@ -844,11 +855,11 @@ fn selection_sort(input: vec<int>) {
 
 Vectors can hold any values and be used inside structs.
 ```rust
-let animals: vec = vec[
+let animals = vec[
     Elephant { name: "Samuel" },
     Zebra { name: "Robert" },
     WolfPack { 
-        wolves: vec<Wolf>[
+        wolves: vec[
             Wolf { name: "Joe" },
             Wolf { name: "Mag" },
         ]
@@ -874,7 +885,7 @@ const EPSILON = 0.004;
 
 Struct implementations (`impl` blocks) can also define constants. Those constants can be either public or private.
 ```rust
-struct Math {};
+struct Math {}
 
 impl Math {
     pub const PI = 3.14159265;  // public const

@@ -30,15 +30,43 @@ pub struct Interpreter {
     pub stdin: Rc<RefCell<dyn Read>>,
     pub glob: Rc<RefCell<Env>>,
     pub env: Rc<RefCell<Env>>,
+    mode: Mode,
 }
 
 impl Interpreter {
+    const ENTRY_POINT: &'static str = "main";
+
+    /// Returns an interpreter instance.
     pub fn new(
         stdlib: Env,
-        stdout: Rc<RefCell<dyn Write>>,
-        stderr: Rc<RefCell<dyn Write>>,
-        stdin: Rc<RefCell<dyn Read>>,
+        stdout: Option<Rc<RefCell<dyn Write>>>,
+        stderr: Option<Rc<RefCell<dyn Write>>>,
+        stdin: Option<Rc<RefCell<dyn Read>>>,
     ) -> Self {
+        Self::from_mode(stdlib, stdout, stderr, stdin, Mode::EntryPoint(None))
+    }
+
+    /// Returns an interpreter instance for Top-level statements execution.
+    pub fn top_level(
+        stdlib: Env,
+        stdout: Option<Rc<RefCell<dyn Write>>>,
+        stderr: Option<Rc<RefCell<dyn Write>>>,
+        stdin: Option<Rc<RefCell<dyn Read>>>,
+    ) -> Self {
+        Self::from_mode(stdlib, stdout, stderr, stdin, Mode::TopLevel)
+    }
+
+    fn from_mode(
+        stdlib: Env,
+        stdout: Option<Rc<RefCell<dyn Write>>>,
+        stderr: Option<Rc<RefCell<dyn Write>>>,
+        stdin: Option<Rc<RefCell<dyn Read>>>,
+        mode: Mode,
+    ) -> Self {
+        let stdout = stdout.unwrap_or_else(|| Rc::new(RefCell::new(std::io::stdout())));
+        let stderr = stderr.unwrap_or_else(|| Rc::new(RefCell::new(std::io::stderr())));
+        let stdin = stdin.unwrap_or_else(|| Rc::new(RefCell::new(std::io::stdin())));
+
         let glob = Rc::new(RefCell::new(stdlib));
         let env = Rc::clone(&glob);
 
@@ -48,15 +76,37 @@ impl Interpreter {
             stdin,
             glob,
             env,
+            mode,
         }
     }
 
+    /// Interpret statements.
     pub fn interpret(&mut self, stmts: &[Stmt]) -> Result<()> {
         for stmt in stmts {
             self.evaluate_stmt(stmt)?;
         }
 
-        Ok(())
+        match self.mode.clone() {
+            Mode::EntryPoint(f) => {
+                match f {
+                    Some(env::Function {
+                        val: main @ Val::Callable(_),
+                        ..
+                    }) => {
+                        self.mode = Mode::TopLevel;
+                        // FIXME: add argument support
+                        // FIXME: add return value support
+                        let _result = self.call_expr(&main, &[])?;
+                        Ok(())
+                    }
+                    _ => Err(RuntimeError::new(String::from(&format!(
+                        "No entry-point \"{}\" function found",
+                        Self::ENTRY_POINT
+                    )))),
+                }
+            }
+            Mode::TopLevel => Ok(()),
+        }
     }
 
     fn eval_enum_stmt(&mut self, stmt: &EnumDecl) -> Result<StmtVal> {
@@ -467,12 +517,27 @@ impl Interpreter {
     }
 
     fn eval_fn_stmt(&mut self, fn_decl: &FnDecl) -> Result<StmtVal> {
-        let func: env::Function = env::Function::without_struct(
-            fn_decl.name.clone(),
-            self.eval_fn_expr(&fn_decl.lambda.clone(), None, None),
-        );
+        let fn_val = self.eval_fn_expr(&fn_decl.lambda.clone(), None, None);
+        let func: env::Function = env::Function::without_struct(fn_decl.name.clone(), fn_val);
 
-        self.env.borrow_mut().define_function(func)?;
+        if fn_decl.name.lexeme == Self::ENTRY_POINT {
+            if let Mode::EntryPoint(entry_point) = &self.mode {
+                match entry_point {
+                    None => self.mode = Mode::EntryPoint(Some(func)),
+                    Some(_) => {
+                        return Err(RuntimeError::from_token(
+                            fn_decl.name.clone(),
+                            format!(
+                                "Entry-point function \"{}\" cannot be declared twice.",
+                                Self::ENTRY_POINT
+                            ),
+                        ))
+                    }
+                }
+            }
+        } else {
+            self.env.borrow_mut().define_function(func)?;
+        }
 
         Ok(StmtVal::None)
     }
@@ -623,22 +688,26 @@ impl Interpreter {
     fn eval_call_expr(&mut self, expr: &Call) -> Result<Val> {
         let callee = self.evaluate(&expr.callee)?;
 
+        self.call_expr(&callee, &expr.args)
+    }
+
+    fn call_expr(&mut self, callee: &Val, args: &[Expr]) -> Result<Val> {
         match callee {
             Val::Callable(callee) => {
-                let mut args = vec![];
-                for arg in &expr.args {
-                    args.push(self.evaluate(&arg)?);
+                let mut eval_args = vec![];
+                for arg in args {
+                    eval_args.push(self.evaluate(&arg)?);
                 }
 
-                if args.len() != callee.arity {
+                if eval_args.len() != callee.arity {
                     return Err(RuntimeError::new(format!(
                         "Expected {} arguments but got {}",
                         callee.arity,
-                        args.len()
+                        eval_args.len()
                     )));
                 }
 
-                (callee.call)(self, &args)
+                (callee.call)(self, &eval_args)
             }
             _ => Err(RuntimeError::new(format!(
                 "Callable value must be of type \"{}\", got \"{}\"",
@@ -1109,12 +1178,12 @@ impl Interpreter {
             FloatLiteralExpr(literal) => self.eval_float_literal(&literal),
             StrLiteralExpr(literal) => self.eval_str_literal(&literal),
             UnaryExpr(unary) => self.eval_unary_expr(&unary)?,
-            CallExpr(call) => self.eval_call_expr(&call)?,
             SelfStaticExpr(self_static) => self.eval_self_static_expr(&self_static)?,
             SelfExpr(self_) => self.eval_self_expr(&self_)?,
+            CallExpr(call) => self.eval_call_expr(&call)?,
             CallStructExpr(call_struct) => self.eval_call_struct_expr(&call_struct)?,
             VecExpr(call_vec) => self.eval_vec_expr(&call_vec)?,
-            VecIndexExpr(vec_indx) => self.eval_vec_index(&vec_indx)?,
+            VecIndexExpr(vec_index) => self.eval_vec_index(&vec_index)?,
             GetStaticExpr(get_static_prop) => self.eval_get_static_prop_expr(&get_static_prop)?,
             GetPropExpr(get_prop) => self.eval_get_prop_expr(&get_prop)?,
             SetPropExpr(set_prop) => self.eval_set_prop_expr(&set_prop)?,
@@ -1133,23 +1202,36 @@ impl Interpreter {
     }
 
     fn evaluate_stmt(&mut self, stmt: &Stmt) -> Result<StmtVal> {
-        use Stmt::*;
-        match stmt {
-            Expr(expr_stmt) => self.eval_expr_stmt(expr_stmt),
-            Let(var_decl) => self.eval_var_stmt(var_decl),
-            Const(const_decl) => self.eval_const_stmt(const_decl),
-            Break => Ok(self.eval_break_stmt()),
-            Continue => Ok(self.eval_continue_stmt()),
-            Return(return_stmt) => self.eval_return_stmt(return_stmt),
-            BlockStmt(block) => self.eval_block_stmt(block),
-            IfStmt(if_stmt) => self.eval_if_stmt(if_stmt),
-            Fn(f_decl) => self.eval_fn_stmt(f_decl),
-            LoopStmt(loop_stmt) => self.eval_loop_stmt(loop_stmt),
-            ForInStmt(for_in_stmt) => self.eval_for_in_stmt(for_in_stmt),
-            Enum(enum_decl) => self.eval_enum_stmt(enum_decl),
-            Struct(struct_decl) => self.eval_struct_stmt(struct_decl),
-            Impl(impl_decl) => self.eval_impl_stmt(impl_decl),
-            Trait(trait_decl) => self.eval_trait_stmt(trait_decl),
+        match (&self.mode, stmt) {
+            (Mode::EntryPoint(_), Stmt::Expr(_))
+            | (Mode::EntryPoint(_), Stmt::Let(_))
+            | (Mode::EntryPoint(_), Stmt::Break)
+            | (Mode::EntryPoint(_), Stmt::Continue)
+            | (Mode::EntryPoint(_), Stmt::Return(_))
+            | (Mode::EntryPoint(_), Stmt::BlockStmt(_))
+            | (Mode::EntryPoint(_), Stmt::IfStmt(_))
+            | (Mode::EntryPoint(_), Stmt::LoopStmt(_))
+            | (Mode::EntryPoint(_), Stmt::ForInStmt(_)) => Err(RuntimeError::new(String::from(
+                "Only item (\"const\", \"impl\", \"struct\", \"fn\", \"enum\", \
+                    \"trait\") declarations are allowed on the top-level.",
+            ))),
+
+            (Mode::TopLevel, Stmt::Expr(expr_stmt)) => self.eval_expr_stmt(expr_stmt),
+            (Mode::TopLevel, Stmt::Let(var_decl)) => self.eval_var_stmt(var_decl),
+            (Mode::TopLevel, Stmt::Break) => Ok(self.eval_break_stmt()),
+            (Mode::TopLevel, Stmt::Continue) => Ok(self.eval_continue_stmt()),
+            (Mode::TopLevel, Stmt::Return(return_stmt)) => self.eval_return_stmt(return_stmt),
+            (Mode::TopLevel, Stmt::BlockStmt(block)) => self.eval_block_stmt(block),
+            (Mode::TopLevel, Stmt::IfStmt(if_stmt)) => self.eval_if_stmt(if_stmt),
+            (Mode::TopLevel, Stmt::LoopStmt(loop_stmt)) => self.eval_loop_stmt(loop_stmt),
+            (Mode::TopLevel, Stmt::ForInStmt(for_in_stmt)) => self.eval_for_in_stmt(for_in_stmt),
+
+            (_, Stmt::Const(const_decl)) => self.eval_const_stmt(const_decl),
+            (_, Stmt::Fn(f_decl)) => self.eval_fn_stmt(f_decl),
+            (_, Stmt::Enum(enum_decl)) => self.eval_enum_stmt(enum_decl),
+            (_, Stmt::Struct(struct_decl)) => self.eval_struct_stmt(struct_decl),
+            (_, Stmt::Impl(impl_decl)) => self.eval_impl_stmt(impl_decl),
+            (_, Stmt::Trait(trait_decl)) => self.eval_trait_stmt(trait_decl),
         }
     }
 
@@ -1219,6 +1301,15 @@ impl Interpreter {
             ))),
         }
     }
+}
+
+#[derive(Clone)]
+enum Mode {
+    /// Any statements allowed on the top-level.
+    TopLevel,
+    /// Only item declaration allowed on the top-level.
+    /// Execution starts from "main".
+    EntryPoint(Option<env::Function>),
 }
 
 #[derive(Debug)]

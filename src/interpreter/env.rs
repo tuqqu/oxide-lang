@@ -92,7 +92,7 @@ pub struct Trait {
 }
 
 /// It is not wrapped in `EnvValue` enum value,
-/// because we store it separately to lookup called functions & etc.
+/// because we store it separately to lookup called functions etc.
 #[derive(Clone, Debug)]
 pub struct Impl {
     pub id: usize,
@@ -123,6 +123,10 @@ impl Variable {
     }
 }
 
+trait ResolvableName {
+    fn resolve_name(&self) -> String;
+}
+
 impl Constant {
     pub fn with_struct(name: Token, val: Val, for_struct: (Token, bool)) -> Self {
         Self::new(name, val, Some(for_struct))
@@ -140,8 +144,10 @@ impl Constant {
             for_target: for_struct,
         }
     }
+}
 
-    pub fn get_name(&self) -> String {
+impl ResolvableName for Constant {
+    fn resolve_name(&self) -> String {
         if let Some((for_struct, _)) = &self.for_target {
             construct_static_name(&for_struct.lexeme, &self.name.lexeme)
         } else {
@@ -167,8 +173,10 @@ impl Function {
             for_target: for_struct,
         }
     }
+}
 
-    pub fn get_name(&self) -> String {
+impl ResolvableName for Function {
+    fn resolve_name(&self) -> String {
         if let Some((for_struct, _)) = &self.for_target {
             construct_static_name(&for_struct.lexeme, &self.name.lexeme)
         } else {
@@ -296,7 +304,10 @@ impl EnvVal {
                     ))
                 }
             }
-            EnumValue(_) | Enum(_) | Struct(_) | Trait(_) => Err(RuntimeError::from_token(
+            EnumValue(_)
+            | Enum(_)
+            | Struct(_)
+            | Trait(_) => Err(RuntimeError::from_token(
                 name,
                 String::from("Trying to assign to a non-value."),
             )),
@@ -398,15 +409,15 @@ impl Env {
     }
 
     pub fn define_constant(&mut self, constant: Constant) -> Result<()> {
-        if self.vals.contains_key(&constant.get_name()) {
+        if self.vals.contains_key(&constant.resolve_name()) {
             return Err(RuntimeError::from_token(
                 constant.name.clone(),
-                format!("Name \"{}\" is already in use", constant.get_name()),
+                format!("Name \"{}\" is already in use", constant.resolve_name()),
             ));
         }
 
         self.vals.insert(
-            constant.get_name(),
+            constant.resolve_name(),
             Rc::new(RefCell::new(EnvVal::Constant(constant))),
         );
 
@@ -414,15 +425,15 @@ impl Env {
     }
 
     pub fn define_function(&mut self, func: Function) -> Result<()> {
-        if self.vals.contains_key(&func.get_name()) {
+        if self.vals.contains_key(&func.resolve_name()) {
             return Err(RuntimeError::from_token(
                 func.name.clone(),
-                format!("Name \"{}\" is already in use", func.get_name()),
+                format!("Name \"{}\" is already in use", func.resolve_name()),
             ));
         }
 
         self.vals.insert(
-            func.get_name(),
+            func.resolve_name(),
             Rc::new(RefCell::new(EnvVal::Function(func))),
         );
 
@@ -551,11 +562,11 @@ mod tests {
             Some((identifier("test_struct"), true)),
         );
 
-        assert_eq!(constant.get_name(), "test_struct::test_const");
+        assert_eq!(constant.resolve_name(), "test_struct::test_const");
 
         let constant = Constant::new(identifier("test_const"), Val::Int(100), None);
 
-        assert_eq!(constant.get_name(), "test_const");
+        assert_eq!(constant.resolve_name(), "test_const");
     }
 
     #[test]
@@ -566,11 +577,11 @@ mod tests {
             Some((identifier("test_struct"), true)),
         );
 
-        assert_eq!(fun.get_name(), "test_struct::test_fn");
+        assert_eq!(fun.resolve_name(), "test_struct::test_fn");
 
         let fun = Constant::new(identifier("test_fn"), Val::Int(100), None);
 
-        assert_eq!(fun.get_name(), "test_fn");
+        assert_eq!(fun.resolve_name(), "test_fn");
     }
 
     #[test]

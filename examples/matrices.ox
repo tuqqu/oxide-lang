@@ -46,26 +46,28 @@ impl Matrix {
     }
 }
 
-let matrix_a = Matrix {
-    m: vec[
-        vec[1, 11, 3],
-        vec[5, 0, -5],
-        vec[6, 9, 19],
-    ],
-};
+fn main() {
+    let matrix_a = Matrix {
+        m: vec[
+            vec[1, 11, 3],
+            vec[5, 0, -5],
+            vec[6, 9, 19],
+        ],
+    };
 
 
-let matrix_b = Matrix {
-    m: vec[
-        vec[0, 0, 1],
-        vec[2, -1, -3],
-        vec[-4, 1, 3],
-    ],
-};
+    let matrix_b = Matrix {
+        m: vec[
+            vec[0, 0, 1],
+            vec[2, -1, -3],
+            vec[-4, 1, 3],
+        ],
+    };
 
-let matrix_c = matrix_a.multiply(matrix_b);
+    let matrix_c = matrix_a.multiply(matrix_b);
 
-matrix_a.add(10);
+    matrix_a.add(10);
 
-println(matrix_c);
-println(matrix_a);
+    println(matrix_c);
+    println(matrix_a);
+}

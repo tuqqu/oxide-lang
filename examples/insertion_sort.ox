@@ -19,8 +19,10 @@ fn insertion_sort(input: vec<int>) {
     }
 }
 
-let input: vec<int> = vec[4, 13, 0, 3, -3, 4, 19, 1];
+fn main() {
+    let input: vec<int> = vec[4, 13, 0, 3, -3, 4, 19, 1];
 
-insertion_sort(input);
+    insertion_sort(input);
 
-println(input);
+    println(input);
+}

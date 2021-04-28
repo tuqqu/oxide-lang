@@ -1133,16 +1133,21 @@ impl Parser {
     fn call_expr(&mut self) -> Result<Expr> {
         let mut expr = self.primary_expr()?;
 
-        if self.constructors.contains(&self.previous().lexeme.clone()) {
-            if let Expr::VariableExpr(_) = expr {
-                if self.match_token(TokenType::LeftCurlyBrace) {
-                    expr = self.finish_struct_call_expr(expr)?
-                }
-            }
-        }
-
-        // Check for: Self {...
-        if self.previous().token_type == TokenType::SelfStatic
+        if self.constructors.contains(&self.previous().lexeme)
+            && self.match_token(TokenType::LeftCurlyBrace)
+        {
+            expr = self.finish_struct_call_expr(expr)?
+        } else if self.previous().token_type == TokenType::Identifier
+            && self.check(TokenType::LeftCurlyBrace)
+            && self.check_next(TokenType::Identifier)
+            && (self.check_by(2, TokenType::Comma) || self.check_by(2, TokenType::Colon))
+        {
+            self.consume(
+                TokenType::LeftCurlyBrace,
+                "Expected \"{}\" before constructor call",
+            )?;
+            expr = self.finish_struct_call_expr(expr)?;
+        } else if self.previous().token_type == TokenType::SelfStatic
             && self.match_token(TokenType::LeftCurlyBrace)
         {
             expr = self.finish_struct_call_expr(expr)?;
@@ -1400,11 +1405,15 @@ impl Parser {
     }
 
     fn check_next(&self, t_type: TokenType) -> bool {
+        self.check_by(1, t_type)
+    }
+
+    fn check_by(&self, by: usize, t_type: TokenType) -> bool {
         if self.at_end() {
             return false;
         }
 
-        if let Some(token) = self.tokens.get(self.current + 1) {
+        if let Some(token) = self.tokens.get(self.current + by) {
             match token.token_type {
                 TokenType::Eof => false,
                 next_t_type => t_type == next_t_type,

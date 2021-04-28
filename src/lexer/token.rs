@@ -84,6 +84,8 @@ pub enum TokenType {
     BitwiseOrEqual,
     BitwiseXorEqual,
 
+    As,
+
     Identifier,
     String,
     NumberInt,
@@ -112,13 +114,12 @@ pub enum TokenType {
     Mut,
     Const,
 
-    As,
-
     Enum,
     Struct,
     Fn,
     Impl,
     Trait,
+    Mod,
 
     Pub,
 

@@ -70,3 +70,11 @@ bool
 false
 str
 hello
+int
+123
+int
+123
+str
+hello
+bool
+true

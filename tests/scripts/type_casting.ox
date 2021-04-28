@@ -146,3 +146,24 @@ println(x);
 let x = "hello" as str;
 println(typeof(x));
 println(x);
+
+// any
+let x: any = "123";
+let x = x as int;
+println(typeof(x));
+println(x);
+
+let x: any = 123;
+let x = x as int;
+println(typeof(x));
+println(x);
+
+let x: any = "hello";
+let x = x as str;
+println(typeof(x));
+println(x);
+
+let x: any = "hello";
+let x = x as bool;
+println(typeof(x));
+println(x);

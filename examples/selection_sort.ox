@@ -23,8 +23,10 @@ fn selection_sort(input: vec<int>) {
     }
 }
 
-let vector: vec<int> = vec[10, 0, 45, 56, 12, -5, 19, 0];
+fn main() {
+    let vector: vec<int> = vec[10, 0, 45, 56, 12, -5, 19, 0];
 
-selection_sort(vector);
+    selection_sort(vector);
 
-println(vector);
+    println(vector);
+}

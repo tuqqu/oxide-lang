@@ -1,4 +1,4 @@
-/// recursive function calls to compute n-th
+/// Recursive function calls to compute n-th
 /// fibonacci sequence number
 
 fn fib(n: int) -> int {
@@ -9,6 +9,8 @@ fn fib(n: int) -> int {
     return fib(n - 2) + fib(n - 1);
 }
 
-for let mut i = 0; i < 10; i += 1 {
-    println(fib(i));
+fn main() {
+    for let mut i = 0; i < 10; i += 1 {
+        println(fib(i));
+    }
 }

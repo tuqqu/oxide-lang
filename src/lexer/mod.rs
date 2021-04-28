@@ -24,6 +24,7 @@ impl Lexer {
         keywords.insert("fn".to_string(), TokenType::Fn);
         keywords.insert("impl".to_string(), TokenType::Impl);
         keywords.insert("trait".to_string(), TokenType::Trait);
+        keywords.insert("mod".to_string(), TokenType::Mod);
 
         keywords.insert("pub".to_string(), TokenType::Pub);
 
