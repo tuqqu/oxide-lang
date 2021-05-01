@@ -6,20 +6,24 @@ use std::sync::Arc;
 use std::{mem, result};
 
 use self::env::{Env, EnvVal};
+use self::error::RuntimeError;
 use self::val::{Callable, Function, StmtVal, Val};
 use crate::interpreter::env::construct_static_name;
 use crate::interpreter::val::{PropFuncVal, StructCallable, StructInstance, VecInstance};
 use crate::lexer::token::token_type::TokenType;
-use crate::lexer::token::{Pos, Token};
+use crate::lexer::token::Token;
 use crate::parser::expr::{
     Assignment, Binary, Block, BoolLiteral, Call, CallStruct, ConstDecl, EnumDecl, Expr,
     FloatLiteral, FnDecl, ForIn, GetProp, GetStaticProp, Grouping, If, ImplDecl, IntLiteral,
     Lambda, Loop, Match, NilLiteral, Return, SelfStatic, Self_, SetIndex, SetProp, Stmt,
     StrLiteral, StructDecl, TraitDecl, TypeCast, Unary, VarDecl, Variable, VecIndex, Vec_,
 };
-use crate::parser::valtype::{ValType, TYPE_FN, TYPE_INT, TYPE_STRUCT, TYPE_VEC};
+use crate::parser::valtype::{
+    ValType, TYPE_BOOL, TYPE_FLOAT, TYPE_FN, TYPE_INT, TYPE_STRUCT, TYPE_VEC,
+};
 
 pub mod env;
+mod error;
 pub mod stdlib;
 pub mod val;
 
@@ -101,10 +105,13 @@ impl Interpreter {
                         let _result = self.call_expr(&main, &[])?;
                         Ok(())
                     }
-                    _ => Err(RuntimeError::new(String::from(&format!(
-                        "No entry-point \"{}\" function found",
-                        Self::ENTRY_POINT
-                    )))),
+                    _ => Err(RuntimeError::ScriptError(
+                        None,
+                        String::from(&format!(
+                            "No entry-point \"{}\" function found",
+                            Self::ENTRY_POINT
+                        )),
+                    )),
                 }
             }
             Mode::TopLevel => Ok(()),
@@ -167,8 +174,8 @@ impl Interpreter {
                                         (param.clone(), v_type, public),
                                     );
                                 } else {
-                                    return Err(RuntimeError::from_token(
-                                        prop.clone(),
+                                    return Err(RuntimeError::TypeError(
+                                        Some(prop.clone()),
                                         format!(
                                             "Expected argument \"{}\" of type \"{}\"",
                                             v_type,
@@ -177,8 +184,8 @@ impl Interpreter {
                                     ));
                                 }
                             } else {
-                                return Err(RuntimeError::from_token(
-                                    prop.clone(),
+                                return Err(RuntimeError::DefinitionError(
+                                    Some(prop.clone()),
                                     format!("Unknown property name \"{}\"", prop.lexeme),
                                 ));
                             }
@@ -214,8 +221,8 @@ impl Interpreter {
                                 if method.lambda.ret_type != signature.ret_type
                                     || method.lambda.params != signature.params
                                 {
-                                    return Err(RuntimeError::from_token(
-                                        method.name.clone(),
+                                    return Err(RuntimeError::DefinitionError(
+                                        Some(method.name.clone()),
                                         format!(
                                             "Mismatched signature of method \"{}\"",
                                             method.name.lexeme
@@ -228,16 +235,16 @@ impl Interpreter {
                         }
 
                         if !found {
-                            return Err(RuntimeError::from_token(
-                                signature.name.clone(),
+                            return Err(RuntimeError::DefinitionError(
+                                Some(signature.name.clone()),
                                 format!("Method \"{}\" must be implemented", signature.name.lexeme),
                             ));
                         }
                     }
                 }
                 _ => {
-                    return Err(RuntimeError::from_token(
-                        for_name,
+                    return Err(RuntimeError::DefinitionError(
+                        Some(for_name),
                         String::from("Expected trait name"),
                     ))
                 }
@@ -316,8 +323,8 @@ impl Interpreter {
             v_type = stmt.v_type.clone().unwrap();
 
             if !v_type.conforms(&val) {
-                return Err(RuntimeError::from_token(
-                    stmt.name.clone(),
+                return Err(RuntimeError::TypeError(
+                    Some(stmt.name.clone()),
                     format!(
                         "Trying to initialise variable of type \"{}\" with value of type \"{}\"",
                         v_type,
@@ -329,8 +336,8 @@ impl Interpreter {
             v_type = match ValType::try_from_val(&val) {
                 Some(v_type) => v_type,
                 None => {
-                    return Err(RuntimeError::from_token(
-                        stmt.name.clone(),
+                    return Err(RuntimeError::TypeError(
+                        Some(stmt.name.clone()),
                         format!(
                             "Unrecognised value type in initialisation \"{}\"",
                             val.get_type()
@@ -427,10 +434,13 @@ impl Interpreter {
                 }
             }
             v => {
-                return Err(RuntimeError::new(format!(
-                    "Trying to iterate over a value of type \"{}\"",
-                    v.get_type()
-                )))
+                return Err(RuntimeError::TypeError(
+                    Some(stmt.iter_value.clone()),
+                    format!(
+                        "Trying to iterate over a value of type \"{}\"",
+                        v.get_type()
+                    ),
+                ))
             }
         }
 
@@ -447,9 +457,9 @@ impl Interpreter {
             }
         }
 
-        Err(RuntimeError::from_token(
+        Err(RuntimeError::RuntimeError(
             expr.keyword.clone(),
-            str::to_string("Match expression must be exhaustive"),
+            String::from("Match expression must be exhaustive"),
         ))
     }
 
@@ -460,7 +470,7 @@ impl Interpreter {
         use EnvVal::*;
 
         match env_val.deref() {
-            NoValue | Trait(_) => Err(RuntimeError::from_token(
+            NoValue | Trait(_) => Err(RuntimeError::RuntimeError(
                 expr.name.clone(),
                 format!(
                     "Trying to access uninitialized variable \"{}\"",
@@ -495,10 +505,10 @@ impl Interpreter {
                         Self::evaluate_two_operands(&expr.operator, &v.val, &val)?
                     }
                     _ => {
-                        return Err(RuntimeError::from_token(
+                        return Err(RuntimeError::OperatorError(
                             expr.name.clone(),
                             format!(
-                                "Operator \"{}\" can be used only with variables",
+                                "Operator \"{}\" can be used only with a variables",
                                 expr.operator.lexeme
                             ),
                         ))
@@ -506,7 +516,7 @@ impl Interpreter {
                 }
             }
             _ => {
-                return Err(RuntimeError::from_token(
+                return Err(RuntimeError::OperatorError(
                     expr.operator.clone(),
                     str::to_string("Unrecognised token in an assignment expression"),
                 ))
@@ -527,8 +537,8 @@ impl Interpreter {
                 match entry_point {
                     None => self.mode = Mode::EntryPoint(Some(Box::new(func))),
                     Some(_) => {
-                        return Err(RuntimeError::from_token(
-                            fn_decl.name.clone(),
+                        return Err(RuntimeError::ScriptError(
+                            Some(fn_decl.name.clone()),
                             format!(
                                 "Entry-point function \"{}\" cannot be declared twice.",
                                 Self::ENTRY_POINT
@@ -589,8 +599,8 @@ impl Interpreter {
                     let arg = args[i].clone();
 
                     if !param.1.conforms(&arg) {
-                        return Err(RuntimeError::from_token(
-                            param.0.clone(),
+                        return Err(RuntimeError::TypeError(
+                            Some(param.0.clone()),
                             format!(
                                 "Expected argument \"{}\" of type \"{}\", got \"{}\"",
                                 i,
@@ -616,17 +626,25 @@ impl Interpreter {
                 let val = match stmt_val {
                     StmtVal::None => Val::Nil,
                     StmtVal::Return(val) => val,
-                    _ => return Err(RuntimeError::new(str::to_string("Unknown statement value"))),
+                    _ => {
+                        return Err(RuntimeError::ScriptError(
+                            None,
+                            str::to_string("Unknown statement value"),
+                        ))
+                    }
                 };
 
                 if func.lambda.ret_type.conforms(&val) {
                     Ok(val)
                 } else {
-                    Err(RuntimeError::new(format!(
-                        "Function must return \"{}\", got \"{}\"",
-                        func.lambda.ret_type,
-                        val.get_type()
-                    )))
+                    Err(RuntimeError::TypeError(
+                        None,
+                        format!(
+                            "Function must return \"{}\", got \"{}\"",
+                            func.lambda.ret_type,
+                            val.get_type()
+                        ),
+                    ))
                 }
             }),
         ))
@@ -660,9 +678,13 @@ impl Interpreter {
             TokenType::Bang => match un_expr {
                 Val::Bool(b) => Val::Bool(!b),
                 val => {
-                    return Err(RuntimeError::from_token(
-                        expr.operator.clone(),
-                        format!("Expected \"bool\" value, got \"{}\"", val.get_type()),
+                    return Err(RuntimeError::TypeError(
+                        Some(expr.operator.clone()),
+                        format!(
+                            "Expected \"{}\" value, got \"{}\"",
+                            TYPE_BOOL,
+                            val.get_type()
+                        ),
                     ))
                 }
             },
@@ -670,16 +692,21 @@ impl Interpreter {
                 Val::Float(n) => Val::Float(-n),
                 Val::Int(n) => Val::Int(-n),
                 val => {
-                    return Err(RuntimeError::from_token(
-                        expr.operator.clone(),
-                        format!("Expected \"num\" value, got \"{}\"", val.get_type()),
+                    return Err(RuntimeError::TypeError(
+                        Some(expr.operator.clone()),
+                        format!(
+                            "Expected \"{}\" or \"{}\" value, got \"{}\"",
+                            TYPE_INT,
+                            TYPE_FLOAT,
+                            val.get_type()
+                        ),
                     ))
                 }
             },
             _ => {
-                return Err(RuntimeError::from_token(
+                return Err(RuntimeError::RuntimeError(
                     expr.operator.clone(),
-                    format!("Unknown unary \"{}\"", expr.operator.lexeme),
+                    format!("Unknown unary \"{}\" operator", expr.operator.lexeme),
                 ))
             }
         };
@@ -702,20 +729,26 @@ impl Interpreter {
                 }
 
                 if eval_args.len() != callee.arity {
-                    return Err(RuntimeError::new(format!(
-                        "Expected {} arguments but got {}",
-                        callee.arity,
-                        eval_args.len()
-                    )));
+                    return Err(RuntimeError::DefinitionError(
+                        None,
+                        format!(
+                            "Expected {} arguments but got {}",
+                            callee.arity,
+                            eval_args.len()
+                        ),
+                    ));
                 }
 
                 (callee.call)(self, &eval_args)
             }
-            _ => Err(RuntimeError::new(format!(
-                "Callable value must be of type \"{}\", got \"{}\"",
-                TYPE_FN,
-                callee.get_type()
-            ))),
+            _ => Err(RuntimeError::TypeError(
+                None,
+                format!(
+                    "Callable value must be of type \"{}\", got \"{}\"",
+                    TYPE_FN,
+                    callee.get_type()
+                ),
+            )),
         }
     }
 
@@ -731,13 +764,13 @@ impl Interpreter {
                 match struct_ {
                     EnvVal::Struct(s) => Ok(s.val),
                     EnvVal::Enum(e) => Ok(e.val),
-                    _ => Err(RuntimeError::from_token(
+                    _ => Err(RuntimeError::RuntimeError(
                         expr.self_static.clone(),
                         str::to_string("Wrong static bind target"),
                     )),
                 }
             }
-            None => Err(RuntimeError::from_token(
+            None => Err(RuntimeError::RuntimeError(
                 expr.self_static.clone(),
                 str::to_string("Value \"Self\" can be used in methods only"),
             )),
@@ -749,7 +782,7 @@ impl Interpreter {
         let self_ = match self_ {
             Some(s) => s,
             None => {
-                return Err(RuntimeError::from_token(
+                return Err(RuntimeError::RuntimeError(
                     expr.self_.clone(),
                     str::to_string("Value \"self\" can be used in non-static methods only"),
                 ))
@@ -761,7 +794,6 @@ impl Interpreter {
 
     fn eval_call_struct_expr(&mut self, expr: &CallStruct) -> Result<Val> {
         let callee = self.evaluate(&expr.callee)?;
-
         match callee {
             Val::Struct(token, callee) => {
                 let mut args = vec![];
@@ -771,19 +803,22 @@ impl Interpreter {
                 }
 
                 if args.len() != callee.arity {
-                    return Err(RuntimeError::from_token(
-                        token,
+                    return Err(RuntimeError::DefinitionError(
+                        Some(token),
                         format!("Expected {} arguments but got {}", callee.arity, args.len()),
                     ));
                 }
 
                 (callee.call)(self, &args)
             }
-            _ => Err(RuntimeError::new(format!(
-                "Callable value must be of type \"{}\", got \"{}\"",
-                TYPE_STRUCT,
-                callee.get_type()
-            ))),
+            _ => Err(RuntimeError::TypeError(
+                None,
+                format!(
+                    "Callable value must be of type \"{}\", got \"{}\"",
+                    TYPE_STRUCT,
+                    callee.get_type()
+                ),
+            )),
         }
     }
 
@@ -796,8 +831,8 @@ impl Interpreter {
             for val_expr in &expr.vals {
                 let val = self.evaluate(val_expr)?;
                 if !val_type.conforms(&val) {
-                    return Err(RuntimeError::from_token(
-                        expr.token.clone(),
+                    return Err(RuntimeError::TypeError(
+                        Some(expr.token.clone()),
                         format!(
                             "Expected values of type \"{}\", got \"{}\"",
                             val_type,
@@ -838,21 +873,27 @@ impl Interpreter {
         let indx = if let Val::Int(int) = indx {
             int as usize
         } else {
-            return Err(RuntimeError::new(format!(
-                "Values of type \"{}\" can have indices of type \"{}\", got \"{}\"",
-                TYPE_VEC,
-                TYPE_INT,
-                indx.get_type()
-            )));
+            return Err(RuntimeError::TypeError(
+                None,
+                format!(
+                    "Values of type \"{}\" can have indices of type \"{}\", got \"{}\"",
+                    TYPE_VEC,
+                    TYPE_INT,
+                    indx.get_type()
+                ),
+            ));
         };
 
         match val {
             Val::VecInstance(vec) => vec.borrow_mut().get(indx),
-            _ => Err(RuntimeError::new(format!(
-                "Indexing works with values of type \"{}\", got \"{}\"",
-                TYPE_VEC,
-                val.get_type()
-            ))),
+            _ => Err(RuntimeError::TypeError(
+                None,
+                format!(
+                    "Indexing works with values of type \"{}\", got \"{}\"",
+                    TYPE_VEC,
+                    val.get_type()
+                ),
+            )),
         }
     }
 
@@ -876,8 +917,8 @@ impl Interpreter {
                             if StructInstance::can_access(pub_, public_access) {
                                 Ok(c.val.clone())
                             } else {
-                                Err(RuntimeError::from_token(
-                                    token,
+                                Err(RuntimeError::DefinitionError(
+                                    Some(token),
                                     format!(
                                         "Cannot access private static member \"{}\"",
                                         static_name
@@ -893,8 +934,8 @@ impl Interpreter {
                             if StructInstance::can_access(pub_, public_access) {
                                 Ok(f.val.clone())
                             } else {
-                                Err(RuntimeError::from_token(
-                                    token,
+                                Err(RuntimeError::DefinitionError(
+                                    Some(token),
                                     format!(
                                         "Cannot access private static member \"{}\"",
                                         static_name
@@ -905,16 +946,19 @@ impl Interpreter {
                             Ok(f.val.clone())
                         }
                     }
-                    _ => Err(RuntimeError::from_token(
-                        token,
+                    _ => Err(RuntimeError::DefinitionError(
+                        Some(token),
                         String::from("Unknown static access value"),
                     )),
                 }
             }
-            _ => Err(RuntimeError::new(format!(
-                "Unknown static callee type \"{}\"",
-                static_caller.get_type()
-            ))),
+            _ => Err(RuntimeError::TypeError(
+                None,
+                format!(
+                    "Unknown static callee type \"{}\"",
+                    static_caller.get_type()
+                ),
+            )),
         }
     }
 
@@ -934,10 +978,10 @@ impl Interpreter {
             }
             Val::VecInstance(vec) => VecInstance::get_method(&expr.prop_name, vec),
             // FIXME: add instance methods for enums
-            _ => Err(RuntimeError::new(format!(
-                "Must be a struct instance, got \"{}\"",
-                instance.get_type()
-            ))),
+            _ => Err(RuntimeError::TypeError(
+                None,
+                format!("Must be a struct instance, got \"{}\"", instance.get_type()),
+            )),
         }
     }
 
@@ -946,9 +990,10 @@ impl Interpreter {
         let instance = if let Val::StructInstance(i) = instance {
             i
         } else {
-            return Err(RuntimeError::new(str::to_string(
-                "Must be a struct instance",
-            )));
+            return Err(RuntimeError::TypeError(
+                None,
+                str::to_string("Must be a struct instance"),
+            ));
         };
 
         let val = self.evaluate(&expr.expr)?;
@@ -971,8 +1016,8 @@ impl Interpreter {
                 let r_val = match r_val {
                     PropFuncVal::Prop(val) => val,
                     _ => {
-                        return Err(RuntimeError::from_token(
-                            expr.operator.clone(),
+                        return Err(RuntimeError::DefinitionError(
+                            Some(expr.operator.clone()),
                             str::to_string("Must be a property"),
                         ))
                     }
@@ -981,7 +1026,7 @@ impl Interpreter {
                 Self::evaluate_two_operands(&expr.operator, &val, &r_val)?
             }
             _ => {
-                return Err(RuntimeError::from_token(
+                return Err(RuntimeError::OperatorError(
                     expr.operator.clone(),
                     str::to_string("Unrecognised token in an assignment expression"),
                 ))
@@ -1002,20 +1047,23 @@ impl Interpreter {
         let vec = if let Val::VecInstance(v) = vec {
             v
         } else if let Val::Uninit = vec {
-            return Err(RuntimeError::new(str::to_string("Out of bounds")));
+            return Err(RuntimeError::RuntimeError(
+                expr.operator.clone(),
+                str::to_string("Out of bounds"),
+            ));
         } else {
-            return Err(RuntimeError::new(format!(
-                "Must be a vec instance, got \"{}\"",
-                vec
-            )));
+            return Err(RuntimeError::TypeError(
+                None,
+                format!("Must be a vec instance, got \"{}\"", vec),
+            ));
         };
 
         let index = self.evaluate(&expr.index)?;
         let index = if let Val::Int(int) = index {
             int as usize
         } else {
-            return Err(RuntimeError::from_token(
-                expr.operator.clone(),
+            return Err(RuntimeError::TypeError(
+                Some(expr.operator.clone()),
                 format!(
                     "Values of type \"{}\" can have indices of type \"{}\", got \"{}\"",
                     TYPE_VEC,
@@ -1029,8 +1077,8 @@ impl Interpreter {
         let mut vec = vec.borrow_mut();
 
         if !vec.val_type.conforms(&val) {
-            return Err(RuntimeError::from_token(
-                expr.operator.clone(),
+            return Err(RuntimeError::TypeError(
+                Some(expr.operator.clone()),
                 format!(
                     "Cannot assign value of type \"{}\" to a vector of type \"{}\"",
                     val.get_type(),
@@ -1053,7 +1101,7 @@ impl Interpreter {
                 Self::evaluate_two_operands(&expr.operator, &l_val, &val)?
             }
             _ => {
-                return Err(RuntimeError::from_token(
+                return Err(RuntimeError::OperatorError(
                     expr.operator.clone(),
                     str::to_string("Unrecognised token in an assignment expression"),
                 ))
@@ -1076,8 +1124,8 @@ impl Interpreter {
                 return Ok(left);
             }
         } else {
-            return Err(RuntimeError::from_token(
-                expr.operator.clone(),
+            return Err(RuntimeError::TypeError(
+                Some(expr.operator.clone()),
                 format!(
                     "Only boolean values can be used in logical expressions, got \"{}\"",
                     left.get_type()
@@ -1089,8 +1137,8 @@ impl Interpreter {
         if let Val::Bool(_) = right {
             Ok(right)
         } else {
-            Err(RuntimeError::from_token(
-                expr.operator.clone(),
+            Err(RuntimeError::TypeError(
+                Some(expr.operator.clone()),
                 format!(
                     "Only boolean values can be used in logical expressions, got \"{}\"",
                     right.get_type()
@@ -1139,7 +1187,7 @@ impl Interpreter {
             TokenType::BitwiseXor | TokenType::BitwiseXorEqual => {
                 Val::bitwise_xor(lhs, rhs, operator)
             }
-            _ => Err(RuntimeError::from_token(
+            _ => Err(RuntimeError::OperatorError(
                 operator.clone(),
                 format!("Unknown binary operator \"{}\"", operator.lexeme),
             )),
@@ -1213,10 +1261,13 @@ impl Interpreter {
             | (Mode::EntryPoint(_), Stmt::BlockStmt(_))
             | (Mode::EntryPoint(_), Stmt::IfStmt(_))
             | (Mode::EntryPoint(_), Stmt::LoopStmt(_))
-            | (Mode::EntryPoint(_), Stmt::ForInStmt(_)) => Err(RuntimeError::new(String::from(
-                "Only item (\"const\", \"impl\", \"struct\", \"fn\", \"enum\", \
+            | (Mode::EntryPoint(_), Stmt::ForInStmt(_)) => Err(RuntimeError::ScriptError(
+                None,
+                String::from(
+                    "Only item (\"const\", \"impl\", \"struct\", \"fn\", \"enum\", \
                     \"trait\") declarations are allowed on the top-level",
-            ))),
+                ),
+            )),
 
             (Mode::TopLevel, Stmt::Expr(expr_stmt)) => self.eval_expr_stmt(expr_stmt),
             (Mode::TopLevel, Stmt::Let(var_decl)) => self.eval_var_stmt(var_decl),
@@ -1284,8 +1335,8 @@ impl Interpreter {
 
     fn check_name(&self, name: &Token) -> Result<()> {
         if self.env.borrow().has_definition(&name.lexeme) {
-            Err(RuntimeError::from_token(
-                name.clone(),
+            Err(RuntimeError::DefinitionError(
+                Some(name.clone()),
                 format!("Name \"{}\" is already in use", &name.lexeme),
             ))
         } else {
@@ -1297,10 +1348,13 @@ impl Interpreter {
         match val {
             Val::Bool(true) => Ok(true),
             Val::Bool(false) => Ok(false),
-            _ => Err(RuntimeError::new(format!(
-                "Trying to evaluate value of type \"{}\" as boolean",
-                val.get_type()
-            ))),
+            _ => Err(RuntimeError::TypeError(
+                None,
+                format!(
+                    "Trying to evaluate value of type \"{}\" as boolean",
+                    val.get_type()
+                ),
+            )),
         }
     }
 }
@@ -1314,27 +1368,27 @@ enum Mode {
     EntryPoint(Option<Box<env::Function>>),
 }
 
-#[derive(Debug)]
-pub struct RuntimeError {
-    pub token: Option<Token>,
-    pub pos: Option<Pos>,
-    pub msg: String,
-}
-
-impl RuntimeError {
-    pub fn from_token(token: Token, msg: String) -> Self {
-        Self {
-            pos: Some(token.pos),
-            token: Some(token),
-            msg,
-        }
-    }
-
-    pub fn new(msg: String) -> Self {
-        Self {
-            pos: None,
-            token: None,
-            msg,
-        }
-    }
-}
+// #[derive(Debug)]
+// pub struct RuntimeError {
+//     pub token: Option<Token>,
+//     pub pos: Option<Pos>,
+//     pub msg: String,
+// }
+//
+// impl RuntimeError {
+//     pub fn from_token(token: Token, msg: String) -> Self {
+//         Self {
+//             pos: Some(token.pos),
+//             token: Some(token),
+//             msg,
+//         }
+//     }
+//
+//     pub fn new(msg: String) -> Self {
+//         Self {
+//             pos: None,
+//             token: None,
+//             msg,
+//         }
+//     }
+// }

@@ -8,7 +8,8 @@ use std::sync::Arc;
 use super::env::Env;
 use super::{Interpreter, Result};
 use crate::interpreter::env::{construct_static_name, internal_id, Impl};
-use crate::interpreter::RuntimeError;
+use crate::interpreter::error::RuntimeError;
+use crate::interpreter::error::RuntimeError::DefinitionError;
 use crate::lexer::token::Token;
 use crate::parser::expr::{Lambda, StructDecl};
 use crate::parser::valtype::{
@@ -194,8 +195,8 @@ impl StructInstance {
     pub fn get_prop(&self, name: &Token, public_access: bool) -> Result<PropFuncVal> {
         if !self.props.contains_key(&name.lexeme) {
             if !self.fns.contains_key(&name.lexeme) {
-                Err(RuntimeError::from_token(
-                    name.clone(),
+                Err(RuntimeError::DefinitionError(
+                    Some(name.clone()),
                     format!("No struct property with name \"{}\"", name.lexeme),
                 ))
             } else {
@@ -203,8 +204,8 @@ impl StructInstance {
                 if Self::can_access(func.2, public_access) {
                     Ok(PropFuncVal::Func(func.clone()))
                 } else {
-                    Err(RuntimeError::from_token(
-                        name.clone(),
+                    Err(DefinitionError(
+                        Some(name.clone()),
                         format!("Cannot access private method \"{}\"", name.lexeme),
                     ))
                 }
@@ -218,14 +219,14 @@ impl StructInstance {
                         format!("Property \"{}\" has not yet been initialized.", name.lexeme)
                     };
 
-                    Err(RuntimeError::from_token(name.clone(), msg))
+                    Err(RuntimeError::DefinitionError(Some(name.clone()), msg))
                 }
                 (val, _, pub_) => {
                     if Self::can_access(*pub_, public_access) {
                         Ok(PropFuncVal::Prop(val.clone()))
                     } else {
-                        Err(RuntimeError::from_token(
-                            name.clone(),
+                        Err(RuntimeError::DefinitionError(
+                            Some(name.clone()),
                             format!("Cannot access private property \"{}\"", name.lexeme),
                         ))
                     }
@@ -236,16 +237,16 @@ impl StructInstance {
 
     pub fn set_prop(&mut self, name: &Token, val: Val, public_access: bool) -> Result<()> {
         if !self.props.contains_key(&name.lexeme) {
-            Err(RuntimeError::from_token(
-                name.clone(),
+            Err(RuntimeError::DefinitionError(
+                Some(name.clone()),
                 format!("No struct property with name \"{}\"", name.lexeme),
             ))
         } else {
             let (_, v_type, public) = self.props.get(&name.lexeme).unwrap();
 
             if !*public && public_access {
-                return Err(RuntimeError::from_token(
-                    name.clone(),
+                return Err(RuntimeError::DefinitionError(
+                    Some(name.clone()),
                     format!("Cannot access private property \"{}\"", name.lexeme),
                 ));
             }
@@ -258,8 +259,8 @@ impl StructInstance {
 
                 Ok(())
             } else {
-                Err(RuntimeError::from_token(
-                    name.clone(),
+                Err(RuntimeError::TypeError(
+                    Some(name.clone()),
                     format!(
                         "Trying to assign to a variable of type \"{}\" value of type \"{}\"",
                         v_type,
@@ -336,11 +337,14 @@ impl VecInstance {
                 Arc::new(move |_inter, args| {
                     for arg in args {
                         if !vec.borrow_mut().val_type.conforms(arg) {
-                            return Err(RuntimeError::new(format!(
-                                "Cannot push value of type \"{}\" to a vector of type \"{}\"",
-                                ValType::try_from_val(arg).unwrap(),
-                                vec.borrow_mut().val_type
-                            )));
+                            return Err(RuntimeError::TypeError(
+                                None,
+                                format!(
+                                    "Cannot push value of type \"{}\" to a vector of type \"{}\"",
+                                    ValType::try_from_val(arg).unwrap(),
+                                    vec.borrow_mut().val_type
+                                ),
+                            ));
                         }
                         vec.borrow_mut().vals.push(arg.clone());
                     }
@@ -354,7 +358,7 @@ impl VecInstance {
                 Arc::new(move |_inter, _args| Ok(Val::Int(vec.borrow_mut().len() as isize))),
             )),
             _ => {
-                return Err(RuntimeError::from_token(
+                return Err(RuntimeError::RuntimeError(
                     name.clone(),
                     format!("Unknown vec method \"{}\"", name.lexeme),
                 ))
@@ -388,8 +392,8 @@ impl Val {
                 lhs.borrow().deref().id == rhs.borrow().deref().id
             }
             (lhs, rhs) => {
-                return Err(RuntimeError::from_token(
-                    operator.clone(),
+                return Err(RuntimeError::TypeError(
+                    Some(operator.clone()),
                     format!(
                         "Both operands must be of the same type. Got \"{}\" and \"{}\"",
                         lhs.get_type(),
@@ -422,8 +426,8 @@ impl Val {
                 lhs.borrow().deref().id != rhs.borrow().deref().id
             }
             (lhs, rhs) => {
-                return Err(RuntimeError::from_token(
-                    operator.clone(),
+                return Err(RuntimeError::TypeError(
+                    Some(operator.clone()),
                     format!(
                         "Both operands must be of the same type. Got \"{}\" and \"{}\"",
                         lhs.get_type(),
@@ -444,8 +448,8 @@ impl Val {
             (Float(lhs), Int(rhs)) => *lhs > (*rhs as f64),
             (Int(lhs), Float(rhs)) => (*lhs as f64) > *rhs,
             (lhs, rhs) => {
-                return Err(RuntimeError::from_token(
-                    operator.clone(),
+                return Err(RuntimeError::TypeError(
+                    Some(operator.clone()),
                     format!(
                         "Both operands must be of types \"{}\" or \"{}\". Got \"{}\" and \"{}\"",
                         TYPE_INT,
@@ -468,8 +472,8 @@ impl Val {
             (Float(lhs), Int(rhs)) => *lhs >= (*rhs as f64),
             (Int(lhs), Float(rhs)) => (*lhs as f64) >= *rhs,
             (lhs, rhs) => {
-                return Err(RuntimeError::from_token(
-                    operator.clone(),
+                return Err(RuntimeError::TypeError(
+                    Some(operator.clone()),
                     format!(
                         "Both operands must be of types \"{}\" or \"{}\". Got \"{}\" and \"{}\"",
                         TYPE_INT,
@@ -492,8 +496,8 @@ impl Val {
             (Float(lhs), Int(rhs)) => *lhs < (*rhs as f64),
             (Int(lhs), Float(rhs)) => (*lhs as f64) < *rhs,
             (lhs, rhs) => {
-                return Err(RuntimeError::from_token(
-                    operator.clone(),
+                return Err(RuntimeError::TypeError(
+                    Some(operator.clone()),
                     format!(
                         "Both operands must be of types \"{}\" or \"{}\". Got \"{}\" and \"{}\"",
                         TYPE_INT,
@@ -516,8 +520,8 @@ impl Val {
             (Float(lhs), Int(rhs)) => *lhs <= (*rhs as f64),
             (Int(lhs), Float(rhs)) => (*lhs as f64) <= *rhs,
             (lhs, rhs) => {
-                return Err(RuntimeError::from_token(
-                    operator.clone(),
+                return Err(RuntimeError::TypeError(
+                    Some(operator.clone()),
                     format!(
                         "Both operands must be of types \"{}\" or \"{}\". Got \"{}\" and \"{}\"",
                         TYPE_INT,
@@ -541,8 +545,8 @@ impl Val {
                 (Float(lhs), Int(rhs)) => Float(lhs - (*rhs as f64)),
                 (Int(lhs), Float(rhs)) => Float((*lhs as f64) - *rhs),
                 (lhs, rhs) => {
-                    return Err(RuntimeError::from_token(
-                        operator.clone(),
+                    return Err(RuntimeError::TypeError(
+                        Some(operator.clone()),
                         format!(
                         "Both operands must be of types \"{}\" or \"{}\". Got \"{}\" and \"{}\"",
                         TYPE_INT, TYPE_FLOAT,
@@ -564,8 +568,8 @@ impl Val {
             (Int(lhs), Float(rhs)) => Float((*lhs as f64) + *rhs),
             (Str(lhs), Str(rhs)) => Str(format!("{}{}", lhs, rhs)),
             (lhs, rhs) => return Err(
-                RuntimeError::from_token(
-                    operator.clone(),
+                RuntimeError::TypeError(
+                    Some(operator.clone()),
                     format!(
                         "Both operands must be of types \"{}\", \"{}\", or \"{}\". Got \"{}\" and \"{}\"",
                         TYPE_INT,
@@ -589,8 +593,8 @@ impl Val {
             (Float(lhs), Int(rhs)) => Float(lhs / (*rhs as f64)),
             (Int(lhs), Float(rhs)) => Float((*lhs as f64) / rhs),
             (lhs, rhs) => {
-                return Err(RuntimeError::from_token(
-                    operator.clone(),
+                return Err(RuntimeError::TypeError(
+                    Some(operator.clone()),
                     format!(
                         "Both operands must be of types \"{}\" or \"{}\". Got \"{}\" and \"{}\"",
                         TYPE_INT,
@@ -613,8 +617,8 @@ impl Val {
             (Float(lhs), Int(rhs)) => Float(lhs % (*rhs as f64)),
             (Int(lhs), Float(rhs)) => Float((*lhs as f64) % *rhs),
             (lhs, rhs) => {
-                return Err(RuntimeError::from_token(
-                    operator.clone(),
+                return Err(RuntimeError::TypeError(
+                    Some(operator.clone()),
                     format!(
                         "Both operands must be of types \"{}\" or \"{}\". Got \"{}\" and \"{}\"",
                         TYPE_INT,
@@ -637,8 +641,8 @@ impl Val {
             (Float(lhs), Int(rhs)) => Float(lhs * (*rhs as f64)),
             (Int(lhs), Float(rhs)) => Float((*lhs as f64) * rhs),
             (lhs, rhs) => {
-                return Err(RuntimeError::from_token(
-                    operator.clone(),
+                return Err(RuntimeError::TypeError(
+                    Some(operator.clone()),
                     format!(
                         "Both operands must be of types \"{}\" or \"{}\". Got \"{}\" and \"{}\"",
                         TYPE_INT,
@@ -658,8 +662,8 @@ impl Val {
         let val = match (lhs, rhs) {
             (Int(lhs), Int(rhs)) => Int(lhs & rhs),
             (lhs, rhs) => {
-                return Err(RuntimeError::from_token(
-                    operator.clone(),
+                return Err(RuntimeError::TypeError(
+                    Some(operator.clone()),
                     format!(
                         "Both operands must be of type \"{}\". Got \"{}\" and \"{}\"",
                         TYPE_INT,
@@ -678,8 +682,8 @@ impl Val {
         let val = match (lhs, rhs) {
             (Int(lhs), Int(rhs)) => Int(lhs | rhs),
             (lhs, rhs) => {
-                return Err(RuntimeError::from_token(
-                    operator.clone(),
+                return Err(RuntimeError::TypeError(
+                    Some(operator.clone()),
                     format!(
                         "Both operands must be of type \"{}\". Got \"{}\" and \"{}\"",
                         TYPE_INT,
@@ -698,8 +702,8 @@ impl Val {
         let val = match (lhs, rhs) {
             (Int(lhs), Int(rhs)) => Int(lhs ^ rhs),
             (lhs, rhs) => {
-                return Err(RuntimeError::from_token(
-                    operator.clone(),
+                return Err(RuntimeError::TypeError(
+                    Some(operator.clone()),
                     format!(
                         "Both operands must be of type \"{}\". Got \"{}\" and \"{}\"",
                         TYPE_INT,
@@ -754,14 +758,14 @@ impl Val {
             | (_, ValType::Fn(_))
             | (_, ValType::Num)
             | (_, ValType::Map) => {
-                return Err(RuntimeError::from_token(
-                    operator.clone(),
+                return Err(RuntimeError::TypeError(
+                    Some(operator.clone()),
                     format!("Value cannot be cast to type \"{}\"", to_type,),
                 ))
             }
             (val, to_type) => {
-                return Err(RuntimeError::from_token(
-                    operator.clone(),
+                return Err(RuntimeError::TypeError(
+                    Some(operator.clone()),
                     format!(
                         "Value of type \"{}\" cannot be cast to type \"{}\".",
                         val.get_type(),

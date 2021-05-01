@@ -4,8 +4,9 @@ use std::rc::Rc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 use super::val::Val;
+use crate::interpreter::error::RuntimeError;
 use crate::interpreter::val::StructInstance;
-use crate::interpreter::{Result, RuntimeError};
+use crate::interpreter::Result;
 use crate::lexer::token::Token;
 use crate::parser::expr::{ConstDecl, FnDecl, FnSignatureDecl};
 use crate::parser::valtype::ValType;
@@ -254,15 +255,15 @@ impl EnvVal {
         use EnvVal::*;
 
         return match self {
-            NoValue => Err(RuntimeError::from_token(
+            NoValue => Err(RuntimeError::RuntimeError(
                 name,
                 String::from("Trying to assign to an immutable value"),
             )),
-            Constant(_c) => Err(RuntimeError::from_token(
+            Constant(_c) => Err(RuntimeError::RuntimeError(
                 name,
                 String::from("Trying to assign to a constant"),
             )),
-            Function(_f) => Err(RuntimeError::from_token(
+            Function(_f) => Err(RuntimeError::RuntimeError(
                 name,
                 String::from("Trying to assign to an immutable value"),
             )),
@@ -274,8 +275,8 @@ impl EnvVal {
                         v.val = val;
                         Ok(())
                     } else {
-                        Err(RuntimeError::from_token(
-                            name,
+                        Err(RuntimeError::TypeError(
+                            Some(name),
                             format!(
                                 "Cannot infer variable type from value of type \"{}\"",
                                 val.get_type()
@@ -283,8 +284,8 @@ impl EnvVal {
                         ))
                     }
                 } else if !v.v_type.conforms(&val) {
-                    Err(RuntimeError::from_token(
-                        name,
+                    Err(RuntimeError::TypeError(
+                        Some(name),
                         format!(
                             "Trying to assign to a variable of type \"{}\" value of type \"{}\"",
                             v.v_type,
@@ -298,13 +299,13 @@ impl EnvVal {
                     v.val = val;
                     Ok(())
                 } else {
-                    Err(RuntimeError::from_token(
+                    Err(RuntimeError::RuntimeError(
                         name,
                         String::from("Trying to assign to an immutable variable."),
                     ))
                 }
             }
-            EnumValue(_) | Enum(_) | Struct(_) | Trait(_) => Err(RuntimeError::from_token(
+            EnumValue(_) | Enum(_) | Struct(_) | Trait(_) => Err(RuntimeError::RuntimeError(
                 name,
                 String::from("Trying to assign to a non-value."),
             )),
@@ -413,8 +414,8 @@ impl Env {
 
     pub fn define_constant(&mut self, constant: Constant) -> Result<()> {
         if self.vals.contains_key(&constant.resolve_name()) {
-            return Err(RuntimeError::from_token(
-                constant.name.clone(),
+            return Err(RuntimeError::DefinitionError(
+                Some(constant.name.clone()),
                 format!("Name \"{}\" is already in use", constant.resolve_name()),
             ));
         }
@@ -429,8 +430,8 @@ impl Env {
 
     pub fn define_function(&mut self, func: Function) -> Result<()> {
         if self.vals.contains_key(&func.resolve_name()) {
-            return Err(RuntimeError::from_token(
-                func.name.clone(),
+            return Err(RuntimeError::DefinitionError(
+                Some(func.name.clone()),
                 format!("Name \"{}\" is already in use", func.resolve_name()),
             ));
         }
@@ -462,7 +463,7 @@ impl Env {
             return val;
         }
 
-        Err(RuntimeError::from_token(
+        Err(RuntimeError::RuntimeError(
             name.clone(),
             format!("Trying to access undefined value \"{}\"", name.lexeme),
         ))
@@ -536,7 +537,7 @@ impl Env {
             return Ok(());
         }
 
-        Err(RuntimeError::from_token(
+        Err(RuntimeError::RuntimeError(
             name.clone(),
             format!("Trying to assign to an undefined value \"{}\"", name.lexeme),
         ))
