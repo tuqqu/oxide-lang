@@ -11,6 +11,6 @@ fn fib(n: int) -> int {
 
 fn main() {
     for let mut i = 0; i < 10; i += 1 {
-        println(fib(i));
+        println(fib(i) as str);
     }
 }

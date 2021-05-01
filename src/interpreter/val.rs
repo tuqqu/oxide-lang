@@ -797,44 +797,61 @@ impl Val {
             Any(_v) => TYPE_ANY.to_string(),
         }
     }
-}
 
-impl fmt::Display for Val {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    pub fn as_string(&self) -> Result<String> {
+        match self {
+            Val::Str(s) => Ok(s.clone()),
+            _ => Err(RuntimeError::TypeError(
+                None,
+                format!(
+                    "Value of type \"{}\" cannot be used as \"{}\".",
+                    self.get_type(),
+                    TYPE_STR,
+                ),
+            )),
+        }
+    }
+
+    pub fn debug(&self) -> String {
         use Val::*;
         match self {
-            Uninit => write!(f, "{}", TYPE_UNINIT),
-            Nil => write!(f, "{}", TYPE_NIL),
-            Bool(b) => write!(f, "{}", if *b { "true" } else { "false" }),
-            Str(s) => write!(f, "{}", s),
-            Int(n) => write!(f, "{}", n),
-            Float(n) => write!(f, "{}", n),
-            Callable(c) => write!(f, "[fn] {}", FnType::get_type(&c.param_types, &c.ret_type)),
-            Struct(token, _c) => write!(f, "[struct {}]", token.lexeme),
+            Uninit => String::from(TYPE_UNINIT),
+            Nil => String::from(TYPE_NIL),
+            Bool(b) => String::from(if *b { "true" } else { "false" }),
+            Str(s) => s.clone(),
+            Int(n) => n.to_string(),
+            Float(n) => n.to_string(),
+            Callable(c) => format!("[fn] {}", FnType::get_type(&c.param_types, &c.ret_type)),
+            Struct(token, _c) => format!("[struct {}]", token.lexeme),
             StructInstance(i) => {
                 let mut props = vec![];
                 for (prop, (val, _val_t, _pub)) in &i.borrow_mut().props {
                     props.push(format!("{}: {}", prop, val));
                 }
 
-                write!(
-                    f,
+                format!(
                     "[struct] {} {{ {} }}",
                     i.borrow_mut().struct_name,
                     props.join(", ")
                 )
             }
-            Enum(e) => write!(f, "[enum {}]", e.lexeme),
-            EnumValue(s, n, _v) => write!(f, "[enum] {}", construct_static_name(s, n)),
+            Enum(e) => format!("[enum {}]", e.lexeme),
+            EnumValue(s, n, _v) => format!("[enum] {}", construct_static_name(s, n)),
             VecInstance(v) => {
                 let mut vals = vec![];
                 for val in &v.borrow_mut().vals {
                     vals.push(val.to_string());
                 }
 
-                write!(f, "[vec] [{}]", vals.join(", "))
+                format!("[vec] [{}]", vals.join(", "))
             }
-            Any(v) => write!(f, "[any] {}", v),
+            Any(v) => format!("[any] {}", v),
         }
+    }
+}
+
+impl fmt::Display for Val {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", self.debug())
     }
 }

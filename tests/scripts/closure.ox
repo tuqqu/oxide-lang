@@ -7,7 +7,7 @@ fn create_counter(start_from: int) -> fn() {
     fn count() {
         i = i + 1;
 
-        println(i);
+        dbg(i);
     }
 
     return count;
@@ -22,7 +22,7 @@ counter();
 let anon_create_counter: fn(int) -> fn() = fn (mut i: int) -> fn() {
     return fn () {
         i += 1;
-        println(i);
+        dbg(i);
     };
 };
 

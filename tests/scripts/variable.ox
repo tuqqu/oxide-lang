@@ -10,4 +10,4 @@ let x;
 
 x = 60;
 
-println(x);
+dbg(x);

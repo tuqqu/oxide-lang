@@ -1,13 +1,13 @@
 /// argless
 fn func_x() {
-    println("hello");
+    dbg("hello");
 }
 
 func_x();
 
 /// one argument
 fn func_y(x: int) {
-    println(x);
+    dbg(x);
 }
 const D = 10;
 
@@ -19,16 +19,16 @@ func_y(D);
 /// inner function declaration
 fn func_z(x: any, mut y: num, z: bool, e: float, i: any) {
     let x = 100;
-    println(x); // shadowed
+    dbg(x); // shadowed
 
     y += 10; // mutable
-    println(y);
+    dbg(y);
     
     const D = "hello";
-    println(D);
+    dbg(D);
     
     fn inner_one(s: str) {
-        println(s + " world");
+        dbg(s + " world");
     }
     
     inner_one(D);
@@ -41,7 +41,7 @@ fn func_a(a: int) -> int {
     return a + 10;
 }
 
-println(func_a(10));
+dbg(func_a(10));
 
 /// accepts closure of type fn(int) and calls it
 fn func_b(closure: fn(int) -> int) {
@@ -54,12 +54,12 @@ fn closure(x: int) -> int {
 
 let value = func_b(closure);
 
-println(value);
+dbg(value);
 
 /// inner loop
 fn func_c(mut x: int) {
     while x > 10 {
-        println(x);
+        dbg(x);
         x = x - 1;
 
         if x == 5 {
@@ -78,4 +78,4 @@ fn func_d() {
 
 func_d();
 
-println(r);
+dbg(r);

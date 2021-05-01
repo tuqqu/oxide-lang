@@ -1,14 +1,14 @@
 for x in vec[10, 20, 30] {
-    println(x);
+    dbg(x);
 }
 
 for name in vec["John", "Johann", "Jane"] {
-    println(name);
+    dbg(name);
 }
 
 let values = vec[44, 55, 66];
 for value in values {
-    println(value);
+    dbg(value);
 }
 
 struct X {
@@ -17,31 +17,31 @@ struct X {
 
 let x = X { vals: vec["a", "b", "c", "d"] };
 for x in x.vals {
-    println(x);
+    dbg(x);
 }
 
 for x in x.vals {
     if x == "a" {
         continue;
     }
-    println(x);
+    dbg(x);
 }
 
-println(x); // value "x" must not be overwritten by the for in loops
+dbg(x); // value "x" must not be overwritten by the for in loops
 
 for x in x.vals {
     if x == "c" {
         break;
     }
-    println(x);
+    dbg(x);
 }
 
 let i = true;
 for i in vec[100, 200, 300, 400] {
-    println(i);
+    dbg(i);
     if i == 200 {
         for i in vec["hello", "hi", "good day"] {
-            println(i);
+            dbg(i);
             if i == "hi" {
                 loop {
                     break;
@@ -51,6 +51,6 @@ for i in vec[100, 200, 300, 400] {
         }
     }
 }
-println(i);
+dbg(i);
 
 

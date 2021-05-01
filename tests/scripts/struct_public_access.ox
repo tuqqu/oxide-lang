@@ -36,17 +36,17 @@ impl Planet {
 
 let mut earth = Planet { age: 10000000, name: "Earth" };
 
-println(earth.age);
+dbg(earth.age);
 
 earth.age = 999999;
 
-println(earth.age);
-println(earth.get_name());
+dbg(earth.age);
+dbg(earth.get_name());
 
 earth.set_name("Mars");
 
-println(earth.get_name());
+dbg(earth.get_name());
 
-println(Planet::PUBLIC_CONST);
-println(earth.get_private_const());
-println(Planet::static_get_private_const());
+dbg(Planet::PUBLIC_CONST);
+dbg(earth.get_private_const());
+dbg(Planet::static_get_private_const());

@@ -1,5 +1,5 @@
 fn decr(x: num) {
-    println(x);
+    dbg(x);
 
     if x <= 0 {
         return;
@@ -20,5 +20,5 @@ fn fib(n: num) -> num {
 }
 
 for let mut i = 0; i < 15; i = i + 1 {
-    println(fib(i));
+    dbg(fib(i));
 }

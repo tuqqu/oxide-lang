@@ -41,9 +41,9 @@ let mut john: Person = Person {
 
 john.die();
 
-println(john.alive);
-println(john.get_full_name());
+dbg(john.alive);
+dbg(john.get_full_name());
 
 john.pet.rename("Steven");
 
-println(john.pet);
+dbg(john.pet);

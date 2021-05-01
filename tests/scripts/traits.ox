@@ -21,14 +21,14 @@ struct Cat {
 // impl without trait
 impl Cat {
     pub fn accept_cat_return_animal(self, cat: Self) -> Animal {
-        println("Cat::accept_cat_return_animal");
+        dbg("Cat::accept_cat_return_animal");
         return cat;
     }
 }
 
 impl Animal for Cat {
     fn make_noise(self) {
-        println("cat makes noise");
+        dbg("cat makes noise");
     }
     
     fn get_name(self) -> str {
@@ -51,7 +51,7 @@ struct Dog {}
 
 impl Animal for Dog {
     fn make_noise(self) {
-        println("dog makes noise");
+        dbg("dog makes noise");
     }
     
     fn get_name(self) -> str {
@@ -74,7 +74,7 @@ struct Whale {
 
 impl Animal for Whale {
     fn make_noise(self) {
-        println("whale makes noise");
+        dbg("whale makes noise");
     }
     
     fn get_name(self) -> str {
@@ -96,14 +96,14 @@ fn accept_animal_return_animal(animal: Animal) -> Animal {
 fn accept_animal_call_methods(a: Animal) {
     a.make_noise();
     let name = a.get_name();
-    println(name);
+    dbg(name);
 
     let cloned = a.clone_with_name("new name");
-    println(cloned);
+    dbg(cloned);
 }
 
 fn accept_land_animal(lanimal: LandAnimal) {
-    println(lanimal);
+    dbg(lanimal);
 
     return nil;
 }
@@ -115,19 +115,19 @@ let dog = Dog {};
 let whale = Whale { name: "White Whale"};
 
 let returned = cat.accept_cat_return_animal(cat);
-println(returned);
+dbg(returned);
 
 accept_animal_call_methods(cat);
 let returned = accept_animal_return_animal(cat);
-println(returned);
+dbg(returned);
 
 accept_animal_call_methods(dog);
 let returned = accept_animal_return_animal(dog);
-println(returned);
+dbg(returned);
 
 accept_animal_call_methods(whale);
 let returned = accept_animal_return_animal(whale);
-println(returned);
+dbg(returned);
 
 // test marker trait
 accept_land_animal(cat);

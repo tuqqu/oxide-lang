@@ -3,28 +3,28 @@ if true {
     x += 1;
 }
 
-println(x);
+dbg(x);
 
 let mut y = 10;
 if y == 10 {
     let y = y + 1;
 }
 
-println(y);
+dbg(y);
 
 let mut z = 10;
 if z == (5 + 5) && 45 != 9 || "hello" == "he" + "l" + "lo" {
     z += 1;
 }
 
-println(z);
+dbg(z);
 
 let mut a = 10;
 if "hello" != "he" + "l" + "lo" {
     a += 1;
 }
 
-println(a);
+dbg(a);
 
 let mut b = 10;
 if false {
@@ -33,7 +33,7 @@ if false {
     b = b - 1;
 }
 
-println(b);
+dbg(b);
 
 let mut c = 10;
 if false {
@@ -46,7 +46,7 @@ if false {
     }
 }
 
-println(c);
+dbg(c);
 
 let mut d = 10;
 if false {
@@ -55,7 +55,7 @@ if false {
     d = 30;
 }
 
-println(d);
+dbg(d);
 
 let mut e = 10;
 if false {
@@ -66,7 +66,7 @@ if false {
     e = 40;
 }
 
-println(e);
+dbg(e);
 
 let mut f = 10;
 if false {
@@ -77,7 +77,7 @@ if false {
     f = 40;
 }
 
-println(f);
+dbg(f);
 
 let mut j = 10;
 if j == 10 {
@@ -86,7 +86,7 @@ if j == 10 {
     j = 30;
 }
 
-println(j);
+dbg(j);
 
 let mut i = 10;
 if i == 11 {
@@ -97,4 +97,4 @@ if i == 11 {
     i = 13;
 }
 
-println(i);
+dbg(i);

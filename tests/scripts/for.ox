@@ -4,20 +4,20 @@ for let mut x0 = 0; x0 < 10; x0 = x0 + 1 {
     x = x0;
 }
 
-println(x);
+dbg(x);
 
 let mut y = 0;
 for ; y < 10; y = y + 2 {
     y += 1;
 }
 
-println(y);
+dbg(y);
 
 let mut z;
 for z = 0; z < 10; z = z + 1 {
 }
 
-println(z);
+dbg(z);
 
 let mut a;
 for let mut a0 = 0; true; a0 = a0 + 1 {
@@ -27,7 +27,7 @@ for let mut a0 = 0; true; a0 = a0 + 1 {
     a = a0;
 }
 
-println(a);
+dbg(a);
 
 let mut b;
 for let mut b0 = 0; b0 < 10;  {
@@ -39,7 +39,7 @@ for let mut b0 = 0; b0 < 10;  {
     b = b0;
 }
 
-println(b);
+dbg(b);
 
 let mut c = 0;
 for ;; {
@@ -49,7 +49,7 @@ for ;; {
     }
 }
 
-println(c);
+dbg(c);
 
 let mut d = 0;
 for ;; {
@@ -66,4 +66,4 @@ for ;; {
     }
 }
 
-println(d);
+dbg(d);

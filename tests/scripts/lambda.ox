@@ -7,7 +7,7 @@ let x = fn () -> fn() {
     fn count() {
         i = i + 1;
 
-        println(i);
+        dbg(i);
     }
 
     return count;
@@ -25,13 +25,13 @@ let counter_2: fn() = y();
 counter_2();
 
 (fn (x: str) -> nil {
-    println(x);
+    dbg(x);
 })("hello");
 
 const D = 100;
 
 let y = fn () {
-    println(D);
+    dbg(D);
 };
 
 y();
@@ -41,4 +41,4 @@ let g = fn (x: any, y: num, b: bool) -> str {
 };
 
 let r: str = g(45, 67.87, false);
-println(r);
+dbg(r);

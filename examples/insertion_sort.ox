@@ -24,5 +24,5 @@ fn main() {
 
     insertion_sort(input);
 
-    println(input);
+    dbg(input);
 }

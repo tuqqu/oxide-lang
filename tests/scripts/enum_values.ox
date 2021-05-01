@@ -9,25 +9,25 @@ enum TimeUnit {
 
 let secs: TimeUnit = TimeUnit::Seconds;
 
-println(secs);
-println(secs == TimeUnit::Seconds);
-println(secs != TimeUnit::Minutes);
+dbg(secs);
+dbg(secs == TimeUnit::Seconds);
+dbg(secs != TimeUnit::Minutes);
 
 let mins = TimeUnit::Minutes;
 
-println(secs == mins);
+dbg(secs == mins);
 
 let mut secs_2 = TimeUnit::Seconds;
 
-println(secs == secs_2);
+dbg(secs == secs_2);
 
 let secs_3 = secs_2;
 
-println(typeof(secs_3));
+dbg(typeof(secs_3));
 
 secs_2 = TimeUnit::Hours;
 
-println(secs_3);
+dbg(secs_3);
 
 fn plural(time: TimeUnit) -> str {
     return match time {
@@ -40,8 +40,8 @@ fn plural(time: TimeUnit) -> str {
     };
 }
 
-println(plural(secs));
-println(plural(mins));
+dbg(plural(secs));
+dbg(plural(mins));
 
 enum Ordering {
     Less,
@@ -52,7 +52,7 @@ enum Ordering {
 let all_orders: vec<Ordering> = vec<Ordering>[Ordering::Less, Ordering::Equal];
 all_orders.push(Ordering::Greater);
 
-println(all_orders);
+dbg(all_orders);
 
 struct TestStruct {
     pub ordering: Ordering,
@@ -70,8 +70,8 @@ let test = TestStruct {
     time_units: vec[TimeUnit::Hours, TimeUnit::Months]
 };
 
-println(test.get_ordering());
+dbg(test.get_ordering());
 
 test.ordering = Ordering::Equal;
 
-println(test.ordering);
+dbg(test.ordering);

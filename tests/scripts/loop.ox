@@ -8,7 +8,7 @@ loop {
     }
 }
 
-println(x);
+dbg(x);
 
 let mut y = 0;
 
@@ -24,7 +24,7 @@ loop {
     }
 }
 
-println(y);
+dbg(y);
 
 let mut z = 0;
 
@@ -43,4 +43,4 @@ loop {
     }
 }
 
-println(z);
+dbg(z);

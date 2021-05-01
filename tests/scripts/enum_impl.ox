@@ -52,23 +52,23 @@ let secs: TimeUnit = TimeUnit::Seconds;
 let secs_str = TimeUnit::plural(secs);
 let hours_str = TimeUnit::plural(TimeUnit::Hours);
 
-println(secs_str);
-println(hours_str);
+dbg(secs_str);
+dbg(hours_str);
 
 let sec_str = TimeUnit::single(secs);
 let hour_str = TimeUnit::single(TimeUnit::Hours);
 
-println(sec_str);
-println(hour_str);
+dbg(sec_str);
+dbg(hour_str);
 
 let value = TimeUnit::SOME_VALUE;
 
-println(value);
+dbg(value);
 
 let def = TimeUnit::default_value();
 
-println(def);
+dbg(def);
 
 let public_method_value = TimeUnit::public_method(2);
 
-println(public_method_value);
+dbg(public_method_value);

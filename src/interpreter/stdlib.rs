@@ -1,3 +1,5 @@
+#![allow(unused_doc_comments)]
+
 use std::fs::File;
 use std::io;
 use std::io::Write;
@@ -17,6 +19,9 @@ impl Stdlib {
     pub fn env() -> Result<Env> {
         let mut std = Env::new();
 
+        /// Returns the current Unix Epoch timestamp as an integer.
+        ///
+        /// `fn timestamp() -> int;`
         Self::define_function(
             &mut std,
             "timestamp",
@@ -30,68 +35,102 @@ impl Stdlib {
             }),
         )?;
 
+        /// Dumps the value to stdout.
+        ///
+        /// `fn dbg(value: any);`
+        Self::define_function(
+            &mut std,
+            "dbg",
+            vec![ValType::Any],
+            ValType::Nil,
+            Arc::new(|inter, args| {
+                let value = args
+                    .first()
+                    .expect("Error while trying to retrieve function arguments.");
+
+                writeln!(inter.stdout.borrow_mut(), "{}", value.debug())
+                    .expect("Error while trying to write to the output stream.");
+                Ok(Val::Nil)
+            }),
+        )?;
+
+        /// Prints the string to stdout with a newline.
+        ///
+        /// `fn println(message: str);`
         Self::define_function(
             &mut std,
             "println",
-            vec![ValType::Any],
+            vec![ValType::Str],
             ValType::Nil,
             Arc::new(|inter, args| {
                 let value = args
                     .first()
                     .expect("Error while trying to retrieve function arguments.");
 
-                writeln!(inter.stdout.borrow_mut(), "{}", value)
+                writeln!(inter.stdout.borrow_mut(), "{}", value.as_string()?)
                     .expect("Error while trying to write to the output stream.");
                 Ok(Val::Nil)
             }),
         )?;
 
+        /// Prints the string to stdout.
+        ///
+        /// `fn print(message: str);`
         Self::define_function(
             &mut std,
             "print",
-            vec![ValType::Any],
+            vec![ValType::Str],
             ValType::Nil,
             Arc::new(|inter, args| {
                 let value = args
                     .first()
                     .expect("Error while trying to retrieve function arguments.");
 
-                write!(inter.stdout.borrow_mut(), "{}", value)
+                write!(inter.stdout.borrow_mut(), "{}", value.as_string()?)
                     .expect("Error while trying to write to the output stream.");
                 Ok(Val::Nil)
             }),
         )?;
 
+        /// Prints the string to stderr with a newline.
+        ///
+        /// `fn eprintln(message: str);`
         Self::define_function(
             &mut std,
             "eprintln",
-            vec![ValType::Any],
+            vec![ValType::Str],
             ValType::Nil,
             Arc::new(|inter, args| {
                 let value = args
                     .first()
                     .expect("Error while trying to retrieve function arguments.");
 
-                writeln!(inter.stderr.borrow_mut(), "{}", value)
+                writeln!(inter.stderr.borrow_mut(), "{}", value.as_string()?)
                     .expect("Error while trying to write to the output stream.");
                 Ok(Val::Nil)
             }),
         )?;
 
+        /// Prints the string to stderr.
+        ///
+        /// `fn eprint(message: str);`
         Self::define_function(
             &mut std,
             "eprint",
-            vec![ValType::Any],
+            vec![ValType::Str],
             ValType::Nil,
             Arc::new(|i, args| {
                 let value = args.first().unwrap();
 
-                writeln!(i.stderr.borrow_mut(), "{}", value)
+                writeln!(i.stderr.borrow_mut(), "{}", value.as_string()?)
                     .expect("Error while trying to write to the output stream.");
                 Ok(Val::Nil)
             }),
         )?;
 
+        /// Writes `contents` to a `file_path`. If no file exists, creates the file.
+        ///
+        /// `fn file_write(file_path: str, contents: str);`
         Self::define_function(
             &mut std,
             "file_write",
@@ -122,6 +161,9 @@ impl Stdlib {
             }),
         )?;
 
+        /// Prints prompt and waits for an input from stdin.
+        ///
+        /// `fn read_line(prompt: str);`
         Self::define_function(
             &mut std,
             "read_line",
@@ -145,6 +187,9 @@ impl Stdlib {
             }),
         )?;
 
+        /// Returns type of a given value.
+        ///
+        /// `fn typeof(value: any) -> str;`
         Self::define_function(
             &mut std,
             "typeof",

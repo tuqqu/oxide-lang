@@ -18,4 +18,4 @@ let c = Circle {
 	radius: 10
 };
 
-println(c.larger_circle(10).to_str());
+dbg(c.larger_circle(10).to_str());

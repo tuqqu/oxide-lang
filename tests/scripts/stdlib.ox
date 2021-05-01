@@ -4,8 +4,8 @@ let z = typeof(typeof);
 let a = typeof(nil);
 let b = typeof(true);
 
-println(x);
-println(y);
-println(z);
-println(a);
-println(b);
+dbg(x);
+dbg(y);
+dbg(z);
+dbg(a);
+dbg(b);

@@ -938,14 +938,15 @@ let x = 100; /* inlined multiline comment */ let y = x;
 
 A small set of built-in functionality is available anywhere in the code.
 
-- `print(msg: str)` prints `msg` to the standard output stream (stdout).
+- `typeof(val: any) -> str` returns type of given value or variable
+- `dbg(val: any)` dumps `val` as a string to the standard output stream (stdout).
+- `print(msg: str)` prints `msg` to the stdout.
 - `println(msg: str)` same as `print`, but inserts a newline at the end of the string.
 - `eprint(err: str)` prints `err` to the standard error (stderr).
 - `eprintln(err: str)` you got the idea.
 - `timestamp() -> int` returns current Unix Epoch timestamp in seconds
 - `read_line() -> str` reads user input from standard input (stdin) and returns it as a `str`
 - `file_write(file: str, content: str) -> str` write `content` to a file, creating it first, should it not exist
-- `typeof(val: any) -> str` returns type of given value or variable
 
 
 [latest-releases]: https://github.com/tuqqu/oxide-lang/releases/latest

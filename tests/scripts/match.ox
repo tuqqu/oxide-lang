@@ -2,7 +2,7 @@ let x = match true {
     true => 1
 };
 
-println(x);
+dbg(x);
 
 let mut y = 10;
 let y = match y {
@@ -11,7 +11,7 @@ let y = match y {
     12 => 13,
 };
 
-println(y);
+dbg(y);
 
 const H = "hello";
 let z = match H {
@@ -20,4 +20,4 @@ let z = match H {
     456 => 4,
 };
 
-println(z);
+dbg(z);

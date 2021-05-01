@@ -24,9 +24,9 @@ let mut c = 30;
     let b = 100;
 }
 
-println(x);
-println(y);
-println(z);
-println(a);
-println(b);
-println(c);
+dbg(x);
+dbg(y);
+dbg(z);
+dbg(a);
+dbg(b);
+dbg(c);

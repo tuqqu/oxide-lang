@@ -6,8 +6,8 @@ impl Math {
     pub const TWO = 2;
 }
 
-println(Math::PI);
-println(Math::E);
+dbg(Math::PI);
+dbg(Math::E);
 
 const RANDOM_NUMBER = 23;
 
@@ -47,14 +47,14 @@ let default = Point { x: 0, y: 0 };
 
 let default_point_x = Point::DEFAULT_X;
 
-println(RANDOM_NUMBER);
-println(Point::DEFAULT_X == default_point_x);
-println(default_point_x);
+dbg(RANDOM_NUMBER);
+dbg(Point::DEFAULT_X == default_point_x);
+dbg(default_point_x);
 
-println(x.equals(5, 5));
-println(x.is_default());
-println(default.is_default());
-println(x.compute());
+dbg(x.equals(5, 5));
+dbg(x.is_default());
+dbg(default.is_default());
+dbg(x.compute());
 
-println(Point::get_private_const_x2());
+dbg(Point::get_private_const_x2());
 

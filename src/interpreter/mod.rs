@@ -472,14 +472,24 @@ impl Interpreter {
         match env_val.deref() {
             NoValue | Trait(_) => Err(RuntimeError::RuntimeError(
                 expr.name.clone(),
-                format!(
-                    "Trying to access uninitialized variable \"{}\"",
-                    expr.name.lexeme
-                ),
+                format!("Trying to access a non-value \"{}\"", expr.name.lexeme),
             )),
             Function(f) => Ok(f.val.clone()),
             Constant(c) => Ok(c.val.clone()),
-            Variable(v) => Ok(v.val()),
+            Variable(v) => {
+                let val = v.val();
+                if let Val::Uninit = val {
+                    Err(RuntimeError::RuntimeError(
+                        expr.name.clone(),
+                        format!(
+                            "Trying to access an uninitialized variable \"{}\"",
+                            expr.name.lexeme
+                        ),
+                    ))
+                } else {
+                    Ok(val)
+                }
+            }
             Enum(e) => Ok(e.val.clone()),
             EnumValue(e) => Ok(e.val.clone()),
             Struct(s) => Ok(s.val.clone()),

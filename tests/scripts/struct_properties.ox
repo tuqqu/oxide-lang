@@ -5,14 +5,14 @@ struct Person {
 
 let mut john: Person = Person { age: 60, name: "John Doe" };
 
-println(john.age);
-println(john.name);
+dbg(john.age);
+dbg(john.name);
 
 john.age = 40;
 john.name = "Jane Doe";
 
-println(john.age);
-println(john.name);
+dbg(john.age);
+dbg(john.name);
 
 fn clone_person(person: Person) -> Person {
     return Person { age: person.age, name: person.name };
@@ -20,8 +20,8 @@ fn clone_person(person: Person) -> Person {
 
 let cloned = clone_person(john);
 
-println(cloned.age);
-println(cloned.name);
+dbg(cloned.age);
+dbg(cloned.name);
 
 let make_older: fn(Person) -> Person = fn (person: Person) -> Person {
     let mut person = person;
@@ -32,8 +32,8 @@ let make_older: fn(Person) -> Person = fn (person: Person) -> Person {
 
 john = make_older(john);
 
-println(john.age);
-println(john.name);
+dbg(john.age);
+dbg(john.name);
 
 struct Dog {
     pub name: str,
@@ -49,7 +49,7 @@ let d = Dog {
     fur: Fur { dense: true }
 };
 
-println(d.fur.dense);
+dbg(d.fur.dense);
 
 fn shave_dog(dog: Dog) {
     dog.fur.dense = false;
@@ -57,7 +57,7 @@ fn shave_dog(dog: Dog) {
 
 shave_dog(d);
 
-println(d.fur.dense);
+dbg(d.fur.dense);
 
 fn grow_fur(fur: Fur) {
     fur.dense = true;
@@ -65,7 +65,7 @@ fn grow_fur(fur: Fur) {
 
 grow_fur(d.fur);
 
-println(d.fur.dense);
+dbg(d.fur.dense);
 
 fn rename(dog: Dog) {
     dog.name = "Goodboy";
@@ -73,7 +73,7 @@ fn rename(dog: Dog) {
 
 rename(d);
 
-println(d.name);
+dbg(d.name);
 
 fn change_str(mut string: str) {
     string = "Badboy";
@@ -81,4 +81,4 @@ fn change_str(mut string: str) {
 
 change_str(d.name);
 
-println(d.name);
+dbg(d.name);

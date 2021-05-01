@@ -14,8 +14,8 @@ fn gcd(mut n: int, mut m: int) -> int {
 }
 
 fn main() {
-    println(gcd(15, 5));     // 5
-    println(gcd(12, 1456));  // 4
-    println(gcd(8, 321));    // 1
+    println(gcd(15, 5) as str);     // 5
+    println(gcd(12, 1456) as str);  // 4
+    println(gcd(8, 321) as str);    // 1
 }
 

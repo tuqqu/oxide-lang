@@ -1,80 +1,78 @@
 let mut x = 0;
-println(typeof(x));
+dbg(typeof(x));
 
 let x;
-println(typeof(x));
 x = "string";
-println(typeof(x));
+dbg(typeof(x));
 
 let w = 0.1;
-println(typeof(w));
+dbg(typeof(w));
 
 let mut y = "string";
-println(typeof(y));
+dbg(typeof(y));
 
 let y = 100;
-println(typeof(y));
+dbg(typeof(y));
 
 let y = nil;
-println(typeof(y));
+dbg(typeof(y));
 
 let mut b = true;
-println(typeof(b));
+dbg(typeof(b));
 
 fn function() {}
 let f = function;
-println(typeof(f));
+dbg(typeof(f));
 
 let f = fn () {};
-println(typeof(f));
+dbg(typeof(f));
 
 let f2 = f;
-println(typeof(f2));
+dbg(typeof(f2));
 
 let v = vec[];
-println(typeof(v));
+dbg(typeof(v));
 
 let v = vec[1, true, nil];
-println(typeof(v));
+dbg(typeof(v));
 
 let v = vec[1, 2, 3];
-println(typeof(v));
+dbg(typeof(v));
 
 let v = vec<int>[1, 2, 3];
-println(typeof(v));
+dbg(typeof(v));
 
 let v = vec["s", "t", "r"];
-println(typeof(v));
+dbg(typeof(v));
 
 struct S {};
 let s = S {};
-println(typeof(s));
+dbg(typeof(s));
 
 let v = vec[s, s, S {}];
-println(typeof(v));
+dbg(typeof(v));
 
 let v = vec<S>[s, s, S {}];
-println(typeof(v));
+dbg(typeof(v));
 
 enum E { A, B };
 let mut e: E = E::A;
-println(typeof(e));
+dbg(typeof(e));
 
 let v = vec[e, E::B, E::B];
-println(typeof(v));
+dbg(typeof(v));
 
 let v = vec<E>[E::A, e, e];
-println(typeof(v));
+dbg(typeof(v));
 
 let f: fn() = fn () {};
 let v = vec[fn () {}, fn () {}, f, f];
-println(typeof(v));
+dbg(typeof(v));
 
 let v = vec<fn()>[fn () {}, fn () {}, f, f];
-println(typeof(v));
+dbg(typeof(v));
 
 let v;
-println(typeof(v));
 v = vec[nil, nil];
-println(typeof(v));
+dbg(typeof(v));
 

@@ -68,6 +68,6 @@ fn main() {
 
     matrix_a.add(10);
 
-    println(matrix_c);
-    println(matrix_a);
+    dbg(matrix_c);
+    dbg(matrix_a);
 }

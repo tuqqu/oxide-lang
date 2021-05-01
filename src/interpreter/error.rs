@@ -16,6 +16,18 @@ pub enum RuntimeError {
     TypeError(Option<Token>, String),
 }
 
+impl RuntimeError {
+    fn name(&self) -> &'static str {
+        match self {
+            Self::DefinitionError(..) => "Definition error",
+            Self::ScriptError(..) => "Script error",
+            Self::TypeError(..) => "Type error",
+            Self::OperatorError(..) => "Operator error",
+            Self::RuntimeError(..) => "Runtime error",
+        }
+    }
+}
+
 impl error::Error for RuntimeError {}
 
 impl fmt::Display for RuntimeError {
@@ -26,11 +38,18 @@ impl fmt::Display for RuntimeError {
             | Self::TypeError(Some(token), msg)
             | Self::OperatorError(token, msg)
             | Self::RuntimeError(token, msg) => {
-                write!(f, "Error \"{}\": {} at {}", token.lexeme, msg, token.pos)
+                write!(
+                    f,
+                    "{} \"{}\": {} at {}",
+                    self.name(),
+                    token.lexeme,
+                    msg,
+                    token.pos
+                )
             }
             Self::DefinitionError(None, msg)
             | Self::ScriptError(None, msg)
-            | Self::TypeError(None, msg) => write!(f, "Error: {}", msg),
+            | Self::TypeError(None, msg) => write!(f, "{}: {}", self.name(), msg),
         }
     }
 }

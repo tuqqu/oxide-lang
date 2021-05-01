@@ -28,5 +28,5 @@ fn main() {
 
     selection_sort(vector);
 
-    println(vector);
+    dbg(vector);
 }

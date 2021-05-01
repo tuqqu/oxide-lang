@@ -8,7 +8,7 @@ while true {
     }
 }
 
-println(x);
+dbg(x);
 
 let mut y = 0;
 
@@ -20,7 +20,7 @@ while y < 10 {
     y = y + 2;
 }
 
-println(y);
+dbg(y);
 
 let mut z = 0;
 
@@ -39,7 +39,7 @@ while z < 1000 {
     }
 }
 
-println(z);
+dbg(z);
 
 let mut a = 0;
 const D = 2;
@@ -48,4 +48,4 @@ while a < 10 {
     a = a + D;
 }
 
-println(a);
+dbg(a);

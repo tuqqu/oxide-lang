@@ -1,5 +1,4 @@
 int
-uninit
 str
 float
 str
@@ -22,5 +21,4 @@ vec<E>
 vec<E>
 vec<fn()>
 vec<fn()>
-uninit
 vec<nil>
