@@ -1,7 +1,7 @@
 use std::io::{self, Write};
 use std::{env, fs, process};
 
-use oxide::{run, VERSION};
+use oxide::Engine;
 
 fn main() {
     let args: Vec<String> = env::args().collect();
@@ -13,7 +13,7 @@ fn main() {
         println!("oxide \"filename.ox\"");
         process::exit(1);
     } else if args[1] == "--version" || args[1] == "-v" {
-        println!("Oxide {}", VERSION);
+        println!("Oxide {}", Engine::VERSION);
         process::exit(0);
     } else if argc == 2 {
         file = &args[1];
@@ -27,7 +27,14 @@ fn main() {
 
     let contents = fs::read_to_string(file)
         .unwrap_or_else(|_| panic!("Something went wrong while reading the file \"{}\"", file));
-    run(contents, None, None, None, top_level);
+
+    let ast = Engine::ast(contents);
+
+    if top_level {
+        let _val = Engine::run_top_level(&ast, None);
+    } else {
+        let _val = Engine::run(&ast, None);
+    }
 }
 
 /// Runs REPL mode from stdin.
@@ -48,6 +55,7 @@ fn run_repl() {
             break;
         }
 
-        run(line, None, None, None, true);
+        let ast = Engine::ast(line);
+        let _val = Engine::run_top_level(&ast, None);
     }
 }

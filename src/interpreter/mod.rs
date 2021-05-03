@@ -21,6 +21,7 @@ use crate::parser::expr::{
 use crate::parser::valtype::{
     ValType, TYPE_BOOL, TYPE_FLOAT, TYPE_FN, TYPE_INT, TYPE_STRUCT, TYPE_VEC,
 };
+use crate::parser::Ast;
 
 pub mod env;
 mod error;
@@ -28,6 +29,20 @@ pub mod stdlib;
 pub mod val;
 
 pub type Result<T> = result::Result<T, RuntimeError>;
+pub type StdStreams = (
+    Option<Rc<RefCell<dyn Write>>>,
+    Option<Rc<RefCell<dyn Write>>>,
+    Option<Rc<RefCell<dyn Read>>>,
+);
+
+#[derive(Clone)]
+enum Mode {
+    /// Any statements allowed on the top-level.
+    TopLevel,
+    /// Only item declaration allowed on the top-level.
+    /// Execution starts from "main".
+    EntryPoint(Option<Box<env::Function>>),
+}
 
 pub struct Interpreter {
     pub stdout: Rc<RefCell<dyn Write>>,
@@ -42,35 +57,33 @@ impl Interpreter {
     const ENTRY_POINT: &'static str = "main";
 
     /// Returns an interpreter instance.
-    pub fn new(
-        stdlib: Env,
-        stdout: Option<Rc<RefCell<dyn Write>>>,
-        stderr: Option<Rc<RefCell<dyn Write>>>,
-        stdin: Option<Rc<RefCell<dyn Read>>>,
-    ) -> Self {
-        Self::from_mode(stdlib, stdout, stderr, stdin, Mode::EntryPoint(None))
+    pub fn new(stdlib: Env, streams: Option<StdStreams>) -> Self {
+        Self::from_mode(stdlib, streams, Mode::EntryPoint(None))
     }
 
     /// Returns an interpreter instance for Top-level statements execution.
-    pub fn top_level(
-        stdlib: Env,
-        stdout: Option<Rc<RefCell<dyn Write>>>,
-        stderr: Option<Rc<RefCell<dyn Write>>>,
-        stdin: Option<Rc<RefCell<dyn Read>>>,
-    ) -> Self {
-        Self::from_mode(stdlib, stdout, stderr, stdin, Mode::TopLevel)
+    pub fn top_level(stdlib: Env, streams: Option<StdStreams>) -> Self {
+        Self::from_mode(stdlib, streams, Mode::TopLevel)
     }
 
-    fn from_mode(
-        stdlib: Env,
-        stdout: Option<Rc<RefCell<dyn Write>>>,
-        stderr: Option<Rc<RefCell<dyn Write>>>,
-        stdin: Option<Rc<RefCell<dyn Read>>>,
-        mode: Mode,
-    ) -> Self {
-        let stdout = stdout.unwrap_or_else(|| Rc::new(RefCell::new(std::io::stdout())));
-        let stderr = stderr.unwrap_or_else(|| Rc::new(RefCell::new(std::io::stderr())));
-        let stdin = stdin.unwrap_or_else(|| Rc::new(RefCell::new(std::io::stdin())));
+    fn from_mode(stdlib: Env, streams: Option<StdStreams>, mode: Mode) -> Self {
+        let streams = if let Some(streams) = streams {
+            streams
+        } else {
+            (None, None, None)
+        };
+
+        let (stdout, stderr, stdin) = (
+            streams
+                .0
+                .unwrap_or_else(|| Rc::new(RefCell::new(std::io::stdout()))),
+            streams
+                .1
+                .unwrap_or_else(|| Rc::new(RefCell::new(std::io::stderr()))),
+            streams
+                .2
+                .unwrap_or_else(|| Rc::new(RefCell::new(std::io::stdin()))),
+        );
 
         let glob = Rc::new(RefCell::new(stdlib));
         let env = Rc::clone(&glob);
@@ -86,8 +99,8 @@ impl Interpreter {
     }
 
     /// Interpret statements.
-    pub fn interpret(&mut self, stmts: &[Stmt]) -> Result<()> {
-        for stmt in stmts {
+    pub fn interpret(&mut self, ast: &Ast) -> Result<Val> {
+        for stmt in &ast.0 {
             self.evaluate_stmt(stmt)?;
         }
 
@@ -101,9 +114,9 @@ impl Interpreter {
                     }) => {
                         self.mode = Mode::TopLevel;
                         // FIXME: add argument support
-                        // FIXME: add return value support
-                        let _result = self.call_expr(&main, &[])?;
-                        Ok(())
+                        // FIXME: improve return value support
+                        let result = self.call_expr(&main, &[])?;
+                        Ok(result)
                     }
                     _ => Err(RuntimeError::ScriptError(
                         None,
@@ -114,7 +127,7 @@ impl Interpreter {
                     )),
                 }
             }
-            Mode::TopLevel => Ok(()),
+            Mode::TopLevel => Ok(Val::Nil),
         }
     }
 
@@ -1368,37 +1381,3 @@ impl Interpreter {
         }
     }
 }
-
-#[derive(Clone)]
-enum Mode {
-    /// Any statements allowed on the top-level.
-    TopLevel,
-    /// Only item declaration allowed on the top-level.
-    /// Execution starts from "main".
-    EntryPoint(Option<Box<env::Function>>),
-}
-
-// #[derive(Debug)]
-// pub struct RuntimeError {
-//     pub token: Option<Token>,
-//     pub pos: Option<Pos>,
-//     pub msg: String,
-// }
-//
-// impl RuntimeError {
-//     pub fn from_token(token: Token, msg: String) -> Self {
-//         Self {
-//             pos: Some(token.pos),
-//             token: Some(token),
-//             msg,
-//         }
-//     }
-//
-//     pub fn new(msg: String) -> Self {
-//         Self {
-//             pos: None,
-//             token: None,
-//             msg,
-//         }
-//     }
-// }

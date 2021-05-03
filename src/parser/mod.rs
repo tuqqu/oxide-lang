@@ -16,8 +16,10 @@ mod error;
 pub mod expr;
 pub mod valtype;
 
-pub type Result<T> = result::Result<T, ParseError>;
 pub type ParseResult<'a, T> = result::Result<T, &'a [ParseError]>;
+type Result<T> = result::Result<T, ParseError>;
+
+pub struct Ast(pub Vec<Stmt>);
 
 pub struct Parser {
     tokens: Vec<Token>,
@@ -42,7 +44,7 @@ impl Parser {
         }
     }
 
-    pub fn parse(&mut self) -> ParseResult<Vec<Stmt>> {
+    pub fn parse(&mut self) -> ParseResult<Ast> {
         let mut stmts: Vec<Stmt> = Vec::<Stmt>::new();
 
         while !self.at_end() {
@@ -53,7 +55,7 @@ impl Parser {
         }
 
         if self.errors.is_empty() {
-            Ok(stmts)
+            Ok(Ast(stmts))
         } else {
             Err(&self.errors)
         }
