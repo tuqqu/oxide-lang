@@ -9,7 +9,7 @@ fn test_example(script: &str) {
     let sample_file: &str = &format!("{}/{}.ox", EXAMPLES_PATH, script);
     let output_file: &str = &format!("{}/{}.output", EXAMPLES_OUTPUT_PATH, script);
 
-    compare_output(sample_file, output_file, false);
+    compare_output(sample_file, output_file);
 }
 
 #[test]

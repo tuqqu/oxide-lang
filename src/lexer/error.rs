@@ -2,7 +2,7 @@ use std::{error, fmt};
 
 use super::token::Pos;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum LexerError {
     /// Error when a comment has no closing delimiter.
     UnclosedComment(Pos),

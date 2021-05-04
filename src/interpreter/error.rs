@@ -2,7 +2,7 @@ use std::{error, fmt};
 
 use crate::lexer::token::Token;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum RuntimeError {
     /// Error in definitions of items.
     DefinitionError(Option<Token>, String),

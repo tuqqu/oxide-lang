@@ -3,7 +3,7 @@ use std::{error, fmt};
 use crate::lexer::token::token_type::TokenType;
 use crate::lexer::token::Token;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum ParseError {
     /// Generic error at an unexpected token.
     UnexpectedToken(Token, Option<TokenType>, String),

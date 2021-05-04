@@ -19,7 +19,16 @@ pub mod valtype;
 pub type ParseResult<'a, T> = result::Result<T, &'a [ParseError]>;
 type Result<T> = result::Result<T, ParseError>;
 
-pub struct Ast(pub Vec<Stmt>);
+pub struct Ast {
+    pub tree: Vec<Stmt>,
+    pub top_level: bool,
+}
+
+impl Ast {
+    fn new(tree: Vec<Stmt>, top_level: bool) -> Self {
+        Self { tree, top_level }
+    }
+}
 
 pub struct Parser {
     tokens: Vec<Token>,
@@ -29,6 +38,7 @@ pub struct Parser {
     fn_depth: usize,
     errors: Vec<ParseError>,
     current_impl_target: Option<String>,
+    top_level: bool,
 }
 
 impl Parser {
@@ -41,6 +51,7 @@ impl Parser {
             fn_depth: 0,
             errors: vec![],
             current_impl_target: None,
+            top_level: false,
         }
     }
 
@@ -55,22 +66,14 @@ impl Parser {
         }
 
         if self.errors.is_empty() {
-            Ok(Ast(stmts))
+            Ok(Ast::new(stmts, self.top_level))
         } else {
             Err(&self.errors)
         }
     }
 
     fn decl_stmt(&mut self) -> Option<Stmt> {
-        if self.match_token(TokenType::Let) {
-            match self.var_decl() {
-                Ok(var_decl) => Some(var_decl),
-                Err(p_err) => {
-                    self.on_error(p_err);
-                    None
-                }
-            }
-        } else if self.match_token(TokenType::Const) {
+        if self.match_token(TokenType::Const) {
             match self.const_decl() {
                 Ok(const_decl) => Some(const_decl),
                 Err(p_err) => {
@@ -121,13 +124,29 @@ impl Parser {
                 }
             }
         } else {
-            match self.any_stmt() {
-                Ok(stmt) => Some(stmt),
-                Err(p_err) => {
-                    self.on_error(p_err);
-                    None
+            let stmt = if self.match_token(TokenType::Let) {
+                match self.var_decl() {
+                    Ok(var_decl) => Some(var_decl),
+                    Err(p_err) => {
+                        self.on_error(p_err);
+                        None
+                    }
                 }
+            } else {
+                match self.any_stmt() {
+                    Ok(stmt) => Some(stmt),
+                    Err(p_err) => {
+                        self.on_error(p_err);
+                        None
+                    }
+                }
+            };
+
+            if stmt.is_some() && self.fn_depth == 0 {
+                self.top_level = true;
             }
+
+            stmt
         }
     }
 

@@ -1,5 +1,5 @@
 # Oxide Programming Language
-Interpreted C-like language with a Rust influenced syntax. [Latest release][latest-releases]
+Interpreted scripting language with a Rust influenced syntax. [Latest release][latest-releases]
 
 ## Example programs
 
@@ -99,7 +99,7 @@ fn insertion_sort(input: vec<int>) {
 fn main() {
     let input: vec<int> = vec[4, 13, 0, 3, -3, 4, 19, 1];
     insertion_sort(input);
-    println(input); // [vec] [-3, 0, 1, 3, 4, 4, 13, 19]
+    dbg(input); // [vec] [-3, 0, 1, 3, 4, 4, 13, 19]
 }
 
 ```
@@ -110,21 +110,21 @@ fn main() {
 
 Download the [latest release][latest-releases] and put the executable in your PATH.
 
-### Interpret a file
-```shell
-oxide [script.ox]
 ```
+USAGE:
+    oxide [FLAGS] [FILE]
 
-### REPL
+FLAGS:
+    -h, --help              Prints help
+    -v, --version           Prints version
+    -r, --repl              Run REPL
+    -t, --allow-top-level   Allow top-level instructions
 
-There is also a simplistic REPL mode available. 
-```shell
-oxide
-```
+ARGS:
+    <FILE>  Script file to run
 
-To print current Oxide version
-```shell
-oxide --version
+EXAMPLE:
+    oxide script.ox
 ```
 
 ## Building from source
@@ -134,12 +134,10 @@ If your architecture is not supported by the pre-built binaries you can build th
 git clone https://github.com/tuqqu/oxide-lang.git
 cd oxide-lang
 cargo install --path . # copies binary to /.cargo/bin/
+                       # to uninstall run `cargo uninstall`
 
 # you can now run it with
 oxide script.ox
-
-# to uninstall run
-cargo uninstall
 ```
 
 # Quick Overview
@@ -156,8 +154,7 @@ cargo uninstall
     * [Loop](#loop)
     * [For](#for)
 * [Functions](#functions)
-    * [Declared functions](#declared-functions)
-    * [Closures and Lambdas](#closures)
+    * [Closures](#closures)
 * [Structs](#structs)
   * [Public and Private](#public-and-private)
 * [Traits](#traits)
@@ -189,12 +186,6 @@ trait T {}
 enum E {}
 ```
 
-However, if you for some reason wish to run your code with top-level instructions and no entry point, you may run it like this:
-
-```shell
-oxide --no-entry-point "script.ox"
-```
-
 ## Variables and Type System
 
 There are eleven types in Oxide: `nil`, `num`, `int`, `float`, `bool`, `str`, `fn(T) -> T`, `vec<T>`, `any` and user-defined types (via [`structs`](#structs) and [`enums`](#enums)). See [type system][type-system]
@@ -202,23 +193,27 @@ There are eleven types in Oxide: `nil`, `num`, `int`, `float`, `bool`, `str`, `f
 Variables are typed either explicitly:
 
 ```rust
-let x: int;
-let y: str = "hello world";
-let nums: vec<int> = vec[1, 2, 3];
-let jane: Person = Person { name: "Jane" };
+let x: int;                                  // type = int
+let y: str = "hello world";                  // type = str
+let nums: vec<int> = vec[1, 2, 3];           // type = vec<int>
+let jane: Person = Person { name: "Jane" };  // type = Person
+
 // functions are their own type
 let double: fn(int) -> int = fn (x: int) -> int { return x * 2; };
+          //^^^^^^^^^^^^^^   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+          //     type                      lambda       
 ```
 
 or their type implicitly inferred:
 
 ```rust
-let x = 1;                         // inferred as "int"
-let dog = Dog::new("Good Boy");    // inferred as "Dog"
-let ordering = Ordering::Less;     // inferred as "Ordering"
+let x = 1;                         // inferred as int
+let dog = Dog::new("Good Boy");    // inferred as Dog
+let ordering = Ordering::Less;     // inferred as Ordering
+let f = fn (x: int) { ... };       // inferred as fn(int)
 
-let x;
-x = vec[1, 2, 3];                  // inferred as "vec<int>" the first time it is being assigned
+let x;                             // inferred as vec<int>
+x = vec[1, 2, 3];                  // the first time it is being assigned
 ```
 
 ### Mutability
@@ -243,7 +238,6 @@ Variables can be shadowed. Each variable declaration "shadows" the previous one:
 
 ```rust
 let x: int = 100;
-let x: Circle = Circle::new(10, Point { x: x, y: 5 });
 let x: vec<int> = vec[1, 2];
 ```
 
@@ -379,15 +373,13 @@ for name in vec["John", "Johann", "Jane"] {
 There is also a ~~good~~ old C-like `for` loop.
 ```rust
 for let mut i = 0; i < v.len(); i += 1 {
-    println(v[i]);
+    println(v[i] as str);
 }
 ```
 
 Like in C, the first or the last parts can be omitted, or even all three of them `for ;; {}`.
 
 ## Functions
-
-### Declared functions
 
 Functions are declared with a `fn` keyword. 
 
@@ -398,18 +390,18 @@ Functions that do not have a `return` statement implicitly return `nil` and the 
 Each function is of `fn(T, [T,]) -> T` type.
 
 ```rust
-fn add(x: int, y: int) -> int {  // typeof(add) = "fn(int, int) -> int"
+fn add(x: int, y: int) -> int {  // typeof(add) = fn(int, int) -> int
     return x + y;
 }
 
-fn clone(c: Circle) -> Circle {  // typeof(clone) = "fn(Circle) -> Circle"
+fn clone(c: Circle) -> Circle {  // typeof(clone) = fn(Circle) -> Circle
     return Circle {
         radius: c.radius,
         center: c.center,
     };
 }
 
-fn log(level: int, msg: str) {   // typeof(log) = "fn(int, str)" 
+fn log(level: int, msg: str) {   // typeof(log) = fn(int, str) 
     println(
       "Level: " + level as str + ", message: " + msg
     );
@@ -422,7 +414,7 @@ Defining a function argument as `mut` lets you mutate it in the function body. B
 /// compute the greatest common divisor 
 /// of two integers using Euclids algorithm
 
-fn gcd(mut n: int, mut m: int) -> int {   // typeof(gcd) = "fn(int, int) -> int"
+fn gcd(mut n: int, mut m: int) -> int {   // typeof(gcd) = fn(int, int) -> int
     while m != 0 {
         if m < n {
           let t = m;
@@ -446,16 +438,16 @@ Functions are first-class citizens of the language, they can be stored in a vari
 /// function returns closure
 /// which captures the internal value i
 /// each call to the closure increments the captured value
-fn create_counter() -> fn() {       // typeof(create_counter) = "fn() -> fn()"
+fn create_counter() -> fn() {       // typeof(create_counter) = fn() -> fn()
     let mut i = 0;
 
     return fn () {                  // returns closure
         i += 1;
-        println(i);
+        println(i as str);
     };
 }
 
-let counter = create_counter();     // inferred as "fn() -> fn()"
+let counter = create_counter();     // inferred as fn() -> fn()
 
 counter(); // 1
 counter(); // 2
@@ -581,7 +573,7 @@ let system = StellarSystem {
     age: 8934,
 };
 
-let arcturus = Planet::new("Arcturus", 4444);  // creating instance via static method
+let arcturus = Planet::new("Arcturus", 4444);               // creating instance via static method
 ```
 
 Dot syntax `.` is used to access structs fields and call its methods.
@@ -624,14 +616,14 @@ Immutable variable behave similarly to Javascript `const` that holds an object, 
 ```rust
 system.name = "new name";              // valid
 system.planets[0].name = "new name";   // also valid
-system = StellarSystem { ... };         //! error, "system" cannot point to another struct
+system = StellarSystem { ... };        //! error, "system" cannot point to another struct
 ```
 
 Structs are always passed by reference, consider:
 
 ```rust
 fn remove_planets(s: StellarSystem) {
-    s.planets = vec<Planet>[];  // oh, all planets are removed
+    s.planets = vec<Planet>[];        // oh, all planets are removed
 }
 
 remove_planets(system);

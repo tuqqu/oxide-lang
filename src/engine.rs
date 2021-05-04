@@ -1,4 +1,4 @@
-use std::{error, process};
+use std::error;
 
 use crate::interpreter::env::Env;
 use crate::interpreter::stdlib::Stdlib;
@@ -7,69 +7,65 @@ use crate::interpreter::{Interpreter, StdStreams};
 use crate::lexer::Lexer;
 use crate::parser::{Ast, Parser};
 
-pub struct Engine;
+type ErrorHandler = fn(Vec<Box<dyn error::Error>>) -> !;
+
+pub struct Engine {
+    on_error: ErrorHandler,
+}
 
 impl Engine {
     /// Language version is taken from Cargo.toml.
     pub const VERSION: &'static str = env!("CARGO_PKG_VERSION");
 
-    pub fn ast(src: String) -> Ast {
-        let mut scanner = Lexer::new(src);
-        let (tokens, errors) = scanner.tokenize();
+    pub fn new(on_error: ErrorHandler) -> Self {
+        Self { on_error }
+    }
 
+    pub fn ast(&self, src: String) -> Ast {
+        let mut lexer = Lexer::new(src);
+        let (tokens, errors) = lexer.tokenize();
         if !errors.is_empty() {
-            for error in errors {
-                eprint_error(error);
-            }
-            process::exit(1);
+            (self.on_error)(Self::box_errors(errors.to_vec()));
         }
 
         let mut parser = Parser::new(tokens.to_vec());
         let ast = match parser.parse() {
             Ok(ast) => ast,
             Err(errors) => {
-                for error in errors {
-                    eprint_error(error);
-                }
-                process::exit(1);
+                (self.on_error)(Self::box_errors(errors.to_vec()));
             }
         };
 
         ast
     }
 
-    pub fn run(ast: &Ast, streams: Option<StdStreams>) -> Val {
-        let mut i = Interpreter::new(Self::provide_stdlib(), streams);
-        Self::run_code(ast, &mut i)
+    pub fn run(&self, ast: &Ast, streams: Option<StdStreams>) -> Val {
+        let mut i = Interpreter::new(self.provide_stdlib(), streams);
+        self.run_code(ast, &mut i)
     }
 
-    pub fn run_top_level(ast: &Ast, streams: Option<StdStreams>) -> Val {
-        let mut i = Interpreter::top_level(Self::provide_stdlib(), streams);
-        Self::run_code(ast, &mut i)
-    }
-
-    fn run_code(ast: &Ast, i: &mut Interpreter) -> Val {
+    fn run_code(&self, ast: &Ast, i: &mut Interpreter) -> Val {
         match i.interpret(ast) {
             Ok(val) => val,
             Err(e) => {
-                eprint_error(e);
-                process::exit(1);
+                (self.on_error)(Self::box_errors(vec![e]));
             }
         }
     }
 
-    fn provide_stdlib() -> Env {
+    fn provide_stdlib(&self) -> Env {
         let lib = Stdlib::env();
         match lib {
             Ok(lib) => lib,
             Err(e) => {
-                eprint_error(e);
-                process::exit(1);
+                (self.on_error)(Self::box_errors(vec![e]));
             }
         }
     }
-}
 
-fn eprint_error(err: impl error::Error) {
-    eprintln!("\x1b[0;31m{}\x1b[0m", err);
+    fn box_errors<'a, E: error::Error + 'a>(errs: Vec<E>) -> Vec<Box<dyn error::Error + 'a>> {
+        errs.into_iter()
+            .map(|e| Box::new(e) as Box<dyn error::Error>)
+            .collect()
+    }
 }

@@ -5,40 +5,59 @@ use oxide::Engine;
 
 fn main() {
     let args: Vec<String> = env::args().collect();
-    let argc = args.len();
-    let file: &str;
-    let mut top_level = false;
-
-    if argc > 3 {
-        println!("oxide \"filename.ox\"");
+    let engine = Engine::new(on_error_handler);
+    if args.len() == 1 {
+        eprint_error("Arguments not found.");
         process::exit(1);
-    } else if args[1] == "--version" || args[1] == "-v" {
-        println!("Oxide {}", Engine::VERSION);
-        process::exit(0);
-    } else if argc == 2 {
-        file = &args[1];
-    } else if argc == 3 && args[1] == "--no-entry-point" || args[1] == "-n" {
-        top_level = true;
-        file = &args[2];
-    } else {
-        run_repl();
-        process::exit(0);
     }
 
-    let contents = fs::read_to_string(file)
-        .unwrap_or_else(|_| panic!("Something went wrong while reading the file \"{}\"", file));
-
-    let ast = Engine::ast(contents);
-
-    if top_level {
-        let _val = Engine::run_top_level(&ast, None);
-    } else {
-        let _val = Engine::run(&ast, None);
+    match args[1].as_str() {
+        "-v" | "--version" => {
+            print_version();
+            process::exit(0);
+        }
+        "-h" | "--help" => {
+            print_help();
+            process::exit(0);
+        }
+        "-r" | "--repl" => {
+            repl(&engine);
+            process::exit(0);
+        }
+        _ => {}
     }
+
+    let allow_top_level =
+        args.contains(&"--allow-top-level".to_string()) || args.contains(&"-t".to_string());
+    let args: Vec<String> = args
+        .into_iter()
+        .filter(|arg| !arg.starts_with('-'))
+        .collect();
+    if args.len() == 1 {
+        eprint_error("Filename not found.");
+        process::exit(1);
+    }
+
+    let contents = fs::read_to_string(&args[1]).unwrap_or_else(|_| {
+        panic!(
+            "Something went wrong while reading the file \"{}\"",
+            &args[1]
+        )
+    });
+    let ast = engine.ast(contents);
+
+    if ast.top_level && !allow_top_level {
+        eprintln!(
+            "Top-level instructions are not allowed. To allow them run command with a \"-t\" flag."
+        );
+        process::exit(1);
+    }
+
+    let _val = engine.run(&ast, None);
 }
 
 /// Runs REPL mode from stdin.
-fn run_repl() {
+fn repl(engine: &Engine) {
     let stdin = io::stdin();
 
     loop {
@@ -55,7 +74,49 @@ fn run_repl() {
             break;
         }
 
-        let ast = Engine::ast(line);
-        let _val = Engine::run_top_level(&ast, None);
+        let ast = engine.ast(line);
+        let _val = engine.run(&ast, None);
     }
+}
+
+fn print_help() {
+    println!(
+        "{}",
+        format!(
+            r"Oxide {}
+
+USAGE:
+    oxide [FLAGS] [FILE]
+
+FLAGS:
+    -h, --help              Prints help
+    -v, --version           Prints version
+    -r, --repl              Run REPL
+    -t, --allow-top-level   Allow top-level instructions
+
+ARGS:
+    <FILE>   Script file to run
+
+EXAMPLE:
+    oxide script.ox",
+            Engine::VERSION
+        )
+    );
+}
+
+fn print_version() {
+    println!("Oxide {}", Engine::VERSION);
+}
+
+fn eprint_error(msg: &str) {
+    eprintln!("{}", msg);
+    eprintln!("Run the command with \"--help\" to see help information.");
+}
+
+fn on_error_handler(errs: Vec<Box<dyn std::error::Error>>) -> ! {
+    for err in errs {
+        eprintln!("\x1b[0;31m{}\x1b[0m", err);
+    }
+
+    process::exit(1);
 }

@@ -58,15 +58,6 @@ impl Interpreter {
 
     /// Returns an interpreter instance.
     pub fn new(stdlib: Env, streams: Option<StdStreams>) -> Self {
-        Self::from_mode(stdlib, streams, Mode::EntryPoint(None))
-    }
-
-    /// Returns an interpreter instance for Top-level statements execution.
-    pub fn top_level(stdlib: Env, streams: Option<StdStreams>) -> Self {
-        Self::from_mode(stdlib, streams, Mode::TopLevel)
-    }
-
-    fn from_mode(stdlib: Env, streams: Option<StdStreams>, mode: Mode) -> Self {
         let streams = if let Some(streams) = streams {
             streams
         } else {
@@ -94,13 +85,17 @@ impl Interpreter {
             stdin,
             glob,
             env,
-            mode,
+            mode: Mode::EntryPoint(None),
         }
     }
 
     /// Interpret statements.
     pub fn interpret(&mut self, ast: &Ast) -> Result<Val> {
-        for stmt in &ast.0 {
+        if ast.top_level {
+            self.mode = Mode::TopLevel;
+        }
+
+        for stmt in &ast.tree {
             self.evaluate_stmt(stmt)?;
         }
 

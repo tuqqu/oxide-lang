@@ -7,18 +7,18 @@ use self::token::{Pos, Token};
 mod error;
 pub mod token;
 
-pub struct Lexer {
+pub struct Lexer<'a> {
     src: String,
     tokens: Vec<Token>,
     start: usize,
     current: usize,
     line: usize,
     pos: usize,
-    keywords: HashMap<&'static str, TokenType>,
+    keywords: HashMap<&'a str, TokenType>,
     errors: Vec<LexerError>,
 }
 
-impl Lexer {
+impl Lexer<'_> {
     pub fn new(src: String) -> Self {
         use TokenType::*;
 
