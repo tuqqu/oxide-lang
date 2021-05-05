@@ -90,6 +90,7 @@ pub struct Trait {
     pub id: usize,
     pub name: String,
     pub methods: Vec<FnSignatureDecl>,
+    pub val: Val,
 }
 
 /// It is not wrapped in `EnvValue` enum value,
@@ -222,11 +223,12 @@ impl Struct {
 }
 
 impl Trait {
-    pub fn new(name: String, methods: Vec<FnSignatureDecl>) -> Self {
+    pub fn new(name: String, methods: Vec<FnSignatureDecl>, val: Val) -> Self {
         Self {
             id: internal_id(),
             name,
             methods,
+            val,
         }
     }
 }
@@ -465,7 +467,7 @@ impl Env {
 
         Err(RuntimeError::RuntimeError(
             name.clone(),
-            format!("Trying to access undefined value \"{}\"", name.lexeme),
+            format!("Trying to access an undefined value \"{}\"", name.lexeme),
         ))
     }
 

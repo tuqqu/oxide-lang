@@ -138,6 +138,11 @@ fn test_struct_static_self() {
 }
 
 #[test]
+fn test_struct_static_call_non_static() {
+    test_script("struct_static_call_non_static");
+}
+
+#[test]
 fn test_enum_values() {
     test_script("enum_values");
 }
@@ -150,4 +155,9 @@ fn test_enum_impl() {
 #[test]
 fn test_traits() {
     test_script("traits");
+}
+
+#[test]
+fn test_trait_static_call_non_static() {
+    test_script("trait_static_call_non_static");
 }

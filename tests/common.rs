@@ -13,7 +13,13 @@ pub fn compare_output(sample_file: &str, output_file: &str) {
 
     let script = fs::read_to_string(sample_file).expect("Error while reading file.");
 
-    let engine = Engine::new(|_| process::exit(1));
+    let engine = Engine::new(|errs| {
+        for err in errs {
+            eprintln!("{}", err);
+        }
+        process::exit(1);
+    });
+
     let ast = engine.ast(script);
     let _val = engine.run(&ast, Some((Some(stdout), Some(vecerr), None)));
 

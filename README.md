@@ -591,7 +591,7 @@ system.planets.push( Planet {
 let mars_name: str = system.planets[0].name;
 
 // call method
-let star_descr: str = system.star.get_description();
+let desc: str = system.star.get_description();
 system.planets[0].set_new_mass(200);
 ```
 
@@ -609,6 +609,13 @@ impl Star {
 
 let dwarf_mass: int = Star::WHITE_DWARF;
 let max_age: int = Star::get_max_age();
+```
+
+Same as in Rust, non-static methods can be called using `::` as well:
+```rust
+let desc = Star::get_description(system.star);
+// same as
+let desc = system.star.get_description();
 ```
 
 Immutable variable behave similarly to Javascript `const` that holds an object, so it will still let you change the object fields.

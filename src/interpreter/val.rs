@@ -14,7 +14,7 @@ use crate::lexer::token::Token;
 use crate::parser::expr::{Lambda, StructDecl};
 use crate::parser::valtype::{
     FnType, ValType, TYPE_ANY, TYPE_BOOL, TYPE_ENUM, TYPE_FLOAT, TYPE_INT, TYPE_NIL, TYPE_STR,
-    TYPE_STRUCT, TYPE_UNINIT, TYPE_VEC,
+    TYPE_STRUCT, TYPE_TRAIT, TYPE_UNINIT, TYPE_VEC,
 };
 
 #[derive(Debug, Clone)]
@@ -31,6 +31,7 @@ pub enum Val {
     Enum(Token),
     EnumValue(String, String, usize),
     VecInstance(Rc<RefCell<VecInstance>>),
+    Trait(Token),
     Any(Box<Self>),
 }
 
@@ -794,6 +795,7 @@ impl Val {
             Enum(_e) => TYPE_ENUM.to_string(),
             EnumValue(e, _n, _v) => e.clone(),
             VecInstance(v) => format!("{}<{}>", TYPE_VEC, v.borrow_mut().val_type),
+            Trait(_t) => TYPE_TRAIT.to_string(),
             Any(_v) => TYPE_ANY.to_string(),
         }
     }
@@ -822,7 +824,7 @@ impl Val {
             Int(n) => n.to_string(),
             Float(n) => n.to_string(),
             Callable(c) => format!("[fn] {}", FnType::get_type(&c.param_types, &c.ret_type)),
-            Struct(token, _c) => format!("[struct {}]", token.lexeme),
+            Struct(t, _c) => format!("[struct {}]", t.lexeme),
             StructInstance(i) => {
                 let mut props = vec![];
                 for (prop, (val, _val_t, _pub)) in &i.borrow_mut().props {
@@ -845,6 +847,7 @@ impl Val {
 
                 format!("[vec] [{}]", vals.join(", "))
             }
+            Trait(t) => format!("[trait {}]", t.lexeme),
             Any(v) => format!("[any] {}", v),
         }
     }

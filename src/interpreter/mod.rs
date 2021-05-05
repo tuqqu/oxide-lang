@@ -264,7 +264,7 @@ impl Interpreter {
         };
 
         for (const_, pub_) in &decl.consts {
-            let val: Val = self.evaluate(&const_.init)?;
+            let val = self.evaluate(&const_.init)?;
 
             self.env
                 .borrow_mut()
@@ -280,6 +280,7 @@ impl Interpreter {
                 &fn_.lambda.clone(),
                 None,
                 Some(stmt.impl_name.lexeme.clone()),
+                false,
             );
 
             self.env
@@ -288,6 +289,29 @@ impl Interpreter {
                     fn_.name.clone(),
                     val,
                     (stmt.impl_name.clone(), *pub_),
+                ))?;
+        }
+
+        for (fn_, pub_) in &decl.methods {
+            let val = self.eval_fn_expr(
+                &fn_.lambda.clone(),
+                None,
+                Some(stmt.impl_name.lexeme.clone()),
+                true,
+            );
+
+            let static_name = if let Some(name) = stmt.for_name.clone() {
+                name
+            } else {
+                stmt.impl_name.clone()
+            };
+
+            self.env
+                .borrow_mut()
+                .define_function(env::Function::with_struct(
+                    fn_.name.clone(),
+                    val,
+                    (static_name, *pub_),
                 ))?;
         }
 
@@ -308,6 +332,7 @@ impl Interpreter {
         self.env.borrow_mut().define_trait(env::Trait::new(
             stmt.name.lexeme.clone(),
             stmt.method_signs.clone(),
+            Val::Trait(stmt.name.clone()),
         ));
 
         Ok(StmtVal::None)
@@ -478,7 +503,7 @@ impl Interpreter {
         use EnvVal::*;
 
         match env_val.deref() {
-            NoValue | Trait(_) => Err(RuntimeError::RuntimeError(
+            NoValue => Err(RuntimeError::RuntimeError(
                 expr.name.clone(),
                 format!("Trying to access a non-value \"{}\"", expr.name.lexeme),
             )),
@@ -501,6 +526,7 @@ impl Interpreter {
             Enum(e) => Ok(e.val.clone()),
             EnumValue(e) => Ok(e.val.clone()),
             Struct(s) => Ok(s.val.clone()),
+            Trait(t) => Ok(t.val.clone()),
         }
     }
 
@@ -547,7 +573,7 @@ impl Interpreter {
     }
 
     fn eval_fn_stmt(&mut self, fn_decl: &FnDecl) -> Result<StmtVal> {
-        let fn_val = self.eval_fn_expr(&fn_decl.lambda.clone(), None, None);
+        let fn_val = self.eval_fn_expr(&fn_decl.lambda.clone(), None, None, false);
         let func: env::Function = env::Function::without_struct(fn_decl.name.clone(), fn_val);
 
         if fn_decl.name.lexeme == Self::ENTRY_POINT {
@@ -577,6 +603,7 @@ impl Interpreter {
         expr: &Lambda,
         self_: Option<Rc<RefCell<StructInstance>>>,
         self_static: Option<String>,
+        self_argument: bool,
     ) -> Val {
         let copy = Rc::clone(&self.env);
 
@@ -586,13 +613,24 @@ impl Interpreter {
         );
 
         let ret_type = func.lambda.ret_type.clone();
-        let param_types = func
+        let mut param_types: Vec<ValType> = func
             .lambda
             .params
             .clone()
             .into_iter()
             .map(|(_, vt, _)| vt)
             .collect();
+
+        let mut self_type = None;
+
+        if self_argument {
+            if self_static.is_none() {
+                panic!("Function cannot have \"self\" as an argument without \"self_static\" being set");
+            }
+
+            self_type = Some(ValType::Instance(self_static.clone().unwrap()));
+            param_types.insert(0, self_type.clone().unwrap());
+        }
 
         Val::Callable(*Callable::new(
             param_types,
@@ -613,15 +651,45 @@ impl Interpreter {
                     env.define_static_bind(static_bind);
                 }
 
+                if self_argument {
+                    if self_static.is_none() || self_type.is_none() {
+                        panic!("Function cannot have \"self\" as an argument without \"self_static\" or \"self_type\" being set");
+                    }
+
+                    let cur_instance = args[0].clone();
+                    let self_type = self_type.as_ref().unwrap();
+                    if !self_type.conforms(&cur_instance) {
+                        return Err(RuntimeError::TypeError(
+                            None,
+                            format!(
+                                "Expected argument \"{}\" of type \"{}\", got \"{}\"",
+                                0,
+                                self_type,
+                                cur_instance.get_type()
+                            ),
+                        ));
+                    }
+
+                    let cur_instance = if let Val::StructInstance(cur_instance) = cur_instance {
+                        cur_instance
+                    } else {
+                        panic!("Expected to have StructInstance as a current instance value.");
+                    };
+
+                    env.define_static_bind(cur_instance.borrow().struct_name.clone());
+                    env.define_self(cur_instance);
+                }
+
                 for (i, param) in func.lambda.params.iter().enumerate() {
-                    let arg = args[i].clone();
+                    let arg_index = if self_argument { i + 1 } else { i };
+                    let arg = args[arg_index].clone();
 
                     if !param.1.conforms(&arg) {
                         return Err(RuntimeError::TypeError(
                             Some(param.0.clone()),
                             format!(
                                 "Expected argument \"{}\" of type \"{}\", got \"{}\"",
-                                i,
+                                arg_index,
                                 param.1,
                                 arg.get_type()
                             ),
@@ -630,7 +698,7 @@ impl Interpreter {
 
                     let var = env::Variable::new(
                         param.0.lexeme.clone(),
-                        args[i].clone(),
+                        args[arg_index].clone(),
                         param.2,
                         param.1.clone(),
                     );
@@ -919,7 +987,7 @@ impl Interpreter {
         let static_caller = self.evaluate(&expr.name)?;
 
         match static_caller {
-            Val::Struct(token, _) | Val::Enum(token) => {
+            Val::Struct(token, _) | Val::Enum(token) | Val::Trait(token) => {
                 let static_name = construct_static_name(&token.lexeme, &expr.prop_name.lexeme);
                 let public_access = self.is_public_static_access(token.lexeme.clone());
                 let static_val = self
@@ -944,7 +1012,7 @@ impl Interpreter {
                                 ))
                             }
                         } else {
-                            Ok(c.val.clone())
+                            panic!("Static access constant must not be a standalone one.");
                         }
                     }
                     EnvVal::Function(f) => {
@@ -961,7 +1029,7 @@ impl Interpreter {
                                 ))
                             }
                         } else {
-                            Ok(f.val.clone())
+                            panic!("Static access function must not be a standalone one.");
                         }
                     }
                     _ => Err(RuntimeError::DefinitionError(
@@ -990,7 +1058,7 @@ impl Interpreter {
                 match val {
                     PropFuncVal::Prop(val) => Ok(val),
                     PropFuncVal::Func((func, self_, _pub)) => {
-                        Ok(self.eval_fn_expr(&func, Some(self_), None))
+                        Ok(self.eval_fn_expr(&func, Some(self_), None, false))
                     }
                 }
             }
@@ -1262,7 +1330,7 @@ impl Interpreter {
             GroupingExpr(grouping) => self.eval_grouping_expr(&grouping)?,
             VariableExpr(variable) => self.eval_var_expr(&variable)?,
             AssignmentExpr(assignment) => self.eval_assign_expr(&assignment)?,
-            FnExpr(lambda) => self.eval_fn_expr(&lambda, None, None),
+            FnExpr(lambda) => self.eval_fn_expr(&lambda, None, None, false),
             MatchExpr(match_expr) => self.eval_match_expr(match_expr)?,
         };
 

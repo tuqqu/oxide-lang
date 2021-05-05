@@ -16,6 +16,7 @@ pub const TYPE_NIL: &str = "nil";
 pub const TYPE_VEC: &str = "vec";
 pub const TYPE_MAP: &str = "map";
 pub const TYPE_STRUCT: &str = "struct";
+pub const TYPE_TRAIT: &str = "trait";
 pub const TYPE_ENUM: &str = "enum";
 
 #[derive(Debug, Clone, PartialEq)]
