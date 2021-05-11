@@ -12,7 +12,7 @@ struct Circle {                                 // struct declaration
 }
 
 impl Circle {                                   // struct implementation
-    const PI = 3.14159;                         // private associated constant
+    const PI: float = 3.14159;                  // private associated constant
 
     pub fn new(r: float, c: Point) -> Self {    // public static method
         return Self {
@@ -41,7 +41,7 @@ impl Shape for Circle {                         // trait implementation
 
 // program entry point
 fn main() {                                     
-    let a = Circle::new(200.0, Point { x: 1, y: 5 });
+    let a: Shape = Circle::new(200.0, Point { x: 1, y: 5 });
     let area = a.calc_area();                   
   
     println("circle area: " + area as str);     // type casting
@@ -78,19 +78,19 @@ fn main() {
 /// insertion sort
 
 fn insertion_sort(input: vec<int>) {
-    for let mut i = 1; i < input.len(); i += 1 {
+    for i in 1..input.len() {
         let cur = input[i];
         let mut j = i - 1;
-    
+
         while input[j] > cur {
             let temp = input[j + 1];
             input[j + 1] = input[j];
             input[j] = temp;
-      
+
             if j == 0 {
                 break;
             }
-    
+
             j -= 1;
         }
     }
@@ -160,6 +160,7 @@ oxide script.ox
 * [Traits](#traits)
 * [Enums](#enums)
 * [Vectors](#vectors)
+    * [Range Expressions](#range-expressions)
 * [Constants](#constants)
 * [Operators](#operators)
     * [Unary](#unary)
@@ -195,7 +196,7 @@ Variables are typed either explicitly:
 ```rust
 let x: int;                                  // type = int
 let y: str = "hello world";                  // type = str
-let nums: vec<int> = vec[1, 2, 3];           // type = vec<int>
+let nums: vec<int> = vec[1, 2];              // type = vec<int>
 let jane: Person = Person { name: "Jane" };  // type = Person
 
 // functions are their own type
@@ -207,13 +208,13 @@ let double: fn(int) -> int = fn (x: int) -> int { return x * 2; };
 or their type implicitly inferred:
 
 ```rust
-let x = 1;                         // inferred as int
+let x = vec["h", "i"];             // inferred as vec<str>
 let dog = Dog::new("Good Boy");    // inferred as Dog
 let ordering = Ordering::Less;     // inferred as Ordering
 let f = fn (x: int) { ... };       // inferred as fn(int)
 
 let x;                             // inferred as vec<int>
-x = vec[1, 2, 3];                  // the first time it is being assigned
+x = 0..=100;                       // the first time it is being assigned
 ```
 
 ### Mutability
@@ -247,20 +248,15 @@ Explicit type conversion, i.e. type casting, can be performed using the `as` key
 Primitive types `int`, `float`, `nil`, `bool`, `str` can be cast to other primitive types.
 
 ```rust
-let x = 32 as str;              // typeof(x) = str, x = "32"
-let x = "350" as int;           // typeof(x) = int, x = 350
+let x = 32 as str;              // typeof(x) = str,  x = "32"
+let x = "350" as int;           // typeof(x) = int,  x = 350
 let x = 0.0 as bool;            // typeof(x) = bool, x = false
 
 let x = 10;
 "this is x: " + x as str;       // values must be cast to str for concatenation
 ```
 
-Vector, enum, function and struct types cannot be used in type casting.
-
-```rust
-let x = Ordering::Less as int;  //! type error
-let x = vec[] as Ordering;      //! type error
-```
+Using non-primitives (vector `vec<T>`, function `fn(T) -> T`, enum, and struct types) will result in a type error.
 
 `any` type must be explicitly cast to be used in expressions:
 
@@ -271,9 +267,11 @@ let d = 100 + x as int; // omitting cast would produce an error
 
 ## Control Flow and Loops
 
+Parentheses are not needed around conditions. The statement body must be enclosed in curly braces.
+
 ### If
 
-`if` statement is pretty classic. It supports `else if` and `else` branches. Parentheses are not needed around conditions. Each branch must be enclosed in curly braces.
+`if` statement is rather classic. It supports `else if` and `else` branches. 
 
 ```rust
 if x >= 100 {
@@ -287,7 +285,9 @@ if x >= 100 {
 
 ### Match
 
-`match` expression returns the first matching arm evaluated value. Unlike other control flow statements, `match` is an expression and therefore must be terminated with a semicolon. It can be used in any place an expression is expected.
+`match` expression returns the first matching arm evaluated value. 
+
+Unlike other control flow statements, `match` is an expression and therefore must be terminated with a semicolon.
 
 ```rust
 let direction = match get_direction() {
@@ -337,7 +337,7 @@ fn main() {
 
 There are three loops in Oxide: `while`, `loop` and `for`. 
 
-Loops support `break` and `continue` statements. Loop body must be enclosed in curly braces.
+Loops support `break` and `continue` statements.
 
 `while` statement is rather usual.
 
@@ -362,11 +362,19 @@ loop {
 
 ### For
 
-`for ... in` loops are used to iterate over a vector.
+`for in` loops are used to iterate over a vector.
 
 ```rust
-for name in vec["John", "Johann", "Jane"] {
-    println(name);
+for x in 0..=100 {
+    println(x);
+}
+```
+
+or with an index:
+
+```rust
+for pos, name in vec["John", "Johann", "Jane"] {
+    println(pos as str + ": " + name); // 0: "John" ...
 }
 ```
 
@@ -387,7 +395,7 @@ Function signature must explicitly list all argument types as well as a return t
 
 Functions that do not have a `return` statement implicitly return `nil` and the `-> nil` may be omitted.
 
-Each function is of `fn(T, [T,]) -> T` type.
+Each function is of `fn(T) -> T` type.
 
 ```rust
 fn add(x: int, y: int) -> int {  // typeof(add) = fn(int, int) -> int
@@ -413,7 +421,6 @@ Defining a function argument as `mut` lets you mutate it in the function body. B
 ```rust
 /// compute the greatest common divisor 
 /// of two integers using Euclids algorithm
-
 fn gcd(mut n: int, mut m: int) -> int {   // typeof(gcd) = fn(int, int) -> int
     while m != 0 {
         if m < n {
@@ -447,7 +454,7 @@ fn create_counter() -> fn() {       // typeof(create_counter) = fn() -> fn()
     };
 }
 
-let counter = create_counter();     // inferred as fn() -> fn()
+let counter = create_counter();     // type is inferred as fn() -> fn()
 
 counter(); // 1
 counter(); // 2
@@ -476,10 +483,14 @@ Immediately Invoked Function Expressions, short IIFE, are also supported for wha
 
 ```rust
 (fn (names: vec<str>) {
-    for name in names {
-        println(name);
+    for pos, name in names {
+        println(pos as str + ": " + name);
     }
-})(vec["Rob", "Sansa", "Arya", "Jon"]);
+})(vec["Rob", "Sansa", "Arya", "Jon"]); 
+
+// 0: Rob
+// 1: Sansa
+// ...
 ```
 
 ## Structs
@@ -487,7 +498,7 @@ Immediately Invoked Function Expressions, short IIFE, are also supported for wha
 Structs represent the user-defined types. Struct declaration starts with `struct` keyword.
 All struct properties are mutable by default.
 
-You can make property public with a `pub` keyword. Public fields can be accessed from outside scope.
+You can make property public with a `pub` keyword. Public fields can be accessed from outer scope.
 
 ```rust
 struct StellarSystem {           
@@ -515,7 +526,7 @@ While struct declaration defines its properties, struct implementation defines i
 * `self` keyword can be used inside methods and points to the current struct instance. i.e `self.field`
 * `Self` (capitalised) keyword can be used inside methods to point to the current struct name, i.e. `Self::CONSTANT` or `Self::static_method(x)`, it can be used as a type as well `let p: Self = Self { .. };`
 
-You can make methods and constants public with a `pub` keyword. Public methods and constants can be accessed from outside scope.
+You can make methods and constants public with a `pub` keyword. Public methods and constants can be accessed from outer scope.
 
 Methods with `self` as the first argument are instance methods. Methods without it are static methods. 
 
@@ -525,13 +536,13 @@ impl Star {
     pub const NEUTRON_STAR = 335.2;    // lets pretend those values are real
     pub const BLACK_HOLE = 9349.02;  
   
-    const MAX_AGE = 99999;             // private constant
+    const MAX_AGE: int = 99999;        // private constant
   
     pub fn new(name: str, mass: int) -> Self {  // public static method
         return Self {
             name: name,
             mass: mass,
-        }
+        };
     }
     
     pub fn get_description(self) -> str {  // public instance method
@@ -598,8 +609,8 @@ system.planets[0].set_new_mass(200);
 `::` is used to access constants and static methods:
 ```rust
 impl Star {
-    pub const WHITE_DWARF = 123.3;
-    const MAX_AGE = 99999; 
+    pub const WHITE_DWARF: float = 123.3;
+    const MAX_AGE: int = 99999; 
     
     // inside methods Self:: can be used instead
     pub fn get_max_age() -> int {
@@ -629,15 +640,17 @@ system = StellarSystem { ... };        //! error, "system" cannot point to anoth
 Structs are always passed by reference, consider:
 
 ```rust
-fn remove_planets(s: StellarSystem) {
-    s.planets = vec<Planet>[];        // oh, all planets are removed
+fn rename_system(s: StellarSystem) {
+    s.name = "new name";
 }
 
-remove_planets(system);
+rename_system(system);
+
+println(system.name); // "new name"
 ```
 ### Public and Private
 
-Only public properties, methods and constants can be accessed from outside code.
+Only public properties, methods and constants can be accessed from outer code.
 
 ```rust
 system.age = 100;                //! access error, "age" is private
@@ -652,7 +665,6 @@ Traits are similar to Rust traits and are used to define shared behavior.
 
 Because all trait methods are always public they are defined with no `pub` keyword.
 
-_Note: no static methods allowed._
 
 ```rust
 trait Shape {
@@ -720,8 +732,6 @@ let days = TimeUnit::Days; // inferred type as "TimeUnit"
 
 `impl` blocks can be used to implement static methods and constants on enums. 
 
-_Future scope: allow instance methods on enums._
-
 ```rust
 impl TimeUnit {   
     pub fn plural(time: Self) -> str {
@@ -760,11 +770,11 @@ Ordering::Less == TimeUnit::Days; //! type error
 
 ## Vectors
 
-Vectors, values of type `vec<type>`, represent arrays of values and can be created using `vec<type>[]` syntax, where `type` is any Oxide type.
+Vectors, values of type `vec<T>`, represent arrays of values and can be created using `vec[]` syntax, where `T` is any Oxide type.
 
 Vectors have built-in methods:
-* `vec.push(val: any)` push value to the end of the vector
-* `vec.pop() -> any` remove value from the end of the vector and return it
+* `vec.push(val: T)` push value to the end of the vector
+* `vec.pop() -> T` remove value from the end of the vector and return it
 * `vec.len() -> int` get vectors length
 
 ```rust
@@ -781,25 +791,24 @@ planets.len();               // 3
 typeof(planets);             // vec<str>
 ```
 
-When type is omitted it is inferred as `any` on type declaration, but on vector instantiation it is inferred as proper type **when possible**.
-Consider:
+Variables can be either declared with the type
 ```rust
-let v: vec = vec[];                     // typeof(v) = vec<any>
-let v = vec[];                          // typeof(v) = vec<any>
+let v: vec<int> = 0..10;    // typeof(v) = vec<int>
+let v: vec<Dog>;            // typeof(v) = vec<Dog>
+```
 
-let v: vec<int> = vec[1, 2, 3];         // typeof(v) = vec<int>
-let v = vec<int>[1, 2, 3];              // typeof(v) = vec<int>
-let v = vec[1, 2, 3];                   // typeof(v) = vec<int>, because all the initial values are of type "int"
+or it can be inferred if the type is omitted:
 
-let v = vec<bool>[true];                // typeof(v) = vec<bool>
+```rust
+let v = vec[true, false];    // typeof(v) = vec<bool>
 
-let v: vec<Dog> = vec[                  // typeof(v) = vec<Dog>, type declaration can actually be omitted
+let v = vec[                 // typeof(v) = vec<Dog>
     Dog { name: "dog1" },
     Dog { name: "dog2" },
 ];
 
-let v = vec[                            // typeof(v) = vec<vec<Point>,
-    vec[                                // inferred by the initial values, despite the type being omitted
+let v = vec[                 // typeof(v) = vec<vec<Point>,
+    vec[                                
         Point { x: 1, y: 1 }, 
         Point { x: 0, y: 3 } 
     ],
@@ -810,33 +819,32 @@ let v = vec[                            // typeof(v) = vec<vec<Point>,
 ];
 
 
-let matrix = vec[                       // typeof(v) = vec<vec<int>>
+let matrix = vec[            // typeof(v) = vec<vec<int>>
     vec[1, 2, 3, 4, 5],
-    vec[3, 4, 5, 6, 7],
-    vec[3, 4, 5, 6, 7],
+    0..=5,
+    0..6,
 ];
 
-let things = vec[nil, false, Dog {}];   // typeof(v) = vec<any>
+let things = vec[            // typeof(v) = vec<any>
+    Ordering::Less,
+    false,
+    Point {}
+];   
 ```
 
-Like structs vectors are passed by reference. 
+Like structs, vectors are passed by reference. 
 
 Consider this example of an in place sorting algorithm, selection sort, that accepts a vector and sorts it in place, without allocating memory for a new one.
 
-<details>
-  <summary>Selection sort</summary>
-
 ```rust
 fn selection_sort(input: vec<int>) {
-    if input.len() == 0 {
-        return;
-    }
+    if input.len() == 0 { return; }
 
     let mut min: int;
-    for let mut i = 0; i < input.len() - 1; i += 1 {
+    for i in 0..(input.len() - 1) {
         min = i;
 
-        for let mut j = i; j < input.len(); j += 1 {
+        for j in i..input.len() {
             if input[j] < input[min] {
                 min = j;
             }
@@ -850,36 +858,33 @@ fn selection_sort(input: vec<int>) {
     }
 }
 ```
-</details>
 
-Vectors can hold any values and be used inside structs.
+### Range Expressions
+
+The `..` and `..=` operators will construct a `vec<int>` and fill it will the sequential integers.
+
 ```rust
-let animals = vec[
-    Elephant { name: "Samuel" },
-    Zebra { name: "Robert" },
-    WolfPack { 
-        wolves: vec[
-            Wolf { name: "Joe" },
-            Wolf { name: "Mag" },
-        ]
-    }
-]
-
-let mag = animals[2].wolves[1]; // Mag
+let x = 0..=5;  // typeof(x) = vec<int>, [0, 2, 3, 4, 5]
+let x = 0..5;   // typeof(x) = vec<int>, [0, 2, 3, 4]
 ```
 
-Trying to read from a non-existent vector index will result in a `uninit` value returned. Trying to write to it will result in an error.
+Ranges can be used in `for in` loops:
+```rust
+for x in 1..15 {
+    println(x as str);
+}
+```
 
 ## Constants
 
-Constants unlike variables need not be declared with a type since it can always be inferred. Constants also cannot be redeclared, and it will result in a runtime error. Constants **must** hold only a scalar value: `str`, `int`, `float`, `bool`.
+Constants are top-level instructions like `fn`, `trait`, `struct`, `impl`. Redeclaring a constant results in a runtime error. Constants **must** hold only a scalar value: `str`, `int`, `float`, `bool`.
 
 ```rust
-const MESSAGE = "hello world";
-
 const SOME_THRESHOLD = 100;
 
 const EPSILON = 0.004;
+
+const MESSAGE: str = "hello world";
 ```
 
 Struct implementations (`impl` blocks) can also define constants. Those constants can be either public or private.
@@ -922,7 +927,7 @@ let e = Math::get_e(); // ok
 
 ## Comments
 
-Classic comments that exist in most other languages.
+Classic comments that exist in most other C-like languages.
 ```rust
 // inline comments
 

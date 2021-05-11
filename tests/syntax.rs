@@ -68,6 +68,11 @@ fn test_for_in() {
 }
 
 #[test]
+fn test_range() {
+    test_script("range");
+}
+
+#[test]
 fn test_loop() {
     test_script("loop");
 }

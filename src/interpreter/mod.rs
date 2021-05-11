@@ -265,6 +265,18 @@ impl Interpreter {
 
         for (const_, pub_) in &decl.consts {
             let val = self.evaluate(&const_.init)?;
+            if let Some(v_type) = const_.v_type.clone() {
+                if !v_type.conforms(&val) {
+                    return Err(RuntimeError::TypeError(
+                        Some(const_.name.clone()),
+                        format!(
+                            "Constant type \"{}\" and init value type \"{}\" mismatch",
+                            v_type,
+                            val.get_type()
+                        ),
+                    ));
+                }
+            }
 
             self.env
                 .borrow_mut()
@@ -392,6 +404,18 @@ impl Interpreter {
 
     fn eval_const_stmt(&mut self, stmt: &ConstDecl) -> Result<StmtVal> {
         let val: Val = self.evaluate(&stmt.init)?;
+        if let Some(v_type) = stmt.v_type.clone() {
+            if !v_type.conforms(&val) {
+                return Err(RuntimeError::TypeError(
+                    Some(stmt.name.clone()),
+                    format!(
+                        "Constant type \"{}\" and init value type \"{}\" mismatch",
+                        v_type,
+                        val.get_type()
+                    ),
+                ));
+            }
+        }
 
         self.env
             .borrow_mut()

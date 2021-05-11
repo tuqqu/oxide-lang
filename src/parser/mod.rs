@@ -155,7 +155,6 @@ impl Parser {
     fn var_decl(&mut self) -> Result<Stmt> {
         let mutable: bool = self.match_token(TokenType::Mut);
         let name: Token = self.consume(TokenType::Identifier, None)?;
-
         let v_type = if self.match_token(TokenType::Colon) {
             Some(self.type_decl()?)
         } else {
@@ -205,6 +204,11 @@ impl Parser {
     /// without it being a statement
     fn const_decl_inner(&mut self) -> Result<ConstDecl> {
         let name: Token = self.consume(TokenType::Identifier, None)?;
+        let v_type = if self.match_token(TokenType::Colon) {
+            Some(self.type_decl()?)
+        } else {
+            None
+        };
 
         let init = if self.match_token(TokenType::Equal) {
             if let Some(expr) = self.scalar_expr() {
@@ -224,7 +228,7 @@ impl Parser {
 
         self.consume(TokenType::Semicolon, None)?;
 
-        let const_decl = ConstDecl::new(name, Box::new(init));
+        let const_decl = ConstDecl::new(name, Box::new(init), v_type);
 
         Ok(const_decl)
     }

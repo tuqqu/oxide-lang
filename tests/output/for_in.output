@@ -24,3 +24,35 @@ hi
 300
 400
 true
+0
+10
+1
+20
+2
+30
+0: John
+1: Johann
+2: Jane
+44
+56
+68
+a
+b
+c
+d
+0a
+1b
+3d
+[struct] X { vals: [vec] [a, b, c, d] }
+a
+100
+200
+hello
+hi
+300
+400
+true
+45
+90
+225
+225

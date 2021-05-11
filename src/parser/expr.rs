@@ -185,6 +185,7 @@ pub struct VarDecl {
 pub struct ConstDecl {
     pub name: Token,
     pub init: Box<Expr>,
+    pub v_type: Option<ValType>,
 }
 
 #[derive(Debug, Clone)]
@@ -433,8 +434,8 @@ impl VarDecl {
 }
 
 impl ConstDecl {
-    pub fn new(name: Token, init: Box<Expr>) -> Self {
-        Self { name, init }
+    pub fn new(name: Token, init: Box<Expr>, v_type: Option<ValType>) -> Self {
+        Self { name, init, v_type }
     }
 }
 
