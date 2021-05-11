@@ -10,7 +10,7 @@ fn fib(n: int) -> int {
 }
 
 fn main() {
-    for let mut i = 0; i < 10; i += 1 {
+    for i in 0..=10 {
         println(fib(i) as str);
     }
 }

@@ -7,8 +7,8 @@ struct Matrix {
 impl Matrix {
     /// Add number to matrix
     pub fn add(self, number: int) {
-        for let mut i = 0; i < self.m.len(); i += 1 {
-            for let mut j = 0; j < self.m[0].len(); j += 1 {
+        for i in 0..self.m.len() {
+            for j in 0..self.m[0].len() {
                 self.m[i][j] += number;
             }
         }
@@ -19,10 +19,10 @@ impl Matrix {
     pub fn multiply(self, b: Matrix) -> Matrix {
         let product = Self::create_empty(self.m.len(), self.m[0].len());
 
-        for let mut i = 0; i < self.m.len(); i += 1 {
-            for let mut j = 0; j < b.m[0].len(); j += 1 {
+        for i in 0..self.m.len() {
+            for j in 0..b.m[0].len() {
                 product[i][j] = 0;
-                for let mut k = 0; k < b.m.len(); k += 1 {
+                for k in 0..b.m.len() {
                     product[i][j] += self.m[i][k] * b.m[k][j];
                 }
             }
@@ -35,11 +35,8 @@ impl Matrix {
     fn create_empty(m: int, n: int) -> vec<vec<int>> {
         let matrix = vec<vec<int>>[];
 
-        for let mut i = 0; i < m; i += 1 {
-            matrix.push(vec<int>[]);
-            for let mut j = 0; j < n; j += 1 {
-                matrix[i].push(0);
-            }
+        for i in 0..m {
+            matrix.push(0..n);
         }
 
         return matrix;

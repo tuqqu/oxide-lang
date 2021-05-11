@@ -269,6 +269,7 @@ pub struct Loop {
 #[derive(Debug, Clone)]
 pub struct ForIn {
     pub iter_value: Token,
+    pub index_value: Option<Token>,
     pub iter: Box<Expr>,
     pub body: Vec<Stmt>,
 }
@@ -534,9 +535,15 @@ impl Loop {
 }
 
 impl ForIn {
-    pub fn new(iter_value: Token, iter: Box<Expr>, body: Vec<Stmt>) -> Self {
+    pub fn new(
+        iter_value: Token,
+        index_value: Option<Token>,
+        iter: Box<Expr>,
+        body: Vec<Stmt>,
+    ) -> Self {
         Self {
             iter_value,
+            index_value,
             iter,
             body,
         }

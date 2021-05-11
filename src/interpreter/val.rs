@@ -718,6 +718,58 @@ impl Val {
         Ok(val)
     }
 
+    pub fn range(lhs: &Self, rhs: &Self, operator: &Token) -> Result<Self> {
+        use Val::*;
+        let val = match (lhs, rhs) {
+            (Int(lhs), Int(rhs)) => {
+                let vec: Vec<Val> = (*lhs..*rhs).map(Val::Int).collect();
+                Self::VecInstance(Rc::new(RefCell::new(self::VecInstance::new(
+                    vec,
+                    ValType::Int,
+                ))))
+            }
+            (lhs, rhs) => {
+                return Err(RuntimeError::TypeError(
+                    Some(operator.clone()),
+                    format!(
+                        "Range boundaries must be of type \"{}\". Got \"{}\" and \"{}\"",
+                        TYPE_INT,
+                        lhs.get_type(),
+                        rhs.get_type(),
+                    ),
+                ))
+            }
+        };
+
+        Ok(val)
+    }
+
+    pub fn range_equal(lhs: &Self, rhs: &Self, operator: &Token) -> Result<Self> {
+        use Val::*;
+        let val = match (lhs, rhs) {
+            (Int(lhs), Int(rhs)) => {
+                let vec: Vec<Val> = (*lhs..=*rhs).map(Val::Int).collect();
+                Self::VecInstance(Rc::new(RefCell::new(self::VecInstance::new(
+                    vec,
+                    ValType::Int,
+                ))))
+            }
+            (lhs, rhs) => {
+                return Err(RuntimeError::TypeError(
+                    Some(operator.clone()),
+                    format!(
+                        "Range boundaries must be of type \"{}\". Got \"{}\" and \"{}\"",
+                        TYPE_INT,
+                        lhs.get_type(),
+                        rhs.get_type(),
+                    ),
+                ))
+            }
+        };
+
+        Ok(val)
+    }
+
     pub fn cast_to(&self, to_type: &ValType, operator: &Token) -> Result<Self> {
         use Val::*;
         let val = match (&self, to_type) {

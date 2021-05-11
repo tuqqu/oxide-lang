@@ -1,7 +1,7 @@
 /// Sort a vector of integers
 /// using insertion sort algorithm.
 fn insertion_sort(input: vec<int>) {
-    for let mut i = 1; i < input.len(); i += 1 {
+    for i in 1..input.len() {
         let cur = input[i];
         let mut j = i - 1;
 

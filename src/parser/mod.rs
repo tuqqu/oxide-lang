@@ -751,7 +751,9 @@ impl Parser {
             };
 
             Some(var_decl)
-        } else if self.check(TokenType::Identifier) && self.check_next(TokenType::In) {
+        } else if self.check(TokenType::Identifier) && self.check_next(TokenType::In)
+            || self.check(TokenType::Identifier) && self.check_next(TokenType::Comma)
+        {
             return self.for_in_stmt();
         } else {
             let expr_stmt = match self.expr_stmt() {
@@ -817,6 +819,12 @@ impl Parser {
     fn for_in_stmt(&mut self) -> Result<Stmt> {
         // loop depth already incremented
         let iter_value = self.consume(TokenType::Identifier, None)?;
+        let (iter_value, index_value) = if self.check(TokenType::Comma) {
+            self.consume(TokenType::Comma, None)?;
+            (self.consume(TokenType::Identifier, None)?, Some(iter_value))
+        } else {
+            (iter_value, None)
+        };
 
         self.consume(TokenType::In, None)?;
 
@@ -834,7 +842,12 @@ impl Parser {
             return Err(ParseError::BlockExpected(self.peek().clone()));
         };
 
-        let for_in_stmt = Stmt::ForInStmt(ForIn::new(iter_value, Box::new(iter), block.stmts));
+        let for_in_stmt = Stmt::ForInStmt(ForIn::new(
+            iter_value,
+            index_value,
+            Box::new(iter),
+            block.stmts,
+        ));
         self.loop_depth -= 1;
 
         Ok(for_in_stmt)
@@ -1042,9 +1055,21 @@ impl Parser {
     }
 
     fn mult_expr(&mut self) -> Result<Expr> {
-        let mut expr = self.as_expr()?;
+        let mut expr = self.range_expr()?;
 
         while self.match_tokens(&[TokenType::Asterisk, TokenType::Slash, TokenType::Modulus]) {
+            let operator: Token = self.previous().clone();
+            let right: Expr = self.range_expr()?;
+            expr = Expr::BinaryExpr(Binary::new(Box::new(expr), Box::new(right), operator));
+        }
+
+        Ok(expr)
+    }
+
+    fn range_expr(&mut self) -> Result<Expr> {
+        let mut expr = self.as_expr()?;
+
+        while self.match_tokens(&[TokenType::DotDot, TokenType::DotDotEqual]) {
             let operator: Token = self.previous().clone();
             let right: Expr = self.as_expr()?;
             expr = Expr::BinaryExpr(Binary::new(Box::new(expr), Box::new(right), operator));

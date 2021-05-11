@@ -9,6 +9,8 @@ pub enum TokenType {
     FatArrow,
     Comma,
     Dot,
+    DotDot,
+    DotDotEqual,
 
     LeftParen,
     RightParen,
@@ -112,6 +114,8 @@ impl TokenType {
             Self::FatArrow => Some("=>"),
             Self::Comma => Some(","),
             Self::Dot => Some("."),
+            Self::DotDot => Some(".."),
+            Self::DotDotEqual => Some("..="),
 
             Self::LeftParen => Some("("),
             Self::RightParen => Some(")"),

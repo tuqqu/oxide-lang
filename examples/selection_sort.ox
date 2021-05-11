@@ -6,10 +6,10 @@ fn selection_sort(input: vec<int>) {
     }
 
     let mut min: int;
-    for let mut i = 0; i < input.len() - 1; i += 1 {
+    for i in 0..(input.len() - 1) {
         min = i;
 
-        for let mut j = i; j < input.len(); j += 1 {
+        for j in i..input.len() {
             if input[j] < input[min] {
                 min = j;
             }

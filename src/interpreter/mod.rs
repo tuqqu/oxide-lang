@@ -438,18 +438,31 @@ impl Interpreter {
         let iter = &self.evaluate(&stmt.iter)?;
         match iter {
             Val::VecInstance(v) => {
-                let var = env::Variable::new(
+                let env = Rc::new(RefCell::new(Env::with_enclosing(self.env.clone())));
+                env.borrow_mut().define_variable(env::Variable::new(
                     stmt.iter_value.lexeme.clone(),
                     Val::Uninit,
                     true,
-                    v.borrow_mut().val_type.clone(),
-                );
+                    v.borrow().val_type.clone(),
+                ));
 
-                let env = Rc::new(RefCell::new(Env::with_enclosing(self.env.clone())));
-                env.borrow_mut().define_variable(var);
+                if stmt.index_value.is_some() {
+                    env.borrow_mut().define_variable(env::Variable::new(
+                        stmt.index_value.clone().unwrap().lexeme,
+                        Val::Uninit,
+                        true,
+                        ValType::Int,
+                    ));
+                }
 
-                for val in &v.borrow_mut().vals {
+                for (pos, val) in v.borrow().vals.iter().enumerate() {
                     env.borrow_mut().assign(stmt.iter_value.clone(), val)?;
+
+                    if stmt.index_value.is_some() {
+                        env.borrow_mut()
+                            .assign(stmt.index_value.clone().unwrap(), &Val::Int(pos as isize))?;
+                    }
+
                     let v = self.evaluate_block(&stmt.body, Some(env.clone()))?;
 
                     match v {
@@ -470,7 +483,7 @@ impl Interpreter {
                 return Err(RuntimeError::TypeError(
                     Some(stmt.iter_value.clone()),
                     format!(
-                        "Trying to iterate over a value of type \"{}\"",
+                        "Trying to iterate over a non-iterable value of type \"{}\"",
                         v.get_type()
                     ),
                 ))
@@ -955,8 +968,8 @@ impl Interpreter {
 
     fn eval_vec_index(&mut self, expr: &VecIndex) -> Result<Val> {
         let val = self.evaluate(&expr.callee)?;
-        let indx = self.evaluate(&expr.index)?;
-        let indx = if let Val::Int(int) = indx {
+        let pos = self.evaluate(&expr.index)?;
+        let pos = if let Val::Int(int) = pos {
             int as usize
         } else {
             return Err(RuntimeError::TypeError(
@@ -965,13 +978,13 @@ impl Interpreter {
                     "Values of type \"{}\" can have indices of type \"{}\", got \"{}\"",
                     TYPE_VEC,
                     TYPE_INT,
-                    indx.get_type()
+                    pos.get_type()
                 ),
             ));
         };
 
         match val {
-            Val::VecInstance(vec) => vec.borrow_mut().get(indx),
+            Val::VecInstance(vec) => vec.borrow().get(pos),
             _ => Err(RuntimeError::TypeError(
                 None,
                 format!(
@@ -1243,7 +1256,6 @@ impl Interpreter {
     fn eval_binary_expr(&mut self, expr: &Binary) -> Result<Val> {
         let left = self.evaluate(&expr.left)?;
         let right = self.evaluate(&expr.right)?;
-
         let val = Self::evaluate_two_operands(&expr.operator, &left, &right)?;
 
         Ok(val)
@@ -1273,6 +1285,8 @@ impl Interpreter {
             TokenType::BitwiseXor | TokenType::BitwiseXorEqual => {
                 Val::bitwise_xor(lhs, rhs, operator)
             }
+            TokenType::DotDot => Val::range(lhs, rhs, operator),
+            TokenType::DotDotEqual => Val::range_equal(lhs, rhs, operator),
             _ => Err(RuntimeError::OperatorError(
                 operator.clone(),
                 format!("Unknown binary operator \"{}\"", operator.lexeme),

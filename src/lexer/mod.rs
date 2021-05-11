@@ -68,7 +68,18 @@ impl Lexer<'_> {
             '[' => self.add_token(TokenType::LeftBracket),
             ']' => self.add_token(TokenType::RightBracket),
             ',' => self.add_token(TokenType::Comma),
-            '.' => self.add_token(TokenType::Dot),
+            '.' => {
+                let t_type = if self.match_char('.') {
+                    if self.match_char('=') {
+                        TokenType::DotDotEqual
+                    } else {
+                        TokenType::DotDot
+                    }
+                } else {
+                    TokenType::Dot
+                };
+                self.add_token(t_type)
+            }
             ';' => self.add_token(TokenType::Semicolon),
             ':' => {
                 let t_type = if self.match_char(':') {
