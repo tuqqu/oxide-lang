@@ -923,6 +923,7 @@ let e = Math::get_e(); // ok
 - `&`, `|`, `^` bitwise operations on integers
 - `+` string concatenation
 - `as` type cast operator, used to convert primitives to some type: `30 as bool`
+- `..`, `..=` range operators, create a `vec<int>` value
 - `=`, `+=`, `-=`, `/=`, `%=`, `*=`, `&=`, `|=`, `^=` various corresponding assignment operators
 
 ## Comments

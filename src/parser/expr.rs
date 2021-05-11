@@ -348,9 +348,9 @@ impl CallStruct {
 impl Vec_ {
     pub fn new(vals: Vec<Expr>, val_type: Option<ValType>, token: Token) -> Self {
         Self {
+            token,
             vals,
             val_type,
-            token,
         }
     }
 }
@@ -427,8 +427,8 @@ impl VarDecl {
         Self {
             name,
             init,
-            mutable,
             v_type,
+            mutable,
         }
     }
 }

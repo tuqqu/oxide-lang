@@ -475,10 +475,7 @@ impl Env {
         if self.impls.contains_key(&name.lexeme) {
             let impl_ = self.impls.get(&name.lexeme);
 
-            return match impl_ {
-                Some(impl_) => Some(impl_.clone()),
-                None => None,
-            };
+            return impl_.cloned();
         }
 
         if self.enclosing.is_some() {

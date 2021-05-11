@@ -101,7 +101,7 @@ impl Interpreter {
 
         match self.mode.clone() {
             Mode::EntryPoint(f) => {
-                let f = if let Some(f) = f { Some(*f) } else { None };
+                let f = f.map(|f| *f);
                 match f {
                     Some(env::Function {
                         val: main @ Val::Callable(_),

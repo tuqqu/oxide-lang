@@ -1,6 +1,6 @@
 [package]
 name = "oxide"
-version = "0.6.0"
+version = "0.7.0"
 authors = ["tuqqu <artkurbidaev@gmail.com>"]
 edition = "2018"
 
