@@ -1,6 +1,6 @@
 ## Type System
 
-There are eleven types `nil`, `num`, `int`, `float`, `bool`, `str`, `fn(T) -> T`, `vec<T>`, `any`, structs and enums.
+There are eleven types `nil`, `int`, `float`, `bool`, `str`, `fn(T) -> T`, `vec<T>`, `any`, structs and enums.
 Type of any value can be checked by a built-in function `typeof(val: any) -> str`.
 
 ```rust
@@ -22,9 +22,9 @@ Represented by only one value, `nil` itself. Function that does not return a val
 ### Bool
 Comprises `true` and `false` values. Each logic operation, comparison or equality check produces value of type `bool`.
 
-### Int, Float, Num
+### Int, Float
 An `int` is an integer number. A `float` is floating point number.
-`num` is type alias to make function accept both number types.
+`num` is a type alias to make function accept both number types.
 Numbers can be compared and used in math operations.
 
 ### Str
@@ -65,10 +65,17 @@ User-defined type. [See more](/README.md#structs)
 User-defined type. [See more](/README.md#enums)
 
 ### Any
-`any` is a type alias which includes all possible types. Variable of type `any` can be reassigned to any value.
+`any` is a type that wraps all possible types. Variable of type `any` can be reassigned to any value.
 
 ```rust
 let mut x: any = "string";
 x = 45.9;
 x = vec[1, 2, 3, 4];
+```
+
+`any` must be explicitly cast before used in an expression
+
+```rust
+let x: any = 10;
+let y = 2 * x as int;
 ```

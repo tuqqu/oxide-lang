@@ -178,18 +178,20 @@ fn main() {
 }
 ```
 
-On the top level only item (`const`, `fn`, `struct`, `enum`, `trait`) declarations are possible.
+On the top level only item (`const`, `fn`, `struct`, `enum`, `trait`, `impl`) declarations are possible.
 
 ```rust
-const C = 0;
 struct S {}
 trait T {}
+impl T for S {}
 enum E {}
+const C = 0;
+fn f() {}
 ```
 
 ## Variables and Type System
 
-There are eleven types in Oxide: `nil`, `num`, `int`, `float`, `bool`, `str`, `fn(T) -> T`, `vec<T>`, `any` and user-defined types (via [`structs`](#structs) and [`enums`](#enums)). See [type system][type-system]
+There are ten types in Oxide: `nil`, `int`, `float`, `bool`, `str`, `fn(T) -> T`, `vec<T>`, `any` and user-defined types (via [`structs`](#structs) and [`enums`](#enums)). See [type system][type-system]
 
 Variables are typed either explicitly:
 
