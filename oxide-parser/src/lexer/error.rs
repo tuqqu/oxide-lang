@@ -1,6 +1,6 @@
 use std::{error, fmt};
 
-use super::token::Pos;
+use super::Pos;
 
 #[derive(Debug, Clone)]
 pub enum LexerError {

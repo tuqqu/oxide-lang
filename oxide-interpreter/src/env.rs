@@ -3,13 +3,13 @@ use std::collections::HashMap;
 use std::rc::Rc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
+use oxide_parser::expr::{ConstDecl, FnDecl, FnSignatureDecl};
+use oxide_parser::{Token, ValType};
+
 use super::val::Val;
-use crate::interpreter::error::RuntimeError;
-use crate::interpreter::val::StructInstance;
-use crate::interpreter::Result;
-use crate::lexer::token::Token;
-use crate::parser::expr::{ConstDecl, FnDecl, FnSignatureDecl};
-use crate::parser::valtype::ValType;
+use crate::error::RuntimeError;
+use crate::interpreter::InterpretedResult;
+use crate::val::{conforms, try_from_val, StructInstance};
 
 static COUNTER: AtomicUsize = AtomicUsize::new(1);
 
@@ -253,31 +253,31 @@ impl Impl {
 }
 
 impl EnvVal {
-    fn try_to_assign(&mut self, val: Val, name: Token) -> Result<()> {
+    fn try_to_assign(&mut self, val: Val, name: Token) -> InterpretedResult<()> {
         use EnvVal::*;
 
         return match self {
-            NoValue => Err(RuntimeError::RuntimeError(
+            NoValue => Err(RuntimeError::Runtime(
                 name,
                 String::from("Trying to assign to an immutable value"),
             )),
-            Constant(_c) => Err(RuntimeError::RuntimeError(
+            Constant(_c) => Err(RuntimeError::Runtime(
                 name,
                 String::from("Trying to assign to a constant"),
             )),
-            Function(_f) => Err(RuntimeError::RuntimeError(
+            Function(_f) => Err(RuntimeError::Runtime(
                 name,
                 String::from("Trying to assign to an immutable value"),
             )),
             Variable(v) => {
                 if let ValType::Uninit = v.v_type {
-                    let v_type = ValType::try_from_val(&val);
+                    let v_type = try_from_val(&val);
                     if let Some(v_type) = v_type {
                         v.v_type = v_type;
                         v.val = val;
                         Ok(())
                     } else {
-                        Err(RuntimeError::TypeError(
+                        Err(RuntimeError::Type(
                             Some(name),
                             format!(
                                 "Cannot infer variable type from value of type \"{}\"",
@@ -285,8 +285,8 @@ impl EnvVal {
                             ),
                         ))
                     }
-                } else if !v.v_type.conforms(&val) {
-                    Err(RuntimeError::TypeError(
+                } else if !conforms(&v.v_type, &val) {
+                    Err(RuntimeError::Type(
                         Some(name),
                         format!(
                             "Trying to assign to a variable of type \"{}\" value of type \"{}\"",
@@ -301,13 +301,13 @@ impl EnvVal {
                     v.val = val;
                     Ok(())
                 } else {
-                    Err(RuntimeError::RuntimeError(
+                    Err(RuntimeError::Runtime(
                         name,
                         String::from("Trying to assign to an immutable variable."),
                     ))
                 }
             }
-            EnumValue(_) | Enum(_) | Struct(_) | Trait(_) => Err(RuntimeError::RuntimeError(
+            EnumValue(_) | Enum(_) | Struct(_) | Trait(_) => Err(RuntimeError::Runtime(
                 name,
                 String::from("Trying to assign to a non-value."),
             )),
@@ -341,7 +341,7 @@ impl Env {
     }
 
     #[allow(dead_code)]
-    pub fn define_from(&mut self, val: EnvVal) -> Result<()> {
+    pub fn define_from(&mut self, val: EnvVal) -> InterpretedResult<()> {
         use EnvVal::*;
 
         match val {
@@ -390,7 +390,7 @@ impl Env {
         );
     }
 
-    pub fn define_impl(&mut self, impl_: Impl) -> Result<()> {
+    pub fn define_impl(&mut self, impl_: Impl) -> InterpretedResult<()> {
         self.impls
             .entry(impl_.impl_name.clone())
             .or_default()
@@ -414,9 +414,9 @@ impl Env {
         self.static_bind = Some(static_bind);
     }
 
-    pub fn define_constant(&mut self, constant: Constant) -> Result<()> {
+    pub fn define_constant(&mut self, constant: Constant) -> InterpretedResult<()> {
         if self.vals.contains_key(&constant.resolve_name()) {
-            return Err(RuntimeError::DefinitionError(
+            return Err(RuntimeError::Definition(
                 Some(constant.name.clone()),
                 format!("Name \"{}\" is already in use", constant.resolve_name()),
             ));
@@ -430,9 +430,9 @@ impl Env {
         Ok(())
     }
 
-    pub fn define_function(&mut self, func: Function) -> Result<()> {
+    pub fn define_function(&mut self, func: Function) -> InterpretedResult<()> {
         if self.vals.contains_key(&func.resolve_name()) {
-            return Err(RuntimeError::DefinitionError(
+            return Err(RuntimeError::Definition(
                 Some(func.name.clone()),
                 format!("Name \"{}\" is already in use", func.resolve_name()),
             ));
@@ -446,7 +446,7 @@ impl Env {
         Ok(())
     }
 
-    pub fn get(&mut self, name: &Token) -> Result<Rc<RefCell<EnvVal>>> {
+    pub fn get(&mut self, name: &Token) -> InterpretedResult<Rc<RefCell<EnvVal>>> {
         if self.vals.contains_key(&name.lexeme) {
             let val = self.vals.get(&name.lexeme);
 
@@ -460,12 +460,12 @@ impl Env {
         }
 
         if self.enclosing.is_some() {
-            let val = self.enclosing.as_ref().unwrap().borrow_mut().get(&name);
+            let val = self.enclosing.as_ref().unwrap().borrow_mut().get(name);
 
             return val;
         }
 
-        Err(RuntimeError::RuntimeError(
+        Err(RuntimeError::Runtime(
             name.clone(),
             format!("Trying to access an undefined value \"{}\"", name.lexeme),
         ))
@@ -514,7 +514,8 @@ impl Env {
         None
     }
 
-    pub fn assign(&mut self, name: Token, val: &Val) -> Result<()> {
+    pub fn assign(&mut self, name: Token, val: &Val) -> InterpretedResult<()> {
+        #[allow(clippy::map_entry)]
         if self.vals.contains_key(&name.lexeme) {
             let env_val = self.get(&name)?;
             env_val
@@ -536,7 +537,7 @@ impl Env {
             return Ok(());
         }
 
-        Err(RuntimeError::RuntimeError(
+        Err(RuntimeError::Runtime(
             name.clone(),
             format!("Trying to assign to an undefined value \"{}\"", name.lexeme),
         ))
@@ -549,9 +550,9 @@ pub fn construct_static_name(struct_name: &str, static_field: &str) -> String {
 
 #[cfg(test)]
 mod tests {
+    use oxide_parser::{TokenPos, TokenType};
+
     use super::*;
-    use crate::lexer::token::token_type::TokenType;
-    use crate::lexer::token::Pos;
 
     #[test]
     fn test_construct_static_name() {
@@ -604,7 +605,7 @@ mod tests {
             TokenType::Identifier,
             String::from(lexeme),
             String::from(""),
-            Pos(0, 0),
+            TokenPos(0, 0),
         )
     }
 }

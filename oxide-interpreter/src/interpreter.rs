@@ -5,30 +5,24 @@ use std::rc::Rc;
 use std::sync::Arc;
 use std::{mem, result};
 
-use self::env::{Env, EnvVal};
-use self::error::RuntimeError;
-use self::val::{Callable, Function, StmtVal, Val};
-use crate::interpreter::env::construct_static_name;
-use crate::interpreter::val::{PropFuncVal, StructCallable, StructInstance, VecInstance};
-use crate::lexer::token::token_type::TokenType;
-use crate::lexer::token::Token;
-use crate::parser::expr::{
+use oxide_parser::expr::{
     Assignment, Binary, Block, BoolLiteral, Call, CallStruct, ConstDecl, EnumDecl, Expr,
     FloatLiteral, FnDecl, ForIn, GetProp, GetStaticProp, Grouping, If, ImplDecl, IntLiteral,
     Lambda, Loop, Match, NilLiteral, Return, SelfStatic, Self_, SetIndex, SetProp, Stmt,
     StrLiteral, StructDecl, TraitDecl, TypeCast, Unary, VarDecl, Variable, VecIndex, Vec_,
 };
-use crate::parser::valtype::{
-    ValType, TYPE_BOOL, TYPE_FLOAT, TYPE_FN, TYPE_INT, TYPE_STRUCT, TYPE_VEC,
+use oxide_parser::valtype::{TYPE_BOOL, TYPE_FLOAT, TYPE_FN, TYPE_INT, TYPE_STRUCT, TYPE_VEC};
+use oxide_parser::{Ast, Token, TokenType, ValType};
+
+use crate::env;
+use crate::env::{construct_static_name, Env, EnvVal};
+use crate::error::RuntimeError;
+use crate::val::{
+    conforms, try_from_val, Callable, Function, PropFuncVal, StmtVal, StructCallable,
+    StructInstance, Val, VecInstance,
 };
-use crate::parser::Ast;
 
-pub mod env;
-mod error;
-pub mod stdlib;
-pub mod val;
-
-pub type Result<T> = result::Result<T, RuntimeError>;
+pub type InterpretedResult<T> = result::Result<T, RuntimeError>;
 pub type StdStreams = (
     Option<Rc<RefCell<dyn Write>>>,
     Option<Rc<RefCell<dyn Write>>>,
@@ -90,7 +84,7 @@ impl Interpreter {
     }
 
     /// Interpret statements.
-    pub fn interpret(&mut self, ast: &Ast) -> Result<Val> {
+    pub fn interpret(&mut self, ast: &Ast) -> InterpretedResult<Val> {
         if ast.top_level {
             self.mode = Mode::TopLevel;
         }
@@ -113,7 +107,7 @@ impl Interpreter {
                         let result = self.call_expr(&main, &[])?;
                         Ok(result)
                     }
-                    _ => Err(RuntimeError::ScriptError(
+                    _ => Err(RuntimeError::Script(
                         None,
                         String::from(&format!(
                             "No entry-point \"{}\" function found",
@@ -126,7 +120,7 @@ impl Interpreter {
         }
     }
 
-    fn eval_enum_stmt(&mut self, stmt: &EnumDecl) -> Result<StmtVal> {
+    fn eval_enum_stmt(&mut self, stmt: &EnumDecl) -> InterpretedResult<StmtVal> {
         self.check_name(&stmt.name)?;
 
         for (val, name) in stmt.vals.iter().enumerate() {
@@ -149,7 +143,7 @@ impl Interpreter {
         Ok(StmtVal::None)
     }
 
-    fn eval_struct_stmt(&mut self, stmt: &StructDecl) -> Result<StmtVal> {
+    fn eval_struct_stmt(&mut self, stmt: &StructDecl) -> InterpretedResult<StmtVal> {
         self.check_name(&stmt.name)?;
 
         let decl = stmt.clone();
@@ -176,13 +170,13 @@ impl Interpreter {
                             {
                                 let public = *public;
                                 let v_type = v_type.clone();
-                                if v_type.conforms(&param) {
+                                if conforms(&v_type, param) {
                                     instance_borrowed.props.insert(
                                         prop.lexeme.clone(),
                                         (param.clone(), v_type, public),
                                     );
                                 } else {
-                                    return Err(RuntimeError::TypeError(
+                                    return Err(RuntimeError::Type(
                                         Some(prop.clone()),
                                         format!(
                                             "Expected argument \"{}\" of type \"{}\"",
@@ -192,7 +186,7 @@ impl Interpreter {
                                     ));
                                 }
                             } else {
-                                return Err(RuntimeError::DefinitionError(
+                                return Err(RuntimeError::Definition(
                                     Some(prop.clone()),
                                     format!("Unknown property name \"{}\"", prop.lexeme),
                                 ));
@@ -212,7 +206,7 @@ impl Interpreter {
         Ok(StmtVal::None)
     }
 
-    fn eval_impl_stmt(&mut self, stmt: &ImplDecl) -> Result<StmtVal> {
+    fn eval_impl_stmt(&mut self, stmt: &ImplDecl) -> InterpretedResult<StmtVal> {
         let decl = stmt.clone();
 
         let (impl_name, trait_name) = if let Some(for_name) = decl.for_name {
@@ -229,7 +223,7 @@ impl Interpreter {
                                 if method.lambda.ret_type != signature.ret_type
                                     || method.lambda.params != signature.params
                                 {
-                                    return Err(RuntimeError::DefinitionError(
+                                    return Err(RuntimeError::Definition(
                                         Some(method.name.clone()),
                                         format!(
                                             "Mismatched signature of method \"{}\"",
@@ -243,7 +237,7 @@ impl Interpreter {
                         }
 
                         if !found {
-                            return Err(RuntimeError::DefinitionError(
+                            return Err(RuntimeError::Definition(
                                 Some(signature.name.clone()),
                                 format!("Method \"{}\" must be implemented", signature.name.lexeme),
                             ));
@@ -251,7 +245,7 @@ impl Interpreter {
                     }
                 }
                 _ => {
-                    return Err(RuntimeError::DefinitionError(
+                    return Err(RuntimeError::Definition(
                         Some(for_name),
                         String::from("Expected trait name"),
                     ))
@@ -266,8 +260,8 @@ impl Interpreter {
         for (const_, pub_) in &decl.consts {
             let val = self.evaluate(&const_.init)?;
             if let Some(v_type) = const_.v_type.clone() {
-                if !v_type.conforms(&val) {
-                    return Err(RuntimeError::TypeError(
+                if !conforms(&v_type, &val) {
+                    return Err(RuntimeError::Type(
                         Some(const_.name.clone()),
                         format!(
                             "Constant type \"{}\" and init value type \"{}\" mismatch",
@@ -338,7 +332,7 @@ impl Interpreter {
         Ok(StmtVal::None)
     }
 
-    fn eval_trait_stmt(&mut self, stmt: &TraitDecl) -> Result<StmtVal> {
+    fn eval_trait_stmt(&mut self, stmt: &TraitDecl) -> InterpretedResult<StmtVal> {
         self.check_name(&stmt.name)?;
 
         self.env.borrow_mut().define_trait(env::Trait::new(
@@ -350,13 +344,13 @@ impl Interpreter {
         Ok(StmtVal::None)
     }
 
-    fn eval_expr_stmt(&mut self, expr: &Expr) -> Result<StmtVal> {
-        self.evaluate(&expr)?;
+    fn eval_expr_stmt(&mut self, expr: &Expr) -> InterpretedResult<StmtVal> {
+        self.evaluate(expr)?;
 
         Ok(StmtVal::None)
     }
 
-    fn eval_var_stmt(&mut self, stmt: &VarDecl) -> Result<StmtVal> {
+    fn eval_var_stmt(&mut self, stmt: &VarDecl) -> InterpretedResult<StmtVal> {
         let val: Val = match &*stmt.init {
             Some(init) => self.evaluate(init)?,
             None => Val::Uninit,
@@ -367,8 +361,8 @@ impl Interpreter {
         if stmt.v_type.is_some() {
             v_type = stmt.v_type.clone().unwrap();
 
-            if !v_type.conforms(&val) {
-                return Err(RuntimeError::TypeError(
+            if !conforms(&v_type, &val) {
+                return Err(RuntimeError::Type(
                     Some(stmt.name.clone()),
                     format!(
                         "Trying to initialise variable of type \"{}\" with value of type \"{}\"",
@@ -378,10 +372,10 @@ impl Interpreter {
                 ));
             }
         } else {
-            v_type = match ValType::try_from_val(&val) {
+            v_type = match try_from_val(&val) {
                 Some(v_type) => v_type,
                 None => {
-                    return Err(RuntimeError::TypeError(
+                    return Err(RuntimeError::Type(
                         Some(stmt.name.clone()),
                         format!(
                             "Unrecognised value type in initialisation \"{}\"",
@@ -402,11 +396,11 @@ impl Interpreter {
         Ok(StmtVal::None)
     }
 
-    fn eval_const_stmt(&mut self, stmt: &ConstDecl) -> Result<StmtVal> {
+    fn eval_const_stmt(&mut self, stmt: &ConstDecl) -> InterpretedResult<StmtVal> {
         let val: Val = self.evaluate(&stmt.init)?;
         if let Some(v_type) = stmt.v_type.clone() {
-            if !v_type.conforms(&val) {
-                return Err(RuntimeError::TypeError(
+            if !conforms(&v_type, &val) {
+                return Err(RuntimeError::Type(
                     Some(stmt.name.clone()),
                     format!(
                         "Constant type \"{}\" and init value type \"{}\" mismatch",
@@ -424,7 +418,7 @@ impl Interpreter {
         Ok(StmtVal::None)
     }
 
-    fn eval_if_stmt(&mut self, stmt: &If) -> Result<StmtVal> {
+    fn eval_if_stmt(&mut self, stmt: &If) -> InterpretedResult<StmtVal> {
         if Self::is_true(&self.evaluate(&stmt.condition)?)? {
             self.evaluate_stmt(&stmt.then_stmt)
         } else if let Some(else_stmt) = &stmt.else_stmt {
@@ -434,7 +428,7 @@ impl Interpreter {
         }
     }
 
-    fn eval_loop_stmt(&mut self, stmt: &Loop) -> Result<StmtVal> {
+    fn eval_loop_stmt(&mut self, stmt: &Loop) -> InterpretedResult<StmtVal> {
         while Self::is_true(&self.evaluate(&stmt.condition)?)? {
             let v = self.evaluate_stmt(&stmt.body)?;
 
@@ -458,7 +452,7 @@ impl Interpreter {
         Ok(StmtVal::None)
     }
 
-    fn eval_for_in_stmt(&mut self, stmt: &ForIn) -> Result<StmtVal> {
+    fn eval_for_in_stmt(&mut self, stmt: &ForIn) -> InterpretedResult<StmtVal> {
         let iter = &self.evaluate(&stmt.iter)?;
         match iter {
             Val::VecInstance(v) => {
@@ -504,7 +498,7 @@ impl Interpreter {
                 }
             }
             v => {
-                return Err(RuntimeError::TypeError(
+                return Err(RuntimeError::Type(
                     Some(stmt.iter_value.clone()),
                     format!(
                         "Trying to iterate over a non-iterable value of type \"{}\"",
@@ -517,7 +511,7 @@ impl Interpreter {
         Ok(StmtVal::None)
     }
 
-    fn eval_match_expr(&mut self, expr: &Match) -> Result<Val> {
+    fn eval_match_expr(&mut self, expr: &Match) -> InterpretedResult<Val> {
         let cond: Val = self.evaluate(&expr.expr)?;
 
         for arm in &expr.arms {
@@ -527,20 +521,20 @@ impl Interpreter {
             }
         }
 
-        Err(RuntimeError::RuntimeError(
+        Err(RuntimeError::Runtime(
             expr.keyword.clone(),
             String::from("Match expression must be exhaustive"),
         ))
     }
 
-    fn eval_var_expr(&mut self, expr: &Variable) -> Result<Val> {
+    fn eval_var_expr(&mut self, expr: &Variable) -> InterpretedResult<Val> {
         let env_val = self.env.borrow_mut().get(&expr.name)?;
         let env_val = env_val.borrow_mut();
 
         use EnvVal::*;
 
         match env_val.deref() {
-            NoValue => Err(RuntimeError::RuntimeError(
+            NoValue => Err(RuntimeError::Runtime(
                 expr.name.clone(),
                 format!("Trying to access a non-value \"{}\"", expr.name.lexeme),
             )),
@@ -549,7 +543,7 @@ impl Interpreter {
             Variable(v) => {
                 let val = v.val();
                 if let Val::Uninit = val {
-                    Err(RuntimeError::RuntimeError(
+                    Err(RuntimeError::Runtime(
                         expr.name.clone(),
                         format!(
                             "Trying to access an uninitialized variable \"{}\"",
@@ -567,7 +561,7 @@ impl Interpreter {
         }
     }
 
-    fn eval_assign_expr(&mut self, expr: &Assignment) -> Result<Val> {
+    fn eval_assign_expr(&mut self, expr: &Assignment) -> InterpretedResult<Val> {
         let val = self.evaluate(&expr.expr)?;
         let val = match expr.operator.token_type {
             TokenType::Equal => val,
@@ -586,7 +580,7 @@ impl Interpreter {
                         Self::evaluate_two_operands(&expr.operator, &v.val, &val)?
                     }
                     _ => {
-                        return Err(RuntimeError::OperatorError(
+                        return Err(RuntimeError::Operator(
                             expr.name.clone(),
                             format!(
                                 "Operator \"{}\" can be used only with a variables",
@@ -597,7 +591,7 @@ impl Interpreter {
                 }
             }
             _ => {
-                return Err(RuntimeError::OperatorError(
+                return Err(RuntimeError::Operator(
                     expr.operator.clone(),
                     str::to_string("Unrecognised token in an assignment expression"),
                 ))
@@ -609,7 +603,7 @@ impl Interpreter {
         Ok(val)
     }
 
-    fn eval_fn_stmt(&mut self, fn_decl: &FnDecl) -> Result<StmtVal> {
+    fn eval_fn_stmt(&mut self, fn_decl: &FnDecl) -> InterpretedResult<StmtVal> {
         let fn_val = self.eval_fn_expr(&fn_decl.lambda.clone(), None, None, false);
         let func: env::Function = env::Function::without_struct(fn_decl.name.clone(), fn_val);
 
@@ -618,7 +612,7 @@ impl Interpreter {
                 match entry_point {
                     None => self.mode = Mode::EntryPoint(Some(Box::new(func))),
                     Some(_) => {
-                        return Err(RuntimeError::ScriptError(
+                        return Err(RuntimeError::Script(
                             Some(fn_decl.name.clone()),
                             format!(
                                 "Entry-point function \"{}\" cannot be declared twice.",
@@ -695,8 +689,8 @@ impl Interpreter {
 
                     let cur_instance = args[0].clone();
                     let self_type = self_type.as_ref().unwrap();
-                    if !self_type.conforms(&cur_instance) {
-                        return Err(RuntimeError::TypeError(
+                    if !conforms(self_type, &cur_instance) {
+                        return Err(RuntimeError::Type(
                             None,
                             format!(
                                 "Expected argument \"{}\" of type \"{}\", got \"{}\"",
@@ -721,8 +715,8 @@ impl Interpreter {
                     let arg_index = if self_argument { i + 1 } else { i };
                     let arg = args[arg_index].clone();
 
-                    if !param.1.conforms(&arg) {
-                        return Err(RuntimeError::TypeError(
+                    if !conforms(&param.1, &arg) {
+                        return Err(RuntimeError::Type(
                             Some(param.0.clone()),
                             format!(
                                 "Expected argument \"{}\" of type \"{}\", got \"{}\"",
@@ -750,17 +744,17 @@ impl Interpreter {
                     StmtVal::None => Val::Nil,
                     StmtVal::Return(val) => val,
                     _ => {
-                        return Err(RuntimeError::ScriptError(
+                        return Err(RuntimeError::Script(
                             None,
                             str::to_string("Unknown statement value"),
                         ))
                     }
                 };
 
-                if func.lambda.ret_type.conforms(&val) {
+                if conforms(&func.lambda.ret_type, &val) {
                     Ok(val)
                 } else {
-                    Err(RuntimeError::TypeError(
+                    Err(RuntimeError::Type(
                         None,
                         format!(
                             "Function must return \"{}\", got \"{}\"",
@@ -773,7 +767,7 @@ impl Interpreter {
         ))
     }
 
-    fn eval_block_stmt(&mut self, stmt: &Block) -> Result<StmtVal> {
+    fn eval_block_stmt(&mut self, stmt: &Block) -> InterpretedResult<StmtVal> {
         self.evaluate_block(&stmt.stmts, None)
     }
 
@@ -785,23 +779,23 @@ impl Interpreter {
         StmtVal::Continue
     }
 
-    fn eval_return_stmt(&mut self, expr: &Return) -> Result<StmtVal> {
+    fn eval_return_stmt(&mut self, expr: &Return) -> InterpretedResult<StmtVal> {
         let val = match &*expr.expr {
             Expr::EmptyExpr => Val::Nil,
-            expr => self.evaluate(&expr)?,
+            expr => self.evaluate(expr)?,
         };
 
         Ok(StmtVal::Return(val))
     }
 
-    fn eval_unary_expr(&mut self, expr: &Unary) -> Result<Val> {
+    fn eval_unary_expr(&mut self, expr: &Unary) -> InterpretedResult<Val> {
         let un_expr: Val = self.evaluate(&expr.expr)?;
 
         let val = match expr.operator.token_type {
             TokenType::Bang => match un_expr {
                 Val::Bool(b) => Val::Bool(!b),
                 val => {
-                    return Err(RuntimeError::TypeError(
+                    return Err(RuntimeError::Type(
                         Some(expr.operator.clone()),
                         format!(
                             "Expected \"{}\" value, got \"{}\"",
@@ -815,7 +809,7 @@ impl Interpreter {
                 Val::Float(n) => Val::Float(-n),
                 Val::Int(n) => Val::Int(-n),
                 val => {
-                    return Err(RuntimeError::TypeError(
+                    return Err(RuntimeError::Type(
                         Some(expr.operator.clone()),
                         format!(
                             "Expected \"{}\" or \"{}\" value, got \"{}\"",
@@ -827,7 +821,7 @@ impl Interpreter {
                 }
             },
             _ => {
-                return Err(RuntimeError::RuntimeError(
+                return Err(RuntimeError::Runtime(
                     expr.operator.clone(),
                     format!("Unknown unary \"{}\" operator", expr.operator.lexeme),
                 ))
@@ -837,22 +831,22 @@ impl Interpreter {
         Ok(val)
     }
 
-    fn eval_call_expr(&mut self, expr: &Call) -> Result<Val> {
+    fn eval_call_expr(&mut self, expr: &Call) -> InterpretedResult<Val> {
         let callee = self.evaluate(&expr.callee)?;
 
         self.call_expr(&callee, &expr.args)
     }
 
-    fn call_expr(&mut self, callee: &Val, args: &[Expr]) -> Result<Val> {
+    fn call_expr(&mut self, callee: &Val, args: &[Expr]) -> InterpretedResult<Val> {
         match callee {
             Val::Callable(callee) => {
                 let mut eval_args = vec![];
                 for arg in args {
-                    eval_args.push(self.evaluate(&arg)?);
+                    eval_args.push(self.evaluate(arg)?);
                 }
 
                 if eval_args.len() != callee.arity {
-                    return Err(RuntimeError::DefinitionError(
+                    return Err(RuntimeError::Definition(
                         None,
                         format!(
                             "Expected {} arguments but got {}",
@@ -864,7 +858,7 @@ impl Interpreter {
 
                 (callee.call)(self, &eval_args)
             }
-            _ => Err(RuntimeError::TypeError(
+            _ => Err(RuntimeError::Type(
                 None,
                 format!(
                     "Callable value must be of type \"{}\", got \"{}\"",
@@ -875,7 +869,7 @@ impl Interpreter {
         }
     }
 
-    fn eval_self_static_expr(&mut self, expr: &SelfStatic) -> Result<Val> {
+    fn eval_self_static_expr(&mut self, expr: &SelfStatic) -> InterpretedResult<Val> {
         let self_static = self.env.borrow_mut().get_static_bind();
 
         match self_static {
@@ -887,25 +881,25 @@ impl Interpreter {
                 match struct_ {
                     EnvVal::Struct(s) => Ok(s.val),
                     EnvVal::Enum(e) => Ok(e.val),
-                    _ => Err(RuntimeError::RuntimeError(
+                    _ => Err(RuntimeError::Runtime(
                         expr.self_static.clone(),
                         str::to_string("Wrong static bind target"),
                     )),
                 }
             }
-            None => Err(RuntimeError::RuntimeError(
+            None => Err(RuntimeError::Runtime(
                 expr.self_static.clone(),
                 str::to_string("Value \"Self\" can be used in methods only"),
             )),
         }
     }
 
-    fn eval_self_expr(&mut self, expr: &Self_) -> Result<Val> {
+    fn eval_self_expr(&mut self, expr: &Self_) -> InterpretedResult<Val> {
         let self_ = self.env.borrow_mut().get_self();
         let self_ = match self_ {
             Some(s) => s,
             None => {
-                return Err(RuntimeError::RuntimeError(
+                return Err(RuntimeError::Runtime(
                     expr.self_.clone(),
                     str::to_string("Value \"self\" can be used in non-static methods only"),
                 ))
@@ -915,18 +909,18 @@ impl Interpreter {
         Ok(Val::StructInstance(self_))
     }
 
-    fn eval_call_struct_expr(&mut self, expr: &CallStruct) -> Result<Val> {
+    fn eval_call_struct_expr(&mut self, expr: &CallStruct) -> InterpretedResult<Val> {
         let callee = self.evaluate(&expr.callee)?;
         match callee {
             Val::Struct(token, callee) => {
                 let mut args = vec![];
 
                 for (token, arg) in &expr.args {
-                    args.push((token.clone(), self.evaluate(&arg)?));
+                    args.push((token.clone(), self.evaluate(arg)?));
                 }
 
                 if args.len() != callee.arity {
-                    return Err(RuntimeError::DefinitionError(
+                    return Err(RuntimeError::Definition(
                         Some(token),
                         format!("Expected {} arguments but got {}", callee.arity, args.len()),
                     ));
@@ -934,7 +928,7 @@ impl Interpreter {
 
                 (callee.call)(self, &args)
             }
-            _ => Err(RuntimeError::TypeError(
+            _ => Err(RuntimeError::Type(
                 None,
                 format!(
                     "Callable value must be of type \"{}\", got \"{}\"",
@@ -945,7 +939,7 @@ impl Interpreter {
         }
     }
 
-    fn eval_vec_expr(&mut self, expr: &Vec_) -> Result<Val> {
+    fn eval_vec_expr(&mut self, expr: &Vec_) -> InterpretedResult<Val> {
         let mut values = vec![];
         let val_type = if expr.vals.is_empty() {
             expr.val_type.clone().unwrap_or(ValType::Any)
@@ -953,13 +947,13 @@ impl Interpreter {
             let val_type = expr.val_type.clone().unwrap();
             for val_expr in &expr.vals {
                 let val = self.evaluate(val_expr)?;
-                if !val_type.conforms(&val) {
-                    return Err(RuntimeError::TypeError(
+                if !conforms(&val_type, &val) {
+                    return Err(RuntimeError::Type(
                         Some(expr.token.clone()),
                         format!(
                             "Expected values of type \"{}\", got \"{}\"",
                             val_type,
-                            ValType::try_from_val(&val).unwrap()
+                            try_from_val(&val).unwrap()
                         ),
                     ));
                 }
@@ -974,8 +968,8 @@ impl Interpreter {
                 let val = self.evaluate(val_expr)?;
 
                 if val_type.is_none() {
-                    val_type = ValType::try_from_val(&val);
-                } else if !val_type.clone().unwrap().conforms(&val) {
+                    val_type = try_from_val(&val);
+                } else if !conforms(&val_type.clone().unwrap(), &val) {
                     val_type = Some(ValType::Any);
                 }
 
@@ -990,13 +984,13 @@ impl Interpreter {
         Ok(vec_val)
     }
 
-    fn eval_vec_index(&mut self, expr: &VecIndex) -> Result<Val> {
+    fn eval_vec_index(&mut self, expr: &VecIndex) -> InterpretedResult<Val> {
         let val = self.evaluate(&expr.callee)?;
         let pos = self.evaluate(&expr.index)?;
         let pos = if let Val::Int(int) = pos {
             int as usize
         } else {
-            return Err(RuntimeError::TypeError(
+            return Err(RuntimeError::Type(
                 None,
                 format!(
                     "Values of type \"{}\" can have indices of type \"{}\", got \"{}\"",
@@ -1009,7 +1003,7 @@ impl Interpreter {
 
         match val {
             Val::VecInstance(vec) => vec.borrow().get(pos),
-            _ => Err(RuntimeError::TypeError(
+            _ => Err(RuntimeError::Type(
                 None,
                 format!(
                     "Indexing works with values of type \"{}\", got \"{}\"",
@@ -1020,7 +1014,7 @@ impl Interpreter {
         }
     }
 
-    fn eval_get_static_prop_expr(&mut self, expr: &GetStaticProp) -> Result<Val> {
+    fn eval_get_static_prop_expr(&mut self, expr: &GetStaticProp) -> InterpretedResult<Val> {
         let static_caller = self.evaluate(&expr.name)?;
 
         match static_caller {
@@ -1040,7 +1034,7 @@ impl Interpreter {
                             if StructInstance::can_access(pub_, public_access) {
                                 Ok(c.val.clone())
                             } else {
-                                Err(RuntimeError::DefinitionError(
+                                Err(RuntimeError::Definition(
                                     Some(token),
                                     format!(
                                         "Cannot access private static member \"{}\"",
@@ -1057,7 +1051,7 @@ impl Interpreter {
                             if StructInstance::can_access(pub_, public_access) {
                                 Ok(f.val.clone())
                             } else {
-                                Err(RuntimeError::DefinitionError(
+                                Err(RuntimeError::Definition(
                                     Some(token),
                                     format!(
                                         "Cannot access private static member \"{}\"",
@@ -1069,13 +1063,13 @@ impl Interpreter {
                             panic!("Static access function must not be a standalone one.");
                         }
                     }
-                    _ => Err(RuntimeError::DefinitionError(
+                    _ => Err(RuntimeError::Definition(
                         Some(token),
                         String::from("Unknown static access value"),
                     )),
                 }
             }
-            _ => Err(RuntimeError::TypeError(
+            _ => Err(RuntimeError::Type(
                 None,
                 format!(
                     "Unknown static callee type \"{}\"",
@@ -1085,7 +1079,7 @@ impl Interpreter {
         }
     }
 
-    fn eval_get_prop_expr(&mut self, expr: &GetProp) -> Result<Val> {
+    fn eval_get_prop_expr(&mut self, expr: &GetProp) -> InterpretedResult<Val> {
         let instance = self.evaluate(&expr.name)?;
         match instance {
             Val::StructInstance(i) => {
@@ -1101,19 +1095,19 @@ impl Interpreter {
             }
             Val::VecInstance(vec) => VecInstance::get_method(&expr.prop_name, vec),
             // FIXME: add instance methods for enums
-            _ => Err(RuntimeError::TypeError(
+            _ => Err(RuntimeError::Type(
                 None,
                 format!("Must be a struct instance, got \"{}\"", instance.get_type()),
             )),
         }
     }
 
-    fn eval_set_prop_expr(&mut self, expr: &SetProp) -> Result<Val> {
+    fn eval_set_prop_expr(&mut self, expr: &SetProp) -> InterpretedResult<Val> {
         let instance = self.evaluate(&expr.name)?;
         let instance = if let Val::StructInstance(i) = instance {
             i
         } else {
-            return Err(RuntimeError::TypeError(
+            return Err(RuntimeError::Type(
                 None,
                 str::to_string("Must be a struct instance"),
             ));
@@ -1139,7 +1133,7 @@ impl Interpreter {
                 let r_val = match r_val {
                     PropFuncVal::Prop(val) => val,
                     _ => {
-                        return Err(RuntimeError::DefinitionError(
+                        return Err(RuntimeError::Definition(
                             Some(expr.operator.clone()),
                             str::to_string("Must be a property"),
                         ))
@@ -1149,7 +1143,7 @@ impl Interpreter {
                 Self::evaluate_two_operands(&expr.operator, &val, &r_val)?
             }
             _ => {
-                return Err(RuntimeError::OperatorError(
+                return Err(RuntimeError::Operator(
                     expr.operator.clone(),
                     str::to_string("Unrecognised token in an assignment expression"),
                 ))
@@ -1165,17 +1159,17 @@ impl Interpreter {
         Ok(val)
     }
 
-    fn eval_set_index_expr(&mut self, expr: &SetIndex) -> Result<Val> {
+    fn eval_set_index_expr(&mut self, expr: &SetIndex) -> InterpretedResult<Val> {
         let vec = self.evaluate(&expr.name)?;
         let vec = if let Val::VecInstance(v) = vec {
             v
         } else if let Val::Uninit = vec {
-            return Err(RuntimeError::RuntimeError(
+            return Err(RuntimeError::Runtime(
                 expr.operator.clone(),
                 str::to_string("Out of bounds"),
             ));
         } else {
-            return Err(RuntimeError::TypeError(
+            return Err(RuntimeError::Type(
                 None,
                 format!("Must be a vec instance, got \"{}\"", vec),
             ));
@@ -1185,7 +1179,7 @@ impl Interpreter {
         let index = if let Val::Int(int) = index {
             int as usize
         } else {
-            return Err(RuntimeError::TypeError(
+            return Err(RuntimeError::Type(
                 Some(expr.operator.clone()),
                 format!(
                     "Values of type \"{}\" can have indices of type \"{}\", got \"{}\"",
@@ -1199,8 +1193,8 @@ impl Interpreter {
         let val = self.evaluate(&expr.expr)?;
         let mut vec = vec.borrow_mut();
 
-        if !vec.val_type.conforms(&val) {
-            return Err(RuntimeError::TypeError(
+        if !conforms(&vec.val_type, &val) {
+            return Err(RuntimeError::Type(
                 Some(expr.operator.clone()),
                 format!(
                     "Cannot assign value of type \"{}\" to a vector of type \"{}\"",
@@ -1224,7 +1218,7 @@ impl Interpreter {
                 Self::evaluate_two_operands(&expr.operator, &l_val, &val)?
             }
             _ => {
-                return Err(RuntimeError::OperatorError(
+                return Err(RuntimeError::Operator(
                     expr.operator.clone(),
                     str::to_string("Unrecognised token in an assignment expression"),
                 ))
@@ -1236,7 +1230,7 @@ impl Interpreter {
         Ok(val)
     }
 
-    fn eval_logical_binary_expr(&mut self, expr: &Binary) -> Result<Val> {
+    fn eval_logical_binary_expr(&mut self, expr: &Binary) -> InterpretedResult<Val> {
         let left = self.evaluate(&expr.left)?;
         if let Val::Bool(l_val) = left {
             if expr.operator.token_type == TokenType::LogicOr {
@@ -1247,7 +1241,7 @@ impl Interpreter {
                 return Ok(left);
             }
         } else {
-            return Err(RuntimeError::TypeError(
+            return Err(RuntimeError::Type(
                 Some(expr.operator.clone()),
                 format!(
                     "Only boolean values can be used in logical expressions, got \"{}\"",
@@ -1260,7 +1254,7 @@ impl Interpreter {
         if let Val::Bool(_) = right {
             Ok(right)
         } else {
-            Err(RuntimeError::TypeError(
+            Err(RuntimeError::Type(
                 Some(expr.operator.clone()),
                 format!(
                     "Only boolean values can be used in logical expressions, got \"{}\"",
@@ -1270,14 +1264,14 @@ impl Interpreter {
         }
     }
 
-    fn eval_type_cast_expr(&mut self, expr: &TypeCast) -> Result<Val> {
+    fn eval_type_cast_expr(&mut self, expr: &TypeCast) -> InterpretedResult<Val> {
         let left = self.evaluate(&expr.left)?;
         let cast = left.cast_to(&expr.to_type, &expr.operator)?;
 
         Ok(cast)
     }
 
-    fn eval_binary_expr(&mut self, expr: &Binary) -> Result<Val> {
+    fn eval_binary_expr(&mut self, expr: &Binary) -> InterpretedResult<Val> {
         let left = self.evaluate(&expr.left)?;
         let right = self.evaluate(&expr.right)?;
         let val = Self::evaluate_two_operands(&expr.operator, &left, &right)?;
@@ -1285,7 +1279,7 @@ impl Interpreter {
         Ok(val)
     }
 
-    fn evaluate_two_operands(operator: &Token, lhs: &Val, rhs: &Val) -> Result<Val> {
+    fn evaluate_two_operands(operator: &Token, lhs: &Val, rhs: &Val) -> InterpretedResult<Val> {
         match operator.token_type {
             //equality
             TokenType::EqualEqual => Val::equal(lhs, rhs, operator),
@@ -1311,14 +1305,14 @@ impl Interpreter {
             }
             TokenType::DotDot => Val::range(lhs, rhs, operator),
             TokenType::DotDotEqual => Val::range_equal(lhs, rhs, operator),
-            _ => Err(RuntimeError::OperatorError(
+            _ => Err(RuntimeError::Operator(
                 operator.clone(),
                 format!("Unknown binary operator \"{}\"", operator.lexeme),
             )),
         }
     }
 
-    fn eval_grouping_expr(&mut self, expr: &Grouping) -> Result<Val> {
+    fn eval_grouping_expr(&mut self, expr: &Grouping) -> InterpretedResult<Val> {
         self.evaluate(&expr.expr)
     }
 
@@ -1342,40 +1336,40 @@ impl Interpreter {
         Val::Str(expr.0.clone())
     }
 
-    fn evaluate(&mut self, expr: &Expr) -> Result<Val> {
+    fn evaluate(&mut self, expr: &Expr) -> InterpretedResult<Val> {
         use Expr::*;
         let val = match expr {
             EmptyExpr => Val::Nil,
-            NilLiteralExpr(literal) => self.eval_nil_literal(&literal),
-            BoolLiteralExpr(literal) => self.eval_bool_literal(&literal),
-            IntLiteralExpr(literal) => self.eval_int_literal(&literal),
-            FloatLiteralExpr(literal) => self.eval_float_literal(&literal),
-            StrLiteralExpr(literal) => self.eval_str_literal(&literal),
-            UnaryExpr(unary) => self.eval_unary_expr(&unary)?,
-            SelfStaticExpr(self_static) => self.eval_self_static_expr(&self_static)?,
-            SelfExpr(self_) => self.eval_self_expr(&self_)?,
-            CallExpr(call) => self.eval_call_expr(&call)?,
-            CallStructExpr(call_struct) => self.eval_call_struct_expr(&call_struct)?,
-            VecExpr(call_vec) => self.eval_vec_expr(&call_vec)?,
-            VecIndexExpr(vec_index) => self.eval_vec_index(&vec_index)?,
-            GetStaticExpr(get_static_prop) => self.eval_get_static_prop_expr(&get_static_prop)?,
-            GetPropExpr(get_prop) => self.eval_get_prop_expr(&get_prop)?,
-            SetPropExpr(set_prop) => self.eval_set_prop_expr(&set_prop)?,
-            SetIndexExpr(set_index) => self.eval_set_index_expr(&set_index)?,
-            BinaryExpr(binary) => self.eval_binary_expr(&binary)?,
-            LogicalBinaryExpr(l_binary) => self.eval_logical_binary_expr(&l_binary)?,
-            TypeCastExpr(type_cast) => self.eval_type_cast_expr(&type_cast)?,
-            GroupingExpr(grouping) => self.eval_grouping_expr(&grouping)?,
-            VariableExpr(variable) => self.eval_var_expr(&variable)?,
-            AssignmentExpr(assignment) => self.eval_assign_expr(&assignment)?,
-            FnExpr(lambda) => self.eval_fn_expr(&lambda, None, None, false),
+            NilLiteralExpr(literal) => self.eval_nil_literal(literal),
+            BoolLiteralExpr(literal) => self.eval_bool_literal(literal),
+            IntLiteralExpr(literal) => self.eval_int_literal(literal),
+            FloatLiteralExpr(literal) => self.eval_float_literal(literal),
+            StrLiteralExpr(literal) => self.eval_str_literal(literal),
+            UnaryExpr(unary) => self.eval_unary_expr(unary)?,
+            SelfStaticExpr(self_static) => self.eval_self_static_expr(self_static)?,
+            SelfExpr(self_) => self.eval_self_expr(self_)?,
+            CallExpr(call) => self.eval_call_expr(call)?,
+            CallStructExpr(call_struct) => self.eval_call_struct_expr(call_struct)?,
+            VecExpr(call_vec) => self.eval_vec_expr(call_vec)?,
+            VecIndexExpr(vec_index) => self.eval_vec_index(vec_index)?,
+            GetStaticExpr(get_static_prop) => self.eval_get_static_prop_expr(get_static_prop)?,
+            GetPropExpr(get_prop) => self.eval_get_prop_expr(get_prop)?,
+            SetPropExpr(set_prop) => self.eval_set_prop_expr(set_prop)?,
+            SetIndexExpr(set_index) => self.eval_set_index_expr(set_index)?,
+            BinaryExpr(binary) => self.eval_binary_expr(binary)?,
+            LogicalBinaryExpr(l_binary) => self.eval_logical_binary_expr(l_binary)?,
+            TypeCastExpr(type_cast) => self.eval_type_cast_expr(type_cast)?,
+            GroupingExpr(grouping) => self.eval_grouping_expr(grouping)?,
+            VariableExpr(variable) => self.eval_var_expr(variable)?,
+            AssignmentExpr(assignment) => self.eval_assign_expr(assignment)?,
+            FnExpr(lambda) => self.eval_fn_expr(lambda, None, None, false),
             MatchExpr(match_expr) => self.eval_match_expr(match_expr)?,
         };
 
         Ok(val)
     }
 
-    fn evaluate_stmt(&mut self, stmt: &Stmt) -> Result<StmtVal> {
+    fn evaluate_stmt(&mut self, stmt: &Stmt) -> InterpretedResult<StmtVal> {
         match (&self.mode, stmt) {
             (Mode::EntryPoint(_), Stmt::Expr(_))
             | (Mode::EntryPoint(_), Stmt::Let(_))
@@ -1385,7 +1379,7 @@ impl Interpreter {
             | (Mode::EntryPoint(_), Stmt::BlockStmt(_))
             | (Mode::EntryPoint(_), Stmt::IfStmt(_))
             | (Mode::EntryPoint(_), Stmt::LoopStmt(_))
-            | (Mode::EntryPoint(_), Stmt::ForInStmt(_)) => Err(RuntimeError::ScriptError(
+            | (Mode::EntryPoint(_), Stmt::ForInStmt(_)) => Err(RuntimeError::Script(
                 None,
                 String::from(
                     "Only item (\"const\", \"impl\", \"struct\", \"fn\", \"enum\", \
@@ -1416,7 +1410,7 @@ impl Interpreter {
         &mut self,
         stmts: &[Stmt],
         env: Option<Rc<RefCell<Env>>>,
-    ) -> Result<StmtVal> {
+    ) -> InterpretedResult<StmtVal> {
         let new_env = if let Some(env) = env {
             env
         } else {
@@ -1457,9 +1451,9 @@ impl Interpreter {
         }
     }
 
-    fn check_name(&self, name: &Token) -> Result<()> {
+    fn check_name(&self, name: &Token) -> InterpretedResult<()> {
         if self.env.borrow().has_definition(&name.lexeme) {
-            Err(RuntimeError::DefinitionError(
+            Err(RuntimeError::Definition(
                 Some(name.clone()),
                 format!("Name \"{}\" is already in use", &name.lexeme),
             ))
@@ -1468,11 +1462,11 @@ impl Interpreter {
         }
     }
 
-    fn is_true(val: &Val) -> Result<bool> {
+    fn is_true(val: &Val) -> InterpretedResult<bool> {
         match val {
             Val::Bool(true) => Ok(true),
             Val::Bool(false) => Ok(false),
-            _ => Err(RuntimeError::TypeError(
+            _ => Err(RuntimeError::Type(
                 None,
                 format!(
                     "Trying to evaluate value of type \"{}\" as boolean",

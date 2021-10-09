@@ -1,20 +1,15 @@
 use std::result;
 
-use self::error::ParseError;
-use self::expr::{
+use crate::error::ParseError;
+use crate::expr::{
     Assignment, Binary, Block, BoolLiteral, Call, CallStruct, ConstDecl, EnumDecl, Expr,
     FloatLiteral, FnDecl, FnSignatureDecl, ForIn, GetProp, GetStaticProp, Grouping, If, ImplDecl,
     IntLiteral, Lambda, Loop, Match, MatchArm, NilLiteral, ParamList, Return, SelfStatic, Self_,
     SetIndex, SetProp, Stmt, StrLiteral, StructDecl, TraitDecl, TypeCast, Unary, VarDecl, Variable,
     VecIndex, Vec_,
 };
-use crate::lexer::token::token_type::TokenType;
-use crate::lexer::token::Token;
-use crate::parser::valtype::{FnType, ValType};
-
-mod error;
-pub mod expr;
-pub mod valtype;
+use crate::lexer::{Token, TokenType};
+use crate::valtype::{FnType, ValType};
 
 pub type ParseResult<'a, T> = result::Result<T, &'a [ParseError]>;
 type Result<T> = result::Result<T, ParseError>;

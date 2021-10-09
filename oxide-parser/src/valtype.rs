@@ -1,8 +1,6 @@
 use std::fmt;
 
-use crate::interpreter::val::Val;
-use crate::lexer::token::token_type::TokenType;
-use crate::lexer::token::Token;
+use crate::lexer::{Token, TokenType};
 
 pub const TYPE_UNINIT: &str = "uninit";
 pub const TYPE_ANY: &str = "any";
@@ -55,57 +53,6 @@ impl ValType {
             _ => None,
         }
     }
-
-    pub fn try_from_val(val: &Val) -> Option<Self> {
-        Some(match val {
-            Val::Uninit => Self::Uninit,
-            Val::Float(_) => Self::Float,
-            Val::Int(_) => Self::Int,
-            Val::Bool(_) => Self::Bool,
-            Val::Nil => Self::Nil,
-            Val::Str(_) => Self::Str,
-            Val::StructInstance(i) => Self::Instance(i.borrow_mut().struct_name.clone()),
-            Val::EnumValue(e, ..) => Self::Instance(e.clone()),
-            Val::VecInstance(v) => Self::Vec(Generics::new(vec![v.borrow_mut().val_type.clone()])),
-            Val::Callable(c) => Self::Fn(FnType::new(
-                None,
-                c.param_types.clone(),
-                Box::new(c.ret_type.clone()),
-            )),
-            Val::Any(_) => Self::Any,
-            _ => return None,
-        })
-    }
-
-    pub fn conforms(&self, val: &Val) -> bool {
-        match (self, val) {
-            (_, Val::Uninit) => true,
-            (Self::Any, _) => true,
-            (Self::Nil, Val::Nil) => true,
-            (Self::Bool, Val::Bool(_)) => true,
-            (Self::Fn(fn_type), Val::Callable(call)) => {
-                *fn_type.ret_type == call.ret_type && *fn_type.param_types == call.param_types
-            }
-            (Self::Num, Val::Float(_)) => true,
-            (Self::Num, Val::Int(_)) => true,
-            (Self::Int, Val::Int(_)) => true,
-            (Self::Float, Val::Float(_)) => true,
-            (Self::Float, Val::Int(_)) => true,
-            (Self::Str, Val::Str(_)) => true,
-            (Self::Instance(s), Val::StructInstance(i)) => {
-                let i = i.borrow();
-                i.struct_name == *s || i.impls.contains(s)
-            }
-            (Self::Instance(s), Val::EnumValue(e, ..)) => s == e,
-            (Self::Vec(g), Val::VecInstance(v)) => {
-                let v_g_type = g.types.first().unwrap();
-                let vi_g_type = v.borrow_mut().val_type.clone();
-
-                *v_g_type == vi_g_type
-            }
-            _ => false,
-        }
-    }
 }
 
 impl fmt::Display for ValType {
@@ -129,7 +76,7 @@ impl fmt::Display for ValType {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Generics {
-    types: Vec<ValType>,
+    pub types: Vec<ValType>,
 }
 
 impl Generics {
@@ -141,8 +88,8 @@ impl Generics {
 #[derive(Debug, Clone)]
 pub struct FnType {
     token: Option<Token>,
-    param_types: Vec<ValType>,
-    ret_type: Box<ValType>,
+    pub param_types: Vec<ValType>,
+    pub ret_type: Box<ValType>,
 }
 
 impl FnType {
@@ -189,7 +136,7 @@ impl PartialEq for FnType {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::lexer::token::Pos;
+    use crate::lexer::Pos;
 
     #[test]
     fn test_try_from_token() {
@@ -238,47 +185,5 @@ mod tests {
             ValType::try_from_token(&boolean, None).unwrap(),
             ValType::Bool
         );
-    }
-
-    #[test]
-    fn test_try_from_val() {
-        let int = Val::Int(100);
-        let float = Val::Float(10.1);
-        let string = Val::Str(str::to_string("string"));
-        let nil = Val::Nil;
-        let boolean = Val::Bool(true);
-
-        assert_eq!(ValType::try_from_val(&int).unwrap(), ValType::Int);
-        assert_eq!(ValType::try_from_val(&float).unwrap(), ValType::Float);
-        assert_eq!(ValType::try_from_val(&string).unwrap(), ValType::Str);
-        assert_eq!(ValType::try_from_val(&nil).unwrap(), ValType::Nil);
-        assert_eq!(ValType::try_from_val(&boolean).unwrap(), ValType::Bool);
-    }
-
-    #[test]
-    fn test_conforms() {
-        let int = Val::Int(100);
-        let float = Val::Float(10.1);
-        let string = Val::Str(str::to_string("string"));
-        let nil = Val::Nil;
-        let boolean = Val::Bool(true);
-
-        assert!(ValType::Int.conforms(&int));
-        assert!(!ValType::Int.conforms(&float));
-        assert!(!ValType::Int.conforms(&string));
-
-        assert!(ValType::Float.conforms(&float));
-        assert!(ValType::Float.conforms(&int));
-        assert!(!ValType::Float.conforms(&string));
-
-        assert!(ValType::Str.conforms(&string));
-        assert!(!ValType::Str.conforms(&int));
-        assert!(!ValType::Str.conforms(&boolean));
-
-        assert!(ValType::Any.conforms(&string));
-        assert!(ValType::Any.conforms(&nil));
-        assert!(ValType::Any.conforms(&boolean));
-        assert!(ValType::Any.conforms(&int));
-        assert!(ValType::Any.conforms(&float));
     }
 }

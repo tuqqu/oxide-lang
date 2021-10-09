@@ -1,8 +1,8 @@
 use std::fmt;
 
-use self::token_type::TokenType;
+pub use self::token_type::TokenType;
 
-pub mod token_type;
+mod token_type;
 
 #[derive(Debug, Clone)]
 pub struct Token {

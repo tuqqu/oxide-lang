@@ -1,7 +1,7 @@
 use std::io::{self, Write};
 use std::{env, fs, process};
 
-use oxide::Engine;
+use oxide_interpreter::Engine;
 
 fn main() {
     let args: Vec<String> = env::args().collect();

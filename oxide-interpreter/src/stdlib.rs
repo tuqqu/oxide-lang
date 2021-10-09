@@ -6,17 +6,16 @@ use std::io::Write;
 use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use crate::interpreter::env::{self, Env};
-use crate::interpreter::val::{Callable, Func, Val};
-use crate::interpreter::Result;
-use crate::lexer::token::token_type::TokenType;
-use crate::lexer::token::{Pos, Token};
-use crate::parser::valtype::ValType;
+use oxide_parser::{Token, TokenPos, TokenType, ValType};
+
+use crate::env::{self, Env};
+use crate::interpreter::InterpretedResult;
+use crate::val::{Callable, Func, Val};
 
 pub struct Stdlib;
 
 impl Stdlib {
-    pub fn env() -> Result<Env> {
+    pub fn env() -> InterpretedResult<Env> {
         let mut std = Env::new();
 
         /// Returns the current Unix Epoch timestamp as an integer.
@@ -211,12 +210,12 @@ impl Stdlib {
         param_types: Vec<ValType>,
         ret_type: ValType,
         callable: Func,
-    ) -> Result<()> {
+    ) -> InterpretedResult<()> {
         let token = Token::new(
             TokenType::Identifier,
             name.to_string(),
             String::from(""),
-            Pos(0, 0),
+            TokenPos(0, 0),
         );
         lib.define_function(env::Function::without_struct(
             token,

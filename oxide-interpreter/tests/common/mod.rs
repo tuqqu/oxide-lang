@@ -2,7 +2,7 @@ use std::cell::RefCell;
 use std::rc::Rc;
 use std::{fs, process};
 
-use oxide::Engine;
+use oxide_interpreter::Engine;
 
 pub fn compare_output(sample_file: &str, output_file: &str) {
     let stdout = Rc::new(RefCell::new(Vec::<u8>::new()));

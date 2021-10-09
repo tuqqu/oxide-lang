@@ -2,7 +2,7 @@ mod common;
 
 use common::compare_output;
 
-const EXAMPLES_PATH: &str = "./examples";
+const EXAMPLES_PATH: &str = "../examples";
 const EXAMPLES_OUTPUT_PATH: &str = "./tests/examples_output";
 
 fn test_example(script: &str) {

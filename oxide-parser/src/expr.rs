@@ -1,5 +1,5 @@
-use super::valtype::ValType;
-use crate::lexer::token::Token;
+use crate::lexer::Token;
+use crate::valtype::ValType;
 
 #[derive(Debug, Clone)]
 pub enum Expr {

@@ -1,11 +1,10 @@
 use std::collections::HashMap;
 
 use self::error::LexerError;
-use self::token::token_type::TokenType;
-use self::token::{Pos, Token};
+pub use self::token::{Pos, Token, TokenType};
 
 mod error;
-pub mod token;
+mod token;
 
 pub struct Lexer<'a> {
     src: String,

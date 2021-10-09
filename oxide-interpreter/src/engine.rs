@@ -1,11 +1,11 @@
 use std::error;
 
-use crate::interpreter::env::Env;
-use crate::interpreter::stdlib::Stdlib;
-use crate::interpreter::val::Val;
+use oxide_parser::{Ast, Lexer, Parser};
+
+use crate::env::Env;
 use crate::interpreter::{Interpreter, StdStreams};
-use crate::lexer::Lexer;
-use crate::parser::{Ast, Parser};
+use crate::stdlib::Stdlib;
+use crate::val::Val;
 
 type ErrorHandler = fn(Vec<Box<dyn error::Error>>) -> !;
 
