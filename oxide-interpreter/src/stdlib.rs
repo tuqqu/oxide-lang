@@ -6,6 +6,7 @@ use std::io::Write;
 use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
 
+use oxide_parser::valtype::Generics;
 use oxide_parser::{Token, TokenPos, TokenType, ValType};
 
 use self::builtin::BuiltinFn;
@@ -27,6 +28,7 @@ impl Env {
         lib.define_std_function("file_write", builtin::file_write, vec![Str, Str], Nil);
         lib.define_std_function("read_line", builtin::read_line, vec![Str], Nil);
         lib.define_std_function("typeof", builtin::typeof_, vec![Any], Str);
+        lib.define_std_function("args", builtin::args, vec![], Vec(Generics::new(vec![Str])));
 
         lib
     }
@@ -189,5 +191,12 @@ mod builtin {
         let value = args.first().expect("Cannot retrieve function argument.");
 
         Ok(Val::Str(value.get_type()))
+    }
+
+    /// Returns an array of arguments passed to script.
+    ///
+    /// `fn args() -> vec<str>;`
+    pub fn args(inter: &mut Interpreter, _args: &Vec<Val>) -> InterpretedResult<Val> {
+        Ok(Val::new_vec_instance(inter.args(), ValType::Str))
     }
 }

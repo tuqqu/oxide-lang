@@ -38,8 +38,8 @@ impl Engine {
         ast
     }
 
-    pub fn run(&self, ast: &Ast, streams: Option<StdStreams>) -> Val {
-        let mut i = Interpreter::new(Env::new_stdlib(), streams);
+    pub fn run(&self, ast: &Ast, streams: Option<StdStreams>, argv: &[String]) -> Val {
+        let mut i = Interpreter::new(Env::new_stdlib(), streams, argv);
         self.run_code(ast, &mut i)
     }
 

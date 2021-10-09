@@ -21,7 +21,7 @@ pub fn compare_output(sample_file: &str, output_file: &str) {
     });
 
     let ast = engine.ast(script);
-    let _val = engine.run(&ast, Some((Some(stdout), Some(vecerr), None)));
+    let _val = engine.run(&ast, Some((Some(stdout), Some(vecerr), None)), &[]);
 
     let actual = &*vecout.borrow();
     let actual = String::from_utf8_lossy(actual);

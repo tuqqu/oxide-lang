@@ -45,6 +45,7 @@ fn main() {
         )
     });
     let ast = engine.ast(contents);
+    let argv = &args[1..];
 
     if ast.top_level && !allow_top_level {
         eprintln!(
@@ -53,7 +54,7 @@ fn main() {
         process::exit(1);
     }
 
-    let _val = engine.run(&ast, None);
+    let _val = engine.run(&ast, None, argv);
 }
 
 /// Runs REPL mode from stdin.
@@ -75,7 +76,7 @@ fn repl(engine: &Engine) {
         }
 
         let ast = engine.ast(line);
-        let _val = engine.run(&ast, None);
+        let _val = engine.run(&ast, None, &[]);
     }
 }
 

@@ -377,6 +377,13 @@ impl VecInstance {
 impl Val {
     pub const FLOAT_ERROR_MARGIN: f64 = f64::EPSILON;
 
+    pub fn new_vec_instance(vals: &[Self], vtype: ValType) -> Self {
+        Self::VecInstance(Rc::new(RefCell::new(self::VecInstance::new(
+            vals.to_vec(),
+            vtype,
+        ))))
+    }
+
     pub fn equal(lhs: &Self, rhs: &Self, operator: &Token) -> InterpretedResult<Self> {
         use Val::*;
         let val = match (lhs, rhs) {

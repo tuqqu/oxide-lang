@@ -45,18 +45,24 @@ pub struct Interpreter {
     pub glob: Rc<RefCell<Env>>,
     pub env: Rc<RefCell<Env>>,
     mode: Mode,
+    args: Vec<Val>,
 }
 
 impl Interpreter {
     const ENTRY_POINT: &'static str = "main";
 
     /// Returns an interpreter instance.
-    pub fn new(stdlib: Env, streams: Option<StdStreams>) -> Self {
+    pub fn new(stdlib: Env, streams: Option<StdStreams>, argv: &[String]) -> Self {
         let streams = if let Some(streams) = streams {
             streams
         } else {
             (None, None, None)
         };
+
+        let mut args = Vec::<Val>::with_capacity(argv.len());
+        for arg in argv {
+            args.push(Val::Str(arg.clone()));
+        }
 
         let (stdout, stderr, stdin) = (
             streams
@@ -79,6 +85,7 @@ impl Interpreter {
             stdin,
             glob,
             env,
+            args,
             mode: Mode::EntryPoint(None),
         }
     }
@@ -102,7 +109,6 @@ impl Interpreter {
                         ..
                     }) => {
                         self.mode = Mode::TopLevel;
-                        // FIXME: add argument support
                         // FIXME: improve return value support
                         let result = self.call_expr(&main, &[])?;
                         Ok(result)
@@ -655,7 +661,10 @@ impl Interpreter {
         let mut self_type = None;
 
         if self_argument {
-            assert!(!self_static.is_none(), "Function cannot have \"self\" as an argument without \"self_static\" being set");
+            assert!(
+                !self_static.is_none(),
+                "Function cannot have \"self\" as an argument without \"self_static\" being set"
+            );
 
             self_type = Some(ValType::Instance(self_static.clone().unwrap()));
             param_types.insert(0, self_type.clone().unwrap());
@@ -1470,5 +1479,9 @@ impl Interpreter {
                 ),
             )),
         }
+    }
+
+    pub fn args(&self) -> &[Val] {
+        &self.args
     }
 }

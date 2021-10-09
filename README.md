@@ -945,6 +945,7 @@ let x = 100; /* inlined multiline comment */ let y = x;
 A small set of built-in functionality is available anywhere in the code.
 
 - `typeof(val: any) -> str` returns type of given value or variable
+- `args() -> vec<str>` returns an array of arguments passed to script
 - `dbg(val: any)` dumps `val` as a string to the standard output stream (stdout).
 - `print(msg: str)` prints `msg` to the stdout.
 - `println(msg: str)` same as `print`, but inserts a newline at the end of the string.
