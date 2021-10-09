@@ -87,7 +87,6 @@ impl Generics {
 
 #[derive(Debug, Clone)]
 pub struct FnType {
-    token: Option<Token>,
     pub param_types: Vec<ValType>,
     pub ret_type: Box<ValType>,
 }
@@ -95,9 +94,8 @@ pub struct FnType {
 impl FnType {
     const TYPE: &'static str = TYPE_FN;
 
-    pub fn new(token: Option<Token>, param_types: Vec<ValType>, ret_type: Box<ValType>) -> Self {
+    pub fn new(param_types: Vec<ValType>, ret_type: Box<ValType>) -> Self {
         Self {
-            token,
             param_types,
             ret_type,
         }

@@ -927,7 +927,6 @@ pub fn try_from_val(val: &Val) -> Option<ValType> {
         Val::EnumValue(e, ..) => ValType::Instance(e.clone()),
         Val::VecInstance(v) => ValType::Vec(Generics::new(vec![v.borrow_mut().val_type.clone()])),
         Val::Callable(c) => ValType::Fn(FnType::new(
-            None,
             c.param_types.clone(),
             Box::new(c.ret_type.clone()),
         )),

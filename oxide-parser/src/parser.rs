@@ -272,7 +272,7 @@ impl Parser {
 
     /// Parses function type.
     fn fn_type(&mut self) -> Result<FnType> {
-        let v_type_token = self.consume(TokenType::Fn, None)?;
+        self.consume(TokenType::Fn, None)?;
 
         self.consume(TokenType::LeftParen, None)?;
 
@@ -292,7 +292,7 @@ impl Parser {
         self.consume(TokenType::RightParen, None)?;
 
         let ret_type = self.return_type()?;
-        let fn_type = FnType::new(Some(v_type_token), param_types, Box::new(ret_type));
+        let fn_type = FnType::new(param_types, Box::new(ret_type));
 
         Ok(fn_type)
     }

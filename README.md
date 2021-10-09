@@ -133,9 +133,8 @@ If your architecture is not supported by the pre-built binaries you can build th
 ```shell
 git clone https://github.com/tuqqu/oxide-lang.git
 cd oxide-lang
-cargo install --path . # copies binary to /.cargo/bin/
-                       # to uninstall run `cargo uninstall`
-
+cargo +nightly install --path oxide-cli # creates a binary /.cargo/bin/oxide
+                                        # to uninstall run `cargo uninstall oxide-cli`
 # you can now run it with
 oxide script.ox
 ```

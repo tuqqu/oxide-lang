@@ -655,9 +655,7 @@ impl Interpreter {
         let mut self_type = None;
 
         if self_argument {
-            if self_static.is_none() {
-                panic!("Function cannot have \"self\" as an argument without \"self_static\" being set");
-            }
+            assert!(!self_static.is_none(), "Function cannot have \"self\" as an argument without \"self_static\" being set");
 
             self_type = Some(ValType::Instance(self_static.clone().unwrap()));
             param_types.insert(0, self_type.clone().unwrap());
@@ -683,9 +681,7 @@ impl Interpreter {
                 }
 
                 if self_argument {
-                    if self_static.is_none() || self_type.is_none() {
-                        panic!("Function cannot have \"self\" as an argument without \"self_static\" or \"self_type\" being set");
-                    }
+                    assert!(!(self_static.is_none() || self_type.is_none()), "Function cannot have \"self\" as an argument without \"self_static\" or \"self_type\" being set");
 
                     let cur_instance = args[0].clone();
                     let self_type = self_type.as_ref().unwrap();

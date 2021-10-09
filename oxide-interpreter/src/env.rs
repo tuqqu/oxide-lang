@@ -294,10 +294,7 @@ impl EnvVal {
                             val.get_type()
                         ),
                     ))
-                } else if v.mutable {
-                    v.val = val;
-                    Ok(())
-                } else if let Val::Uninit = v.val {
+                } else if v.mutable || matches!(v.val, Val::Uninit) {
                     v.val = val;
                     Ok(())
                 } else {
