@@ -47,9 +47,9 @@ impl fmt::Display for RuntimeError {
                     token.pos
                 )
             }
-            Self::Definition(None, msg)
-            | Self::Script(None, msg)
-            | Self::Type(None, msg) => write!(f, "{}: {}", self.name(), msg),
+            Self::Definition(None, msg) | Self::Script(None, msg) | Self::Type(None, msg) => {
+                write!(f, "{}: {}", self.name(), msg)
+            }
         }
     }
 }

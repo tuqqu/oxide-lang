@@ -1,5 +1,5 @@
 int
 str
-fn(any)
+fn(any) -> str
 nil
 bool
