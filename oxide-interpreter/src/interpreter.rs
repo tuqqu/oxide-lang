@@ -1,5 +1,4 @@
 use std::cell::RefCell;
-use std::io::{Read, Write};
 use std::ops::Deref;
 use std::rc::Rc;
 use std::sync::Arc;
@@ -14,20 +13,16 @@ use oxide_parser::expr::{
 use oxide_parser::valtype::{TYPE_BOOL, TYPE_FLOAT, TYPE_FN, TYPE_INT, TYPE_STRUCT, TYPE_VEC};
 use oxide_parser::{Ast, Token, TokenType, ValType};
 
-use crate::env;
 use crate::env::{construct_static_name, Env, EnvVal};
 use crate::error::RuntimeError;
+use crate::io::StdStreamProvider;
 use crate::val::{
-    conforms, try_from_val, Callable, Function, PropFuncVal, StmtVal, StructCallable,
-    StructInstance, Val, VecInstance,
+    try_vtype_from_val, vtype_conforms_val, Callable, Function, PropFuncVal, StmtVal,
+    StructCallable, StructInstance, Val, VecInstance,
 };
+use crate::{env, StreamProvider};
 
 pub type InterpretedResult<T> = result::Result<T, RuntimeError>;
-pub type StdStreams = (
-    Option<Rc<RefCell<dyn Write>>>,
-    Option<Rc<RefCell<dyn Write>>>,
-    Option<Rc<RefCell<dyn Read>>>,
-);
 
 #[derive(Clone)]
 enum Mode {
@@ -39,50 +34,35 @@ enum Mode {
 }
 
 pub struct Interpreter {
-    pub stdout: Rc<RefCell<dyn Write>>,
-    pub stderr: Rc<RefCell<dyn Write>>,
-    pub stdin: Rc<RefCell<dyn Read>>,
-    pub glob: Rc<RefCell<Env>>,
-    pub env: Rc<RefCell<Env>>,
+    streams: Box<dyn StreamProvider>,
+    env: Rc<RefCell<Env>>,
     mode: Mode,
     args: Vec<Val>,
+    /// Superglobals. Not used atm.
+    #[allow(dead_code)]
+    glob: Rc<RefCell<Env>>,
 }
 
 impl Interpreter {
     const ENTRY_POINT: &'static str = "main";
 
     /// Returns an interpreter instance.
-    pub fn new(stdlib: Env, streams: Option<StdStreams>, argv: &[String]) -> Self {
-        let streams = if let Some(streams) = streams {
-            streams
-        } else {
-            (None, None, None)
-        };
-
+    pub(crate) fn new(
+        stdlib: Env,
+        streams: Option<Box<dyn StreamProvider>>,
+        argv: &[String],
+    ) -> Self {
         let mut args = Vec::<Val>::with_capacity(argv.len());
         for arg in argv {
             args.push(Val::Str(arg.clone()));
         }
 
-        let (stdout, stderr, stdin) = (
-            streams
-                .0
-                .unwrap_or_else(|| Rc::new(RefCell::new(std::io::stdout()))),
-            streams
-                .1
-                .unwrap_or_else(|| Rc::new(RefCell::new(std::io::stderr()))),
-            streams
-                .2
-                .unwrap_or_else(|| Rc::new(RefCell::new(std::io::stdin()))),
-        );
-
+        let streams = streams.unwrap_or_else(|| Box::new(StdStreamProvider::new(None)));
         let glob = Rc::new(RefCell::new(stdlib));
         let env = Rc::clone(&glob);
 
         Self {
-            stdout,
-            stderr,
-            stdin,
+            streams,
             glob,
             env,
             args,
@@ -92,11 +72,11 @@ impl Interpreter {
 
     /// Interpret statements.
     pub fn interpret(&mut self, ast: &Ast) -> InterpretedResult<Val> {
-        if ast.top_level {
+        if ast.top_level() {
             self.mode = Mode::TopLevel;
         }
 
-        for stmt in &ast.tree {
+        for stmt in ast.tree() {
             self.evaluate_stmt(stmt)?;
         }
 
@@ -104,13 +84,10 @@ impl Interpreter {
             Mode::EntryPoint(f) => {
                 let f = f.map(|f| *f);
                 match f {
-                    Some(env::Function {
-                        val: main @ Val::Callable(_),
-                        ..
-                    }) => {
+                    Some(f) => {
                         self.mode = Mode::TopLevel;
                         // FIXME: improve return value support
-                        let result = self.call_expr(&main, &[])?;
+                        let result = self.call_expr(f.val(), &[])?;
                         Ok(result)
                     }
                     _ => Err(RuntimeError::Script(
@@ -157,7 +134,7 @@ impl Interpreter {
             stmt.name.lexeme.clone(),
             Val::Struct(
                 stmt.name.clone(),
-                *StructCallable::new(
+                *StructCallable::new_boxed(
                     decl.props.len(),
                     Arc::new(move |inter, args| {
                         let impls = inter.env.borrow_mut().get_impls(&decl.name);
@@ -172,12 +149,12 @@ impl Interpreter {
                         for (prop, param) in args {
                             let mut instance_borrowed = instance.borrow_mut();
                             if let Some((_, v_type, public)) =
-                                instance_borrowed.props.get(&prop.lexeme)
+                                instance_borrowed.props().get(&prop.lexeme)
                             {
                                 let public = *public;
                                 let v_type = v_type.clone();
-                                if conforms(&v_type, param) {
-                                    instance_borrowed.props.insert(
+                                if vtype_conforms_val(&v_type, param) {
+                                    instance_borrowed.props_mut().insert(
                                         prop.lexeme.clone(),
                                         (param.clone(), v_type, public),
                                     );
@@ -221,7 +198,7 @@ impl Interpreter {
 
             match trait_ {
                 EnvVal::Trait(t) => {
-                    for signature in &t.methods {
+                    for signature in t.methods() {
                         // FIXME: improve traversing
                         let mut found = false;
                         for (method, _pub) in &decl.methods {
@@ -266,7 +243,7 @@ impl Interpreter {
         for (const_, pub_) in &decl.consts {
             let val = self.evaluate(&const_.init)?;
             if let Some(v_type) = const_.v_type.clone() {
-                if !conforms(&v_type, &val) {
+                if !vtype_conforms_val(&v_type, &val) {
                     return Err(RuntimeError::Type(
                         Some(const_.name.clone()),
                         format!(
@@ -367,7 +344,7 @@ impl Interpreter {
         if stmt.v_type.is_some() {
             v_type = stmt.v_type.clone().unwrap();
 
-            if !conforms(&v_type, &val) {
+            if !vtype_conforms_val(&v_type, &val) {
                 return Err(RuntimeError::Type(
                     Some(stmt.name.clone()),
                     format!(
@@ -378,7 +355,7 @@ impl Interpreter {
                 ));
             }
         } else {
-            v_type = match try_from_val(&val) {
+            v_type = match try_vtype_from_val(&val) {
                 Some(v_type) => v_type,
                 None => {
                     return Err(RuntimeError::Type(
@@ -405,7 +382,7 @@ impl Interpreter {
     fn eval_const_stmt(&mut self, stmt: &ConstDecl) -> InterpretedResult<StmtVal> {
         let val: Val = self.evaluate(&stmt.init)?;
         if let Some(v_type) = stmt.v_type.clone() {
-            if !conforms(&v_type, &val) {
+            if !vtype_conforms_val(&v_type, &val) {
                 return Err(RuntimeError::Type(
                     Some(stmt.name.clone()),
                     format!(
@@ -467,7 +444,7 @@ impl Interpreter {
                     stmt.iter_value.lexeme.clone(),
                     Val::Uninit,
                     true,
-                    v.borrow().val_type.clone(),
+                    v.borrow().val_type().clone(),
                 ));
 
                 if stmt.index_value.is_some() {
@@ -479,7 +456,7 @@ impl Interpreter {
                     ));
                 }
 
-                for (pos, val) in v.borrow().vals.iter().enumerate() {
+                for (pos, val) in v.borrow().vals().iter().enumerate() {
                     env.borrow_mut().assign(stmt.iter_value.clone(), val)?;
 
                     if stmt.index_value.is_some() {
@@ -544,8 +521,8 @@ impl Interpreter {
                 expr.name.clone(),
                 format!("Trying to access a non-value \"{}\"", expr.name.lexeme),
             )),
-            Function(f) => Ok(f.val.clone()),
-            Constant(c) => Ok(c.val.clone()),
+            Function(f) => Ok(f.val().clone()),
+            Constant(c) => Ok(c.val().clone()),
             Variable(v) => {
                 let val = v.val();
                 if let Val::Uninit = val {
@@ -560,10 +537,10 @@ impl Interpreter {
                     Ok(val)
                 }
             }
-            Enum(e) => Ok(e.val.clone()),
-            EnumValue(e) => Ok(e.val.clone()),
-            Struct(s) => Ok(s.val.clone()),
-            Trait(t) => Ok(t.val.clone()),
+            Enum(e) => Ok(e.val().clone()),
+            EnumValue(e) => Ok(e.val().clone()),
+            Struct(s) => Ok(s.val().clone()),
+            Trait(t) => Ok(t.val().clone()),
         }
     }
 
@@ -583,7 +560,7 @@ impl Interpreter {
                 let env_val = env_val.borrow_mut();
                 match env_val.deref() {
                     EnvVal::Variable(v) => {
-                        Self::evaluate_two_operands(&expr.operator, &v.val, &val)?
+                        Self::evaluate_two_operands(&expr.operator, &v.val(), &val)?
                     }
                     _ => {
                         return Err(RuntimeError::Operator(
@@ -649,9 +626,9 @@ impl Interpreter {
             Rc::new(RefCell::new(Env::with_enclosing(copy))),
         );
 
-        let ret_type = func.lambda.ret_type.clone();
+        let ret_type = func.lambda().ret_type.clone();
         let mut param_types: Vec<ValType> = func
-            .lambda
+            .lambda()
             .params
             .clone()
             .into_iter()
@@ -670,17 +647,17 @@ impl Interpreter {
             param_types.insert(0, self_type.clone().unwrap());
         }
 
-        Val::Callable(*Callable::new(
+        Val::Callable(*Callable::new_boxed(
             param_types,
             ret_type,
             Arc::new(move |inter, args| {
-                let copy = Rc::clone(&func.env);
+                let copy = Rc::clone(func.env());
                 let glob = Rc::new(RefCell::new(Env::with_enclosing(copy)));
                 let mut env = Env::with_enclosing(glob);
 
                 if self_.is_some() {
                     let cur_instance = self_.clone().unwrap();
-                    env.define_static_bind(cur_instance.borrow().struct_name.clone());
+                    env.define_static_bind(cur_instance.borrow().struct_name().to_string());
                     env.define_self(cur_instance);
                 }
 
@@ -694,7 +671,7 @@ impl Interpreter {
 
                     let cur_instance = args[0].clone();
                     let self_type = self_type.as_ref().unwrap();
-                    if !conforms(self_type, &cur_instance) {
+                    if !vtype_conforms_val(self_type, &cur_instance) {
                         return Err(RuntimeError::Type(
                             None,
                             format!(
@@ -712,15 +689,15 @@ impl Interpreter {
                         panic!("Expected to have StructInstance as a current instance value.");
                     };
 
-                    env.define_static_bind(cur_instance.borrow().struct_name.clone());
+                    env.define_static_bind(cur_instance.borrow().struct_name().to_string());
                     env.define_self(cur_instance);
                 }
 
-                for (i, param) in func.lambda.params.iter().enumerate() {
+                for (i, param) in func.lambda().params.iter().enumerate() {
                     let arg_index = if self_argument { i + 1 } else { i };
                     let arg = args[arg_index].clone();
 
-                    if !conforms(&param.1, &arg) {
+                    if !vtype_conforms_val(&param.1, &arg) {
                         return Err(RuntimeError::Type(
                             Some(param.0.clone()),
                             format!(
@@ -743,7 +720,7 @@ impl Interpreter {
                 }
 
                 let new_env = Rc::new(RefCell::new(env));
-                let stmt_val = inter.evaluate_block(&func.lambda.body, Some(new_env))?;
+                let stmt_val = inter.evaluate_block(&func.lambda().body, Some(new_env))?;
 
                 let val = match stmt_val {
                     StmtVal::None => Val::Nil,
@@ -756,14 +733,14 @@ impl Interpreter {
                     }
                 };
 
-                if conforms(&func.lambda.ret_type, &val) {
+                if vtype_conforms_val(&func.lambda().ret_type, &val) {
                     Ok(val)
                 } else {
                     Err(RuntimeError::Type(
                         None,
                         format!(
                             "Function must return \"{}\", got \"{}\"",
-                            func.lambda.ret_type,
+                            func.lambda().ret_type,
                             val.get_type()
                         ),
                     ))
@@ -850,18 +827,18 @@ impl Interpreter {
                     eval_args.push(self.evaluate(arg)?);
                 }
 
-                if eval_args.len() != callee.arity {
+                if eval_args.len() != callee.arity() {
                     return Err(RuntimeError::Definition(
                         None,
                         format!(
                             "Expected {} arguments but got {}",
-                            callee.arity,
+                            callee.arity(),
                             eval_args.len()
                         ),
                     ));
                 }
 
-                (callee.call)(self, &eval_args)
+                (callee.call())(self, &eval_args)
             }
             _ => Err(RuntimeError::Type(
                 None,
@@ -884,8 +861,8 @@ impl Interpreter {
                 let struct_ = struct_.borrow_mut().deref().clone();
 
                 match struct_ {
-                    EnvVal::Struct(s) => Ok(s.val),
-                    EnvVal::Enum(e) => Ok(e.val),
+                    EnvVal::Struct(s) => Ok(s.val().clone()),
+                    EnvVal::Enum(e) => Ok(e.val().clone()),
                     _ => Err(RuntimeError::Runtime(
                         expr.self_static.clone(),
                         str::to_string("Wrong static bind target"),
@@ -924,14 +901,18 @@ impl Interpreter {
                     args.push((token.clone(), self.evaluate(arg)?));
                 }
 
-                if args.len() != callee.arity {
+                if args.len() != callee.arity() {
                     return Err(RuntimeError::Definition(
                         Some(token),
-                        format!("Expected {} arguments but got {}", callee.arity, args.len()),
+                        format!(
+                            "Expected {} arguments but got {}",
+                            callee.arity(),
+                            args.len()
+                        ),
                     ));
                 }
 
-                (callee.call)(self, &args)
+                (callee.call())(self, &args)
             }
             _ => Err(RuntimeError::Type(
                 None,
@@ -952,13 +933,13 @@ impl Interpreter {
             let val_type = expr.val_type.clone().unwrap();
             for val_expr in &expr.vals {
                 let val = self.evaluate(val_expr)?;
-                if !conforms(&val_type, &val) {
+                if !vtype_conforms_val(&val_type, &val) {
                     return Err(RuntimeError::Type(
                         Some(expr.token.clone()),
                         format!(
                             "Expected values of type \"{}\", got \"{}\"",
                             val_type,
-                            try_from_val(&val).unwrap()
+                            try_vtype_from_val(&val).unwrap()
                         ),
                     ));
                 }
@@ -973,8 +954,8 @@ impl Interpreter {
                 let val = self.evaluate(val_expr)?;
 
                 if val_type.is_none() {
-                    val_type = try_from_val(&val);
-                } else if !conforms(&val_type.clone().unwrap(), &val) {
+                    val_type = try_vtype_from_val(&val);
+                } else if !vtype_conforms_val(&val_type.clone().unwrap(), &val) {
                     val_type = Some(ValType::Any);
                 }
 
@@ -1033,11 +1014,11 @@ impl Interpreter {
                 let env_val = static_val.borrow_mut();
                 match env_val.deref() {
                     // FIXME: can it lead to a bug? this branch should be possible only in Enum case
-                    EnvVal::EnumValue(e) => Ok(e.val.clone()),
+                    EnvVal::EnumValue(e) => Ok(e.val().clone()),
                     EnvVal::Constant(c) => {
-                        if let Some((_name, pub_)) = c.for_target.clone() {
+                        if let Some((_name, pub_)) = c.for_target().clone() {
                             if StructInstance::can_access(pub_, public_access) {
-                                Ok(c.val.clone())
+                                Ok(c.val().clone())
                             } else {
                                 Err(RuntimeError::Definition(
                                     Some(token),
@@ -1052,9 +1033,9 @@ impl Interpreter {
                         }
                     }
                     EnvVal::Function(f) => {
-                        if let Some((_name, pub_)) = f.for_target.clone() {
+                        if let Some((_name, pub_)) = f.for_target().clone() {
                             if StructInstance::can_access(pub_, public_access) {
-                                Ok(f.val.clone())
+                                Ok(f.val().clone())
                             } else {
                                 Err(RuntimeError::Definition(
                                     Some(token),
@@ -1088,7 +1069,7 @@ impl Interpreter {
         let instance = self.evaluate(&expr.name)?;
         match instance {
             Val::StructInstance(i) => {
-                let struct_name = i.borrow().struct_name.clone();
+                let struct_name = i.borrow().struct_name().to_string();
                 let public_access = self.is_public_access(struct_name);
                 let val = i.borrow_mut().get_prop(&expr.prop_name, public_access)?;
                 match val {
@@ -1129,7 +1110,7 @@ impl Interpreter {
             | TokenType::BitwiseAndEqual
             | TokenType::BitwiseOrEqual
             | TokenType::BitwiseXorEqual => {
-                let struct_name = instance.borrow().struct_name.clone();
+                let struct_name = instance.borrow().struct_name().to_string();
                 let public_access = self.is_public_access(struct_name);
 
                 let r_val = instance
@@ -1155,7 +1136,7 @@ impl Interpreter {
             }
         };
 
-        let struct_name = instance.borrow().struct_name.clone();
+        let struct_name = instance.borrow().struct_name().to_string();
         let public_access = self.is_public_access(struct_name);
         let mut instance = instance.borrow_mut();
 
@@ -1198,13 +1179,13 @@ impl Interpreter {
         let val = self.evaluate(&expr.expr)?;
         let mut vec = vec.borrow_mut();
 
-        if !conforms(&vec.val_type, &val) {
+        if !vtype_conforms_val(vec.val_type(), &val) {
             return Err(RuntimeError::Type(
                 Some(expr.operator.clone()),
                 format!(
                     "Cannot assign value of type \"{}\" to a vector of type \"{}\"",
                     val.get_type(),
-                    vec.val_type
+                    vec.val_type()
                 ),
             ));
         }
@@ -1411,7 +1392,7 @@ impl Interpreter {
         }
     }
 
-    pub fn evaluate_block(
+    fn evaluate_block(
         &mut self,
         stmts: &[Stmt],
         env: Option<Rc<RefCell<Env>>>,
@@ -1442,7 +1423,7 @@ impl Interpreter {
 
     fn is_public_access(&self, struct_name: String) -> bool {
         if let Some(self_) = self.env.borrow().get_self() {
-            self_.borrow().struct_name != struct_name
+            self_.borrow().struct_name() != struct_name
         } else {
             self.is_public_static_access(struct_name)
         }
@@ -1481,7 +1462,12 @@ impl Interpreter {
         }
     }
 
-    pub fn args(&self) -> &[Val] {
+    pub(crate) fn args(&self) -> &[Val] {
         &self.args
+    }
+
+    #[allow(clippy::borrowed_box)]
+    pub(crate) fn streams(&self) -> &Box<dyn StreamProvider> {
+        &self.streams
     }
 }

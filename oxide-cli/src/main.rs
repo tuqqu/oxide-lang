@@ -47,14 +47,14 @@ fn main() {
     let ast = engine.ast(contents);
     let argv = &args[1..];
 
-    if ast.top_level && !allow_top_level {
+    if ast.top_level() && !allow_top_level {
         eprintln!(
             "Top-level instructions are not allowed. To allow them run command with a \"-t\" flag."
         );
         process::exit(1);
     }
 
-    let _val = engine.run(&ast, None, argv);
+    let _val = engine.run(&ast, argv, None);
 }
 
 /// Runs REPL mode from stdin.
@@ -76,7 +76,7 @@ fn repl(engine: &Engine) {
         }
 
         let ast = engine.ast(line);
-        let _val = engine.run(&ast, None, &[]);
+        let _val = engine.run(&ast, &[], None);
     }
 }
 

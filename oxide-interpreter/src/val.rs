@@ -3,6 +3,7 @@ use std::collections::HashMap;
 use std::fmt;
 use std::ops::Deref;
 use std::rc::Rc;
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 
 use oxide_parser::expr::{Lambda, StructDecl};
@@ -12,9 +13,15 @@ use oxide_parser::valtype::{
 };
 use oxide_parser::Token;
 
-use crate::env::{construct_static_name, internal_id, Env, Impl};
+use crate::env::{construct_static_name, Env, Impl};
 use crate::error::RuntimeError;
 use crate::interpreter::{InterpretedResult, Interpreter};
+
+static COUNTER: AtomicUsize = AtomicUsize::new(1);
+
+fn internal_id() -> usize {
+    COUNTER.fetch_add(1, Ordering::Relaxed)
+}
 
 #[derive(Debug, Clone)]
 pub enum Val {
@@ -34,357 +41,17 @@ pub enum Val {
     Any(Box<Self>),
 }
 
-#[derive(Debug)]
-pub enum StmtVal {
-    None,
-    Break,
-    Continue,
-    Return(Val),
-}
-
-pub type Func = Arc<dyn Fn(&mut Interpreter, &Vec<Val>) -> InterpretedResult<Val>>;
-pub type Constructor = Arc<dyn Fn(&mut Interpreter, &Vec<(Token, Val)>) -> InterpretedResult<Val>>;
-
-pub struct Callable {
-    pub arity: usize,
-    pub param_types: Vec<ValType>,
-    pub ret_type: ValType,
-    pub call: Box<Func>,
-}
-
-pub struct StructCallable {
-    pub arity: usize,
-    pub call: Box<Constructor>,
-}
-
-#[derive(Debug, Clone)]
-pub struct StructInstance {
-    pub id: usize,
-    pub props: HashMap<String, (Val, ValType, bool)>,
-    pub fns: HashMap<String, (Lambda, Rc<RefCell<Self>>, bool)>,
-    pub struct_name: String,
-    pub impls: Vec<String>,
-}
-
-#[derive(Debug, Clone)]
-pub struct VecInstance {
-    pub id: usize,
-    pub fns: HashMap<String, Lambda>,
-    pub vals: Vec<Val>,
-    pub val_type: ValType,
-}
-
-#[derive(Clone)]
-pub struct Function {
-    pub id: usize,
-    pub lambda: Lambda,
-    pub env: Rc<RefCell<Env>>,
-}
-
-impl Function {
-    pub fn new(lambda: Lambda, env: Rc<RefCell<Env>>) -> Self {
-        Self {
-            id: internal_id(),
-            lambda,
-            env,
-        }
-    }
-}
-
-impl fmt::Debug for Callable {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("Callable")
-            .field("arity", &self.arity)
-            .finish()
-    }
-}
-
-impl fmt::Debug for StructCallable {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("StructCallable")
-            .field("arity", &self.arity)
-            .finish()
-    }
-}
-
-impl Clone for Callable {
-    fn clone(&self) -> Self {
-        Self {
-            arity: self.arity,
-            call: self.call.clone(),
-            param_types: self.param_types.clone(),
-            ret_type: self.ret_type.clone(),
-        }
-    }
-}
-
-impl Clone for StructCallable {
-    fn clone(&self) -> Self {
-        Self {
-            arity: self.arity,
-            call: self.call.clone(),
-        }
-    }
-}
-
-impl Callable {
-    pub fn new(param_types: Vec<ValType>, ret_type: ValType, call: Func) -> Box<Self> {
-        Box::new(Self {
-            arity: param_types.len(),
-            param_types,
-            ret_type,
-            call: Box::new(call),
-        })
-    }
-}
-
-impl StructCallable {
-    pub fn new(arity: usize, call: Constructor) -> Box<Self> {
-        Box::new(Self {
-            arity,
-            call: Box::new(call),
-        })
-    }
-}
-
-pub enum PropFuncVal {
-    Prop(Val),
-    Func((Lambda, Rc<RefCell<StructInstance>>, bool)),
-}
-
-impl StructInstance {
-    pub fn new(struct_: StructDecl, impls: Vec<Impl>) -> Rc<RefCell<Self>> {
-        let mut props: HashMap<String, (Val, ValType, bool)> = HashMap::new();
-        for (prop, public) in struct_.props {
-            // we can be sure that v_type is always present
-            props.insert(
-                prop.name.lexeme.to_string(),
-                (Val::Uninit, prop.v_type.unwrap(), public),
-            );
-        }
-
-        let mut impl_names = vec![];
-        for impl_ in &impls {
-            if let Some(trait_name) = &impl_.trait_name {
-                impl_names.push(trait_name.clone());
-            }
-        }
-
-        let instance = Self {
-            id: internal_id(),
-            props,
-            fns: HashMap::new(),
-            struct_name: struct_.name.lexeme,
-            impls: impl_names,
-        };
-
-        let self_ = Rc::new(RefCell::new(instance));
-        for impl_ in impls {
-            let mut borrowed_self = self_.borrow_mut();
-            for (fun, pub_) in impl_.methods {
-                borrowed_self.fns.insert(
-                    fun.name.lexeme.to_string(),
-                    (fun.lambda, self_.clone(), pub_),
-                );
-            }
-        }
-
-        self_
-    }
-
-    pub fn get_prop(&self, name: &Token, public_access: bool) -> InterpretedResult<PropFuncVal> {
-        if !self.props.contains_key(&name.lexeme) {
-            if !self.fns.contains_key(&name.lexeme) {
-                Err(RuntimeError::Definition(
-                    Some(name.clone()),
-                    format!("No struct property with name \"{}\"", name.lexeme),
-                ))
-            } else {
-                let func = self.fns.get(&name.lexeme).unwrap();
-                if Self::can_access(func.2, public_access) {
-                    Ok(PropFuncVal::Func(func.clone()))
-                } else {
-                    Err(RuntimeError::Definition(
-                        Some(name.clone()),
-                        format!("Cannot access private method \"{}\"", name.lexeme),
-                    ))
-                }
-            }
-        } else {
-            match self.props.get(&name.lexeme).unwrap() {
-                (Val::Uninit, _, pub_) => {
-                    let msg = if Self::can_access(*pub_, public_access) {
-                        format!("Cannot access private property \"{}\"", name.lexeme)
-                    } else {
-                        format!("Property \"{}\" has not yet been initialized.", name.lexeme)
-                    };
-
-                    Err(RuntimeError::Definition(Some(name.clone()), msg))
-                }
-                (val, _, pub_) => {
-                    if Self::can_access(*pub_, public_access) {
-                        Ok(PropFuncVal::Prop(val.clone()))
-                    } else {
-                        Err(RuntimeError::Definition(
-                            Some(name.clone()),
-                            format!("Cannot access private property \"{}\"", name.lexeme),
-                        ))
-                    }
-                }
-            }
-        }
-    }
-
-    pub fn set_prop(
-        &mut self,
-        name: &Token,
-        val: Val,
-        public_access: bool,
-    ) -> InterpretedResult<()> {
-        if !self.props.contains_key(&name.lexeme) {
-            Err(RuntimeError::Definition(
-                Some(name.clone()),
-                format!("No struct property with name \"{}\"", name.lexeme),
-            ))
-        } else {
-            let (_, v_type, public) = self.props.get(&name.lexeme).unwrap();
-
-            if !*public && public_access {
-                return Err(RuntimeError::Definition(
-                    Some(name.clone()),
-                    format!("Cannot access private property \"{}\"", name.lexeme),
-                ));
-            }
-
-            let public = *public;
-            let v_type = v_type.clone();
-            if conforms(&v_type, &val) {
-                self.props
-                    .insert(name.lexeme.to_string(), (val, v_type, public));
-
-                Ok(())
-            } else {
-                Err(RuntimeError::Type(
-                    Some(name.clone()),
-                    format!(
-                        "Trying to assign to a variable of type \"{}\" value of type \"{}\"",
-                        v_type,
-                        val.get_type()
-                    ),
-                ))
-            }
-        }
-    }
-
-    pub fn can_access(prop_pub: bool, access_pub: bool) -> bool {
-        if prop_pub {
-            true
-        } else {
-            !access_pub
-        }
-    }
-}
-
-impl VecInstance {
-    const POP: &'static str = "pop";
-    const PUSH: &'static str = "push";
-    const LEN: &'static str = "len";
-
-    pub fn new(vals: Vec<Val>, val_type: ValType) -> Self {
-        Self {
-            id: internal_id(),
-            fns: HashMap::new(),
-            vals,
-            val_type,
-        }
-    }
-
-    pub fn get(&self, i: usize) -> InterpretedResult<Val> {
-        let val = if let Some(val) = self.vals.get(i) {
-            val.clone()
-        } else {
-            Val::Uninit
-        };
-
-        Ok(val)
-    }
-
-    pub fn set(&mut self, i: usize, val: Val) -> InterpretedResult<()> {
-        self.vals[i] = val;
-
-        Ok(())
-    }
-
-    pub fn len(&self) -> usize {
-        self.vals.len()
-    }
-
-    pub fn is_empty(&self) -> bool {
-        self.len() == 0
-    }
-
-    pub fn get_method(name: &Token, vec: Rc<RefCell<VecInstance>>) -> InterpretedResult<Val> {
-        let val_type = vec.borrow().val_type.clone();
-
-        let callable = match name.lexeme.as_str() {
-            Self::POP => Val::Callable(*Callable::new(
-                vec![],
-                val_type,
-                Arc::new(move |_inter, _args| {
-                    let poped = vec.borrow_mut().vals.pop().unwrap_or(Val::Uninit);
-
-                    Ok(poped)
-                }),
-            )),
-            Self::PUSH => Val::Callable(*Callable::new(
-                vec![val_type],
-                ValType::Nil,
-                Arc::new(move |_inter, args| {
-                    for arg in args {
-                        if !conforms(&vec.borrow_mut().val_type, arg) {
-                            return Err(RuntimeError::Type(
-                                None,
-                                format!(
-                                    "Cannot push value of type \"{}\" to a vector of type \"{}\"",
-                                    try_from_val(arg).unwrap(),
-                                    vec.borrow_mut().val_type
-                                ),
-                            ));
-                        }
-                        vec.borrow_mut().vals.push(arg.clone());
-                    }
-
-                    Ok(Val::VecInstance(vec.clone()))
-                }),
-            )),
-            Self::LEN => Val::Callable(*Callable::new(
-                vec![],
-                ValType::Int,
-                Arc::new(move |_inter, _args| Ok(Val::Int(vec.borrow_mut().len() as isize))),
-            )),
-            _ => {
-                return Err(RuntimeError::Runtime(
-                    name.clone(),
-                    format!("Unknown vec method \"{}\"", name.lexeme),
-                ))
-            }
-        };
-
-        Ok(callable)
-    }
-}
-
 impl Val {
-    pub const FLOAT_ERROR_MARGIN: f64 = f64::EPSILON;
+    const FLOAT_ERROR_MARGIN: f64 = f64::EPSILON;
 
-    pub fn new_vec_instance(vals: &[Self], vtype: ValType) -> Self {
+    pub(crate) fn new_vec_instance(vals: &[Self], vtype: ValType) -> Self {
         Self::VecInstance(Rc::new(RefCell::new(self::VecInstance::new(
             vals.to_vec(),
             vtype,
         ))))
     }
 
-    pub fn equal(lhs: &Self, rhs: &Self, operator: &Token) -> InterpretedResult<Self> {
+    pub(crate) fn equal(lhs: &Self, rhs: &Self, operator: &Token) -> InterpretedResult<Self> {
         use Val::*;
         let val = match (lhs, rhs) {
             (Nil, Nil) => true,
@@ -418,7 +85,7 @@ impl Val {
         Ok(Self::Bool(val))
     }
 
-    pub fn not_equal(lhs: &Self, rhs: &Self, operator: &Token) -> InterpretedResult<Self> {
+    pub(crate) fn not_equal(lhs: &Self, rhs: &Self, operator: &Token) -> InterpretedResult<Self> {
         use Val::*;
         let val = match (lhs, rhs) {
             (Nil, Nil) => false,
@@ -452,7 +119,7 @@ impl Val {
         Ok(Self::Bool(val))
     }
 
-    pub fn greater(lhs: &Self, rhs: &Self, operator: &Token) -> InterpretedResult<Self> {
+    pub(crate) fn greater(lhs: &Self, rhs: &Self, operator: &Token) -> InterpretedResult<Self> {
         use Val::*;
         let val = match (lhs, rhs) {
             (Int(lhs), Int(rhs)) => lhs > rhs,
@@ -476,7 +143,11 @@ impl Val {
         Ok(Self::Bool(val))
     }
 
-    pub fn greater_equal(lhs: &Self, rhs: &Self, operator: &Token) -> InterpretedResult<Self> {
+    pub(crate) fn greater_equal(
+        lhs: &Self,
+        rhs: &Self,
+        operator: &Token,
+    ) -> InterpretedResult<Self> {
         use Val::*;
         let val = match (lhs, rhs) {
             (Int(lhs), Int(rhs)) => lhs >= rhs,
@@ -500,7 +171,7 @@ impl Val {
         Ok(Self::Bool(val))
     }
 
-    pub fn less(lhs: &Self, rhs: &Self, operator: &Token) -> InterpretedResult<Self> {
+    pub(crate) fn less(lhs: &Self, rhs: &Self, operator: &Token) -> InterpretedResult<Self> {
         use Val::*;
         let val = match (lhs, rhs) {
             (Int(lhs), Int(rhs)) => lhs < rhs,
@@ -524,7 +195,7 @@ impl Val {
         Ok(Self::Bool(val))
     }
 
-    pub fn less_equal(lhs: &Self, rhs: &Self, operator: &Token) -> InterpretedResult<Self> {
+    pub(crate) fn less_equal(lhs: &Self, rhs: &Self, operator: &Token) -> InterpretedResult<Self> {
         use Val::*;
         let val = match (lhs, rhs) {
             (Int(lhs), Int(rhs)) => lhs <= rhs,
@@ -548,30 +219,31 @@ impl Val {
         Ok(Self::Bool(val))
     }
 
-    pub fn subtract(lhs: &Self, rhs: &Self, operator: &Token) -> InterpretedResult<Self> {
+    pub(crate) fn subtract(lhs: &Self, rhs: &Self, operator: &Token) -> InterpretedResult<Self> {
         use Val::*;
-        let val =
-            match (lhs, rhs) {
-                (Int(lhs), Int(rhs)) => Int(lhs - rhs),
-                (Float(lhs), Float(rhs)) => Float(lhs - rhs),
-                (Float(lhs), Int(rhs)) => Float(lhs - (*rhs as f64)),
-                (Int(lhs), Float(rhs)) => Float((*lhs as f64) - *rhs),
-                (lhs, rhs) => {
-                    return Err(RuntimeError::Type(
-                        Some(operator.clone()),
-                        format!(
+        let val = match (lhs, rhs) {
+            (Int(lhs), Int(rhs)) => Int(lhs - rhs),
+            (Float(lhs), Float(rhs)) => Float(lhs - rhs),
+            (Float(lhs), Int(rhs)) => Float(lhs - (*rhs as f64)),
+            (Int(lhs), Float(rhs)) => Float((*lhs as f64) - *rhs),
+            (lhs, rhs) => {
+                return Err(RuntimeError::Type(
+                    Some(operator.clone()),
+                    format!(
                         "Both operands must be of types \"{}\" or \"{}\". Got \"{}\" and \"{}\"",
-                        TYPE_INT, TYPE_FLOAT,
-                        lhs.get_type(), rhs.get_type(),
+                        TYPE_INT,
+                        TYPE_FLOAT,
+                        lhs.get_type(),
+                        rhs.get_type(),
                     ),
-                    ))
-                }
-            };
+                ))
+            }
+        };
 
         Ok(val)
     }
 
-    pub fn add(lhs: &Self, rhs: &Self, operator: &Token) -> InterpretedResult<Self> {
+    pub(crate) fn add(lhs: &Self, rhs: &Self, operator: &Token) -> InterpretedResult<Self> {
         use Val::*;
         let val = match (lhs, rhs) {
             (Int(lhs), Int(rhs)) => Int(lhs + rhs),
@@ -597,7 +269,7 @@ impl Val {
         Ok(val)
     }
 
-    pub fn divide(lhs: &Self, rhs: &Self, operator: &Token) -> InterpretedResult<Self> {
+    pub(crate) fn divide(lhs: &Self, rhs: &Self, operator: &Token) -> InterpretedResult<Self> {
         use Val::*;
         let val = match (lhs, rhs) {
             (Int(lhs), Int(rhs)) => Int(lhs / rhs),
@@ -621,7 +293,7 @@ impl Val {
         Ok(val)
     }
 
-    pub fn modulus(lhs: &Self, rhs: &Self, operator: &Token) -> InterpretedResult<Self> {
+    pub(crate) fn modulus(lhs: &Self, rhs: &Self, operator: &Token) -> InterpretedResult<Self> {
         use Val::*;
         let val = match (lhs, rhs) {
             (Int(lhs), Int(rhs)) => Int(lhs % rhs),
@@ -645,7 +317,7 @@ impl Val {
         Ok(val)
     }
 
-    pub fn multiply(lhs: &Self, rhs: &Self, operator: &Token) -> InterpretedResult<Self> {
+    pub(crate) fn multiply(lhs: &Self, rhs: &Self, operator: &Token) -> InterpretedResult<Self> {
         use Val::*;
         let val = match (lhs, rhs) {
             (Int(lhs), Int(rhs)) => Int(lhs * rhs),
@@ -669,7 +341,7 @@ impl Val {
         Ok(val)
     }
 
-    pub fn bitwise_and(lhs: &Self, rhs: &Self, operator: &Token) -> InterpretedResult<Self> {
+    pub(crate) fn bitwise_and(lhs: &Self, rhs: &Self, operator: &Token) -> InterpretedResult<Self> {
         use Val::*;
         let val = match (lhs, rhs) {
             (Int(lhs), Int(rhs)) => Int(lhs & rhs),
@@ -689,7 +361,7 @@ impl Val {
         Ok(val)
     }
 
-    pub fn bitwise_or(lhs: &Self, rhs: &Self, operator: &Token) -> InterpretedResult<Self> {
+    pub(crate) fn bitwise_or(lhs: &Self, rhs: &Self, operator: &Token) -> InterpretedResult<Self> {
         use Val::*;
         let val = match (lhs, rhs) {
             (Int(lhs), Int(rhs)) => Int(lhs | rhs),
@@ -709,7 +381,7 @@ impl Val {
         Ok(val)
     }
 
-    pub fn bitwise_xor(lhs: &Self, rhs: &Self, operator: &Token) -> InterpretedResult<Self> {
+    pub(crate) fn bitwise_xor(lhs: &Self, rhs: &Self, operator: &Token) -> InterpretedResult<Self> {
         use Val::*;
         let val = match (lhs, rhs) {
             (Int(lhs), Int(rhs)) => Int(lhs ^ rhs),
@@ -729,7 +401,7 @@ impl Val {
         Ok(val)
     }
 
-    pub fn range(lhs: &Self, rhs: &Self, operator: &Token) -> InterpretedResult<Self> {
+    pub(crate) fn range(lhs: &Self, rhs: &Self, operator: &Token) -> InterpretedResult<Self> {
         use Val::*;
         let val = match (lhs, rhs) {
             (Int(lhs), Int(rhs)) => {
@@ -755,7 +427,7 @@ impl Val {
         Ok(val)
     }
 
-    pub fn range_equal(lhs: &Self, rhs: &Self, operator: &Token) -> InterpretedResult<Self> {
+    pub(crate) fn range_equal(lhs: &Self, rhs: &Self, operator: &Token) -> InterpretedResult<Self> {
         use Val::*;
         let val = match (lhs, rhs) {
             (Int(lhs), Int(rhs)) => {
@@ -781,7 +453,7 @@ impl Val {
         Ok(val)
     }
 
-    pub fn cast_to(&self, to_type: &ValType, operator: &Token) -> InterpretedResult<Self> {
+    pub(crate) fn cast_to(&self, to_type: &ValType, operator: &Token) -> InterpretedResult<Self> {
         use Val::*;
         let val = match (&self, to_type) {
             (Nil, ValType::Int) => Int(0),
@@ -842,7 +514,7 @@ impl Val {
         Ok(val)
     }
 
-    pub fn get_type(&self) -> String {
+    pub(crate) fn get_type(&self) -> String {
         use Val::*;
 
         match self {
@@ -863,7 +535,7 @@ impl Val {
         }
     }
 
-    pub fn as_string(&self) -> InterpretedResult<String> {
+    pub(crate) fn as_string(&self) -> InterpretedResult<String> {
         match self {
             Val::Str(s) => Ok(s.clone()),
             _ => Err(RuntimeError::Type(
@@ -877,7 +549,7 @@ impl Val {
         }
     }
 
-    pub fn debug(&self) -> String {
+    pub(crate) fn debug(&self) -> String {
         use Val::*;
         match self {
             Uninit => String::from(TYPE_UNINIT),
@@ -922,7 +594,387 @@ impl fmt::Display for Val {
     }
 }
 
-pub fn try_from_val(val: &Val) -> Option<ValType> {
+#[derive(Debug)]
+pub(crate) enum StmtVal {
+    None,
+    Break,
+    Continue,
+    Return(Val),
+}
+
+type Func = Arc<dyn Fn(&mut Interpreter, &Vec<Val>) -> InterpretedResult<Val>>;
+type Constructor = Arc<dyn Fn(&mut Interpreter, &Vec<(Token, Val)>) -> InterpretedResult<Val>>;
+
+pub struct Callable {
+    arity: usize,
+    param_types: Vec<ValType>,
+    ret_type: ValType,
+    call: Box<Func>,
+}
+
+impl Callable {
+    pub(crate) fn new_boxed(param_types: Vec<ValType>, ret_type: ValType, call: Func) -> Box<Self> {
+        Box::new(Self {
+            arity: param_types.len(),
+            param_types,
+            ret_type,
+            call: Box::new(call),
+        })
+    }
+
+    pub(crate) fn arity(&self) -> usize {
+        self.arity
+    }
+
+    pub(crate) fn call(&self) -> &Func {
+        &self.call
+    }
+}
+
+impl Clone for Callable {
+    fn clone(&self) -> Self {
+        Self {
+            arity: self.arity,
+            call: self.call.clone(),
+            param_types: self.param_types.clone(),
+            ret_type: self.ret_type.clone(),
+        }
+    }
+}
+
+impl fmt::Debug for Callable {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Callable")
+            .field("arity", &self.arity)
+            .finish()
+    }
+}
+
+pub struct StructCallable {
+    arity: usize,
+    call: Box<Constructor>,
+}
+
+impl StructCallable {
+    pub(crate) fn new_boxed(arity: usize, call: Constructor) -> Box<Self> {
+        Box::new(Self {
+            arity,
+            call: Box::new(call),
+        })
+    }
+
+    pub(crate) fn arity(&self) -> usize {
+        self.arity
+    }
+
+    pub(crate) fn call(&self) -> &Constructor {
+        &self.call
+    }
+}
+
+impl fmt::Debug for StructCallable {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("StructCallable")
+            .field("arity", &self.arity)
+            .finish()
+    }
+}
+
+impl Clone for StructCallable {
+    fn clone(&self) -> Self {
+        Self {
+            arity: self.arity,
+            call: self.call.clone(),
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct StructInstance {
+    id: usize,
+    props: HashMap<String, (Val, ValType, bool)>,
+    fns: HashMap<String, (Lambda, Rc<RefCell<Self>>, bool)>,
+    struct_name: String,
+    impls: Vec<String>,
+}
+
+impl StructInstance {
+    pub(crate) fn new(struct_: StructDecl, impls: Vec<Impl>) -> Rc<RefCell<Self>> {
+        let mut props: HashMap<String, (Val, ValType, bool)> = HashMap::new();
+        for (prop, public) in struct_.props {
+            // we can be sure that v_type is always present
+            props.insert(
+                prop.name.lexeme.to_string(),
+                (Val::Uninit, prop.v_type.unwrap(), public),
+            );
+        }
+
+        let mut impl_names = vec![];
+        for impl_ in &impls {
+            if let Some(trait_name) = impl_.trait_name() {
+                impl_names.push(trait_name.clone());
+            }
+        }
+
+        let instance = Self {
+            id: internal_id(),
+            props,
+            fns: HashMap::new(),
+            struct_name: struct_.name.lexeme,
+            impls: impl_names,
+        };
+
+        let self_ = Rc::new(RefCell::new(instance));
+        for impl_ in impls {
+            let mut borrowed_self = self_.borrow_mut();
+            for (fun, pub_) in impl_.methods() {
+                borrowed_self.fns.insert(
+                    fun.name.lexeme.to_string(),
+                    (fun.lambda.clone(), self_.clone(), *pub_),
+                );
+            }
+        }
+
+        self_
+    }
+
+    pub(crate) fn get_prop(
+        &self,
+        name: &Token,
+        public_access: bool,
+    ) -> InterpretedResult<PropFuncVal> {
+        if !self.props.contains_key(&name.lexeme) {
+            if !self.fns.contains_key(&name.lexeme) {
+                Err(RuntimeError::Definition(
+                    Some(name.clone()),
+                    format!("No struct property with name \"{}\"", name.lexeme),
+                ))
+            } else {
+                let func = self.fns.get(&name.lexeme).unwrap();
+                if Self::can_access(func.2, public_access) {
+                    Ok(PropFuncVal::Func(func.clone()))
+                } else {
+                    Err(RuntimeError::Definition(
+                        Some(name.clone()),
+                        format!("Cannot access private method \"{}\"", name.lexeme),
+                    ))
+                }
+            }
+        } else {
+            match self.props.get(&name.lexeme).unwrap() {
+                (Val::Uninit, _, pub_) => {
+                    let msg = if Self::can_access(*pub_, public_access) {
+                        format!("Cannot access private property \"{}\"", name.lexeme)
+                    } else {
+                        format!("Property \"{}\" has not yet been initialized.", name.lexeme)
+                    };
+
+                    Err(RuntimeError::Definition(Some(name.clone()), msg))
+                }
+                (val, _, pub_) => {
+                    if Self::can_access(*pub_, public_access) {
+                        Ok(PropFuncVal::Prop(val.clone()))
+                    } else {
+                        Err(RuntimeError::Definition(
+                            Some(name.clone()),
+                            format!("Cannot access private property \"{}\"", name.lexeme),
+                        ))
+                    }
+                }
+            }
+        }
+    }
+
+    pub(crate) fn set_prop(
+        &mut self,
+        name: &Token,
+        val: Val,
+        public_access: bool,
+    ) -> InterpretedResult<()> {
+        if !self.props.contains_key(&name.lexeme) {
+            Err(RuntimeError::Definition(
+                Some(name.clone()),
+                format!("No struct property with name \"{}\"", name.lexeme),
+            ))
+        } else {
+            let (_, v_type, public) = self.props.get(&name.lexeme).unwrap();
+
+            if !*public && public_access {
+                return Err(RuntimeError::Definition(
+                    Some(name.clone()),
+                    format!("Cannot access private property \"{}\"", name.lexeme),
+                ));
+            }
+
+            let public = *public;
+            let v_type = v_type.clone();
+            if vtype_conforms_val(&v_type, &val) {
+                self.props
+                    .insert(name.lexeme.to_string(), (val, v_type, public));
+
+                Ok(())
+            } else {
+                Err(RuntimeError::Type(
+                    Some(name.clone()),
+                    format!(
+                        "Trying to assign to a variable of type \"{}\" value of type \"{}\"",
+                        v_type,
+                        val.get_type()
+                    ),
+                ))
+            }
+        }
+    }
+
+    pub(crate) fn can_access(prop_pub: bool, access_pub: bool) -> bool {
+        if prop_pub {
+            true
+        } else {
+            !access_pub
+        }
+    }
+
+    pub(crate) fn props(&self) -> &HashMap<String, (Val, ValType, bool)> {
+        &self.props
+    }
+
+    pub(crate) fn props_mut(&mut self) -> &mut HashMap<String, (Val, ValType, bool)> {
+        &mut self.props
+    }
+
+    pub(crate) fn struct_name(&self) -> &str {
+        &self.struct_name
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct VecInstance {
+    id: usize,
+    vals: Vec<Val>,
+    val_type: ValType,
+}
+
+impl VecInstance {
+    const POP: &'static str = "pop";
+    const PUSH: &'static str = "push";
+    const LEN: &'static str = "len";
+
+    pub(crate) fn new(vals: Vec<Val>, val_type: ValType) -> Self {
+        Self {
+            id: internal_id(),
+            vals,
+            val_type,
+        }
+    }
+
+    pub(crate) fn get(&self, i: usize) -> InterpretedResult<Val> {
+        let val = if let Some(val) = self.vals.get(i) {
+            val.clone()
+        } else {
+            Val::Uninit
+        };
+
+        Ok(val)
+    }
+
+    pub(crate) fn set(&mut self, i: usize, val: Val) -> InterpretedResult<()> {
+        self.vals[i] = val;
+
+        Ok(())
+    }
+
+    pub(crate) fn get_method(
+        name: &Token,
+        vec: Rc<RefCell<VecInstance>>,
+    ) -> InterpretedResult<Val> {
+        let val_type = vec.borrow().val_type.clone();
+
+        let callable = match name.lexeme.as_str() {
+            Self::POP => Val::Callable(*Callable::new_boxed(
+                vec![],
+                val_type,
+                Arc::new(move |_inter, _args| {
+                    let poped = vec.borrow_mut().vals.pop().unwrap_or(Val::Uninit);
+
+                    Ok(poped)
+                }),
+            )),
+            Self::PUSH => Val::Callable(*Callable::new_boxed(
+                vec![val_type],
+                ValType::Nil,
+                Arc::new(move |_inter, args| {
+                    for arg in args {
+                        if !vtype_conforms_val(&vec.borrow_mut().val_type, arg) {
+                            return Err(RuntimeError::Type(
+                                None,
+                                format!(
+                                    "Cannot push value of type \"{}\" to a vector of type \"{}\"",
+                                    try_vtype_from_val(arg).unwrap(),
+                                    vec.borrow_mut().val_type
+                                ),
+                            ));
+                        }
+                        vec.borrow_mut().vals.push(arg.clone());
+                    }
+
+                    Ok(Val::VecInstance(vec.clone()))
+                }),
+            )),
+            Self::LEN => Val::Callable(*Callable::new_boxed(
+                vec![],
+                ValType::Int,
+                Arc::new(move |_inter, _args| Ok(Val::Int(vec.borrow_mut().len() as isize))),
+            )),
+            _ => {
+                return Err(RuntimeError::Runtime(
+                    name.clone(),
+                    format!("Unknown vec method \"{}\"", name.lexeme),
+                ))
+            }
+        };
+
+        Ok(callable)
+    }
+
+    pub(crate) fn vals(&self) -> &[Val] {
+        &self.vals
+    }
+
+    pub(crate) fn val_type(&self) -> &ValType {
+        &self.val_type
+    }
+
+    fn len(&self) -> usize {
+        self.vals.len()
+    }
+}
+
+#[derive(Clone)]
+pub(crate) struct Function {
+    lambda: Lambda,
+    env: Rc<RefCell<Env>>,
+}
+
+impl Function {
+    pub(crate) fn new(lambda: Lambda, env: Rc<RefCell<Env>>) -> Self {
+        Self { lambda, env }
+    }
+
+    pub(crate) fn lambda(&self) -> &Lambda {
+        &self.lambda
+    }
+
+    pub(crate) fn env(&self) -> &Rc<RefCell<Env>> {
+        &self.env
+    }
+}
+
+pub(crate) enum PropFuncVal {
+    Prop(Val),
+    Func((Lambda, Rc<RefCell<StructInstance>>, bool)),
+}
+
+pub(crate) fn try_vtype_from_val(val: &Val) -> Option<ValType> {
     Some(match val {
         Val::Uninit => ValType::Uninit,
         Val::Float(_) => ValType::Float,
@@ -942,14 +994,14 @@ pub fn try_from_val(val: &Val) -> Option<ValType> {
     })
 }
 
-pub fn conforms(vtype: &ValType, val: &Val) -> bool {
+pub(crate) fn vtype_conforms_val(vtype: &ValType, val: &Val) -> bool {
     match (vtype, val) {
         (_, Val::Uninit) => true,
         (ValType::Any, _) => true,
         (ValType::Nil, Val::Nil) => true,
         (ValType::Bool, Val::Bool(_)) => true,
         (ValType::Fn(fn_type), Val::Callable(call)) => {
-            *fn_type.ret_type == call.ret_type && *fn_type.param_types == call.param_types
+            *fn_type.ret_type() == call.ret_type && *fn_type.param_types() == call.param_types
         }
         (ValType::Num, Val::Float(_)) => true,
         (ValType::Num, Val::Int(_)) => true,
@@ -963,7 +1015,7 @@ pub fn conforms(vtype: &ValType, val: &Val) -> bool {
         }
         (ValType::Instance(s), Val::EnumValue(e, ..)) => s == e,
         (ValType::Vec(g), Val::VecInstance(v)) => {
-            let v_g_type = g.types.first().unwrap();
+            let v_g_type = g.types().first().unwrap();
             let vi_g_type = v.borrow_mut().val_type.clone();
 
             *v_g_type == vi_g_type
@@ -984,11 +1036,11 @@ mod tests {
         let nil = Val::Nil;
         let boolean = Val::Bool(true);
 
-        assert_eq!(try_from_val(&int).unwrap(), ValType::Int);
-        assert_eq!(try_from_val(&float).unwrap(), ValType::Float);
-        assert_eq!(try_from_val(&string).unwrap(), ValType::Str);
-        assert_eq!(try_from_val(&nil).unwrap(), ValType::Nil);
-        assert_eq!(try_from_val(&boolean).unwrap(), ValType::Bool);
+        assert_eq!(try_vtype_from_val(&int).unwrap(), ValType::Int);
+        assert_eq!(try_vtype_from_val(&float).unwrap(), ValType::Float);
+        assert_eq!(try_vtype_from_val(&string).unwrap(), ValType::Str);
+        assert_eq!(try_vtype_from_val(&nil).unwrap(), ValType::Nil);
+        assert_eq!(try_vtype_from_val(&boolean).unwrap(), ValType::Bool);
     }
 
     #[test]
@@ -999,22 +1051,22 @@ mod tests {
         let nil = Val::Nil;
         let boolean = Val::Bool(true);
 
-        assert!(conforms(&ValType::Int, &int));
-        assert!(!conforms(&ValType::Int, &float));
-        assert!(!conforms(&ValType::Int, &string));
+        assert!(vtype_conforms_val(&ValType::Int, &int));
+        assert!(!vtype_conforms_val(&ValType::Int, &float));
+        assert!(!vtype_conforms_val(&ValType::Int, &string));
 
-        assert!(conforms(&ValType::Float, &float));
-        assert!(conforms(&ValType::Float, &int));
-        assert!(!conforms(&ValType::Float, &string));
+        assert!(vtype_conforms_val(&ValType::Float, &float));
+        assert!(vtype_conforms_val(&ValType::Float, &int));
+        assert!(!vtype_conforms_val(&ValType::Float, &string));
 
-        assert!(conforms(&ValType::Str, &string));
-        assert!(!conforms(&ValType::Str, &int));
-        assert!(!conforms(&ValType::Str, &boolean));
+        assert!(vtype_conforms_val(&ValType::Str, &string));
+        assert!(!vtype_conforms_val(&ValType::Str, &int));
+        assert!(!vtype_conforms_val(&ValType::Str, &boolean));
 
-        assert!(conforms(&ValType::Any, &string));
-        assert!(conforms(&ValType::Any, &nil));
-        assert!(conforms(&ValType::Any, &boolean));
-        assert!(conforms(&ValType::Any, &int));
-        assert!(conforms(&ValType::Any, &float));
+        assert!(vtype_conforms_val(&ValType::Any, &string));
+        assert!(vtype_conforms_val(&ValType::Any, &nil));
+        assert!(vtype_conforms_val(&ValType::Any, &boolean));
+        assert!(vtype_conforms_val(&ValType::Any, &int));
+        assert!(vtype_conforms_val(&ValType::Any, &float));
     }
 }

@@ -35,7 +35,7 @@ pub enum ValType {
 }
 
 impl ValType {
-    pub fn try_from_token(token: &Token, generics: Option<Vec<Self>>) -> Option<Self> {
+    pub(crate) fn try_from_token(token: &Token, generics: Option<Vec<Self>>) -> Option<Self> {
         match token.token_type {
             TokenType::Num => Some(Self::Num),
             TokenType::Int => Some(Self::Int),
@@ -76,19 +76,23 @@ impl fmt::Display for ValType {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Generics {
-    pub types: Vec<ValType>,
+    types: Vec<ValType>,
 }
 
 impl Generics {
     pub fn new(types: Vec<ValType>) -> Self {
         Self { types }
     }
+
+    pub fn types(&self) -> &[ValType] {
+        &self.types
+    }
 }
 
 #[derive(Debug, Clone)]
 pub struct FnType {
-    pub param_types: Vec<ValType>,
-    pub ret_type: Box<ValType>,
+    param_types: Vec<ValType>,
+    ret_type: Box<ValType>,
 }
 
 impl FnType {
@@ -116,6 +120,14 @@ impl FnType {
                 String::from("")
             }
         )
+    }
+
+    pub fn param_types(&self) -> &[ValType] {
+        &self.param_types
+    }
+
+    pub fn ret_type(&self) -> &ValType {
+        &self.ret_type
     }
 }
 

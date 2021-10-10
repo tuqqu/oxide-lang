@@ -11,17 +11,25 @@ use crate::expr::{
 use crate::lexer::{Token, TokenType};
 use crate::valtype::{FnType, ValType};
 
-pub type ParseResult<'a, T> = result::Result<T, &'a [ParseError]>;
+type ParseResult<'a, T> = result::Result<T, &'a [ParseError]>;
 type Result<T> = result::Result<T, ParseError>;
 
 pub struct Ast {
-    pub tree: Vec<Stmt>,
-    pub top_level: bool,
+    tree: Vec<Stmt>,
+    top_level: bool,
 }
 
 impl Ast {
     fn new(tree: Vec<Stmt>, top_level: bool) -> Self {
         Self { tree, top_level }
+    }
+
+    pub fn tree(&self) -> &[Stmt] {
+        &self.tree
+    }
+
+    pub fn top_level(&self) -> bool {
+        self.top_level
     }
 }
 

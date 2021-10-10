@@ -3,8 +3,9 @@ use std::error;
 use oxide_parser::{Ast, Lexer, Parser};
 
 use crate::env::Env;
-use crate::interpreter::{Interpreter, StdStreams};
+use crate::interpreter::Interpreter;
 use crate::val::Val;
+use crate::StreamProvider;
 
 type ErrorHandler = fn(Vec<Box<dyn error::Error>>) -> !;
 
@@ -38,7 +39,7 @@ impl Engine {
         ast
     }
 
-    pub fn run(&self, ast: &Ast, streams: Option<StdStreams>, argv: &[String]) -> Val {
+    pub fn run(&self, ast: &Ast, argv: &[String], streams: Option<Box<dyn StreamProvider>>) -> Val {
         let mut i = Interpreter::new(Env::new_stdlib(), streams, argv);
         self.run_code(ast, &mut i)
     }

@@ -112,7 +112,7 @@ Download the [latest release][latest-releases] and put the executable in your PA
 
 ```
 USAGE:
-    oxide [FLAGS] [FILE]
+    oxide [FLAGS] [ARGS]
 
 FLAGS:
     -h, --help              Prints help
@@ -122,9 +122,10 @@ FLAGS:
 
 ARGS:
     <FILE>  Script file to run
+    <ARGV>  Arguments passed to script
 
 EXAMPLE:
-    oxide script.ox
+    oxide script.ox arg1 arg2
 ```
 
 ## Building from source

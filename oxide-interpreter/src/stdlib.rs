@@ -15,7 +15,7 @@ use crate::interpreter::{InterpretedResult, Interpreter};
 use crate::val::{Callable, Val};
 
 impl Env {
-    pub fn new_stdlib() -> Self {
+    pub(crate) fn new_stdlib() -> Self {
         use ValType::*;
         let mut lib = Self::new();
 
@@ -48,7 +48,11 @@ impl Env {
         );
         self.define_function(env::Function::without_struct(
             token,
-            Val::Callable(*Callable::new(param_types, ret_type, Arc::new(callable))),
+            Val::Callable(*Callable::new_boxed(
+                param_types,
+                ret_type,
+                Arc::new(callable),
+            )),
         ))
         .unwrap();
     }
@@ -63,7 +67,7 @@ mod builtin {
     /// Returns the current Unix Epoch timestamp as an integer.
     ///
     /// `fn timestamp() -> int;`
-    pub fn timestamp(_inter: &mut Interpreter, _args: &Vec<Val>) -> InterpretedResult<Val> {
+    pub(super) fn timestamp(_inter: &mut Interpreter, _args: &Vec<Val>) -> InterpretedResult<Val> {
         let since_the_epoch = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .expect("Error while trying to retrieve current timestamp.");
@@ -74,12 +78,12 @@ mod builtin {
     /// Dumps the value to stdout.
     ///
     /// `fn dbg(value: any);`
-    pub fn dbg(inter: &mut Interpreter, args: &Vec<Val>) -> InterpretedResult<Val> {
+    pub(super) fn dbg(inter: &mut Interpreter, args: &Vec<Val>) -> InterpretedResult<Val> {
         let value = args
             .first()
             .expect("Error while trying to retrieve function arguments.");
 
-        writeln!(inter.stdout.borrow_mut(), "{}", value.debug())
+        writeln!(inter.streams().stream_out(), "{}", value.debug())
             .expect("Error while trying to write to the output stream.");
 
         Ok(Val::Nil)
@@ -88,12 +92,12 @@ mod builtin {
     /// Prints the string to stdout with a newline.
     ///
     /// `fn println(message: str);`
-    pub fn println(inter: &mut Interpreter, args: &Vec<Val>) -> InterpretedResult<Val> {
+    pub(super) fn println(inter: &mut Interpreter, args: &Vec<Val>) -> InterpretedResult<Val> {
         let value = args
             .first()
             .expect("Error while trying to retrieve function arguments.");
 
-        writeln!(inter.stdout.borrow_mut(), "{}", value.as_string()?)
+        writeln!(inter.streams().stream_out(), "{}", value.as_string()?)
             .expect("Error while trying to write to the output stream.");
         Ok(Val::Nil)
     }
@@ -101,12 +105,12 @@ mod builtin {
     /// Prints the string to stdout
     ///
     /// `fn print(message: str);`
-    pub fn print(inter: &mut Interpreter, args: &Vec<Val>) -> InterpretedResult<Val> {
+    pub(super) fn print(inter: &mut Interpreter, args: &Vec<Val>) -> InterpretedResult<Val> {
         let value = args
             .first()
             .expect("Error while trying to retrieve function arguments.");
 
-        write!(inter.stdout.borrow_mut(), "{}", value.as_string()?)
+        write!(inter.streams().stream_out(), "{}", value.as_string()?)
             .expect("Error while trying to write to the output stream.");
         Ok(Val::Nil)
     }
@@ -114,12 +118,12 @@ mod builtin {
     /// Prints the string to stderr with a newline.
     ///
     /// `fn eprintln(message: str);`
-    pub(crate) fn eprintln(inter: &mut Interpreter, args: &Vec<Val>) -> InterpretedResult<Val> {
+    pub(super) fn eprintln(inter: &mut Interpreter, args: &Vec<Val>) -> InterpretedResult<Val> {
         let value = args
             .first()
             .expect("Error while trying to retrieve function arguments.");
 
-        writeln!(inter.stderr.borrow_mut(), "{}", value.as_string()?)
+        writeln!(inter.streams().stream_err(), "{}", value.as_string()?)
             .expect("Error while trying to write to the output stream.");
         Ok(Val::Nil)
     }
@@ -127,12 +131,12 @@ mod builtin {
     /// Prints the string to stdout
     ///
     /// `fn print(message: str);`
-    pub fn eprint(inter: &mut Interpreter, args: &Vec<Val>) -> InterpretedResult<Val> {
+    pub(super) fn eprint(inter: &mut Interpreter, args: &Vec<Val>) -> InterpretedResult<Val> {
         let value = args
             .first()
             .expect("Error while trying to retrieve function arguments.");
 
-        write!(inter.stdout.borrow_mut(), "{}", value.as_string()?)
+        write!(inter.streams().stream_err(), "{}", value.as_string()?)
             .expect("Error while trying to write to the output stream.");
         Ok(Val::Nil)
     }
@@ -140,7 +144,7 @@ mod builtin {
     /// Writes `contents` to a `file_path`. If no file exists, creates the file.
     ///
     /// `fn file_write(file_path: str, contents: str);`
-    pub fn file_write(_inter: &mut Interpreter, args: &Vec<Val>) -> InterpretedResult<Val> {
+    pub(super) fn file_write(_inter: &mut Interpreter, args: &Vec<Val>) -> InterpretedResult<Val> {
         if let [file_name, content] = &args[..] {
             let (file_name, content) = match (file_name, content) {
                 (Val::Str(file_name), Val::Str(content)) => (file_name, content),
@@ -167,14 +171,15 @@ mod builtin {
     /// Prints prompt and waits for an input from stdin.
     ///
     /// `fn read_line(prompt: str);`
-    pub fn read_line(_inter: &mut Interpreter, args: &Vec<Val>) -> InterpretedResult<Val> {
+    pub(super) fn read_line(inter: &mut Interpreter, args: &Vec<Val>) -> InterpretedResult<Val> {
         let prompt = match args.first().unwrap() {
             Val::Str(prompt) => prompt,
             _ => return Ok(Val::Nil),
         };
 
-        let stdin = io::stdin();
-        print!("{}", prompt);
+        let stdin = inter.streams().stream_in();
+        write!(inter.streams().stream_out(), "{}", prompt)
+            .expect("Error while trying to write to the output stream.");
         io::stdout().flush().expect("Error while stdout flushing.");
         let mut line: String = String::new();
         stdin
@@ -187,7 +192,7 @@ mod builtin {
     /// Returns type of a given value.
     ///
     /// `fn typeof(value: any) -> str;`
-    pub fn typeof_(_inter: &mut Interpreter, args: &Vec<Val>) -> InterpretedResult<Val> {
+    pub(super) fn typeof_(_inter: &mut Interpreter, args: &Vec<Val>) -> InterpretedResult<Val> {
         let value = args.first().expect("Cannot retrieve function argument.");
 
         Ok(Val::Str(value.get_type()))
@@ -196,7 +201,7 @@ mod builtin {
     /// Returns an array of arguments passed to script.
     ///
     /// `fn args() -> vec<str>;`
-    pub fn args(inter: &mut Interpreter, _args: &Vec<Val>) -> InterpretedResult<Val> {
+    pub(super) fn args(inter: &mut Interpreter, _args: &Vec<Val>) -> InterpretedResult<Val> {
         Ok(Val::new_vec_instance(inter.args(), ValType::Str))
     }
 }
