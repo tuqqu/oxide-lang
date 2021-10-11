@@ -13,7 +13,7 @@ use oxide_parser::expr::{
 use oxide_parser::valtype::{TYPE_BOOL, TYPE_FLOAT, TYPE_FN, TYPE_INT, TYPE_STRUCT, TYPE_VEC};
 use oxide_parser::{Ast, Token, TokenType, ValType};
 
-use crate::env::{construct_static_name, Env, EnvVal};
+use crate::env::{construct_static_name, Env, EnvVal, ResolvableName};
 use crate::error::RuntimeError;
 use crate::io::StdStreamProvider;
 use crate::val::{

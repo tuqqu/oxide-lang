@@ -119,13 +119,7 @@ impl Env {
     }
 
     pub(crate) fn define_constant(&mut self, constant: Constant) -> InterpretedResult<()> {
-        if self.vals.contains_key(&constant.resolve_name()) {
-            return Err(RuntimeError::Definition(
-                Some(constant.name.clone()),
-                format!("Name \"{}\" is already in use", constant.resolve_name()),
-            ));
-        }
-
+        self.check_defined(&constant)?;
         self.vals.insert(
             constant.resolve_name(),
             Rc::new(RefCell::new(EnvVal::Constant(constant))),
@@ -135,13 +129,7 @@ impl Env {
     }
 
     pub(crate) fn define_function(&mut self, func: Function) -> InterpretedResult<()> {
-        if self.vals.contains_key(&func.resolve_name()) {
-            return Err(RuntimeError::Definition(
-                Some(func.name.clone()),
-                format!("Name \"{}\" is already in use", func.resolve_name()),
-            ));
-        }
-
+        self.check_defined(&func)?;
         self.vals.insert(
             func.resolve_name(),
             Rc::new(RefCell::new(EnvVal::Function(func))),
@@ -246,6 +234,17 @@ impl Env {
             format!("Trying to assign to an undefined value \"{}\"", name.lexeme),
         ))
     }
+
+    fn check_defined(&self, name: &impl ResolvableName) -> InterpretedResult<()> {
+        if self.vals.contains_key(&name.resolve_name()) {
+            return Err(RuntimeError::Definition(
+                Some(name.name().clone()),
+                format!("Name \"{}\" is already in use", name.resolve_name()),
+            ));
+        }
+
+        Ok(())
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -320,8 +319,20 @@ impl EnvVal {
     }
 }
 
-trait ResolvableName {
-    fn resolve_name(&self) -> String;
+type NameTarget = (Token, bool);
+
+pub(crate) trait ResolvableName {
+    fn resolve_name(&self) -> String {
+        if let Some((for_struct, _)) = self.for_target() {
+            construct_static_name(&for_struct.lexeme, &self.name().lexeme.clone())
+        } else {
+            self.name().lexeme.clone()
+        }
+    }
+
+    fn name(&self) -> &Token;
+
+    fn for_target(&self) -> &Option<NameTarget>;
 }
 
 #[derive(Clone, Debug)]
@@ -355,11 +366,11 @@ impl Variable {
 pub(crate) struct Constant {
     name: Token,
     val: Val,
-    for_target: Option<(Token, bool)>,
+    for_target: Option<NameTarget>,
 }
 
 impl Constant {
-    pub(crate) fn with_struct(name: Token, val: Val, for_struct: (Token, bool)) -> Self {
+    pub(crate) fn with_struct(name: Token, val: Val, for_struct: NameTarget) -> Self {
         Self::new(name, val, Some(for_struct))
     }
 
@@ -367,7 +378,7 @@ impl Constant {
         Self::new(name, val, None)
     }
 
-    fn new(name: Token, val: Val, for_struct: Option<(Token, bool)>) -> Self {
+    fn new(name: Token, val: Val, for_struct: Option<NameTarget>) -> Self {
         Self {
             name,
             val,
@@ -378,19 +389,15 @@ impl Constant {
     pub(crate) fn val(&self) -> &Val {
         &self.val
     }
-
-    pub(crate) fn for_target(&self) -> &Option<(Token, bool)> {
-        &self.for_target
-    }
 }
 
 impl ResolvableName for Constant {
-    fn resolve_name(&self) -> String {
-        if let Some((for_struct, _)) = &self.for_target {
-            construct_static_name(&for_struct.lexeme, &self.name.lexeme)
-        } else {
-            self.name.lexeme.clone()
-        }
+    fn name(&self) -> &Token {
+        &self.name
+    }
+
+    fn for_target(&self) -> &Option<NameTarget> {
+        &self.for_target
     }
 }
 
@@ -398,11 +405,11 @@ impl ResolvableName for Constant {
 pub(crate) struct Function {
     name: Token,
     val: Val,
-    for_target: Option<(Token, bool)>,
+    for_target: Option<NameTarget>,
 }
 
 impl Function {
-    pub(crate) fn with_struct(name: Token, val: Val, for_struct: (Token, bool)) -> Self {
+    pub(crate) fn with_struct(name: Token, val: Val, for_struct: NameTarget) -> Self {
         Self::new(name, val, Some(for_struct))
     }
 
@@ -410,7 +417,7 @@ impl Function {
         Self::new(name, val, None)
     }
 
-    fn new(name: Token, val: Val, for_struct: Option<(Token, bool)>) -> Self {
+    fn new(name: Token, val: Val, for_struct: Option<NameTarget>) -> Self {
         Self {
             name,
             val,
@@ -421,19 +428,15 @@ impl Function {
     pub(crate) fn val(&self) -> &Val {
         &self.val
     }
-
-    pub(crate) fn for_target(&self) -> &Option<(Token, bool)> {
-        &self.for_target
-    }
 }
 
 impl ResolvableName for Function {
-    fn resolve_name(&self) -> String {
-        if let Some((for_struct, _)) = &self.for_target {
-            construct_static_name(&for_struct.lexeme, &self.name.lexeme)
-        } else {
-            self.name.lexeme.clone()
-        }
+    fn name(&self) -> &Token {
+        &self.name
+    }
+
+    fn for_target(&self) -> &Option<NameTarget> {
+        &self.for_target
     }
 }
 
