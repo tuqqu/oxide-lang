@@ -335,6 +335,10 @@ pub(crate) trait ResolvableName {
     fn for_target(&self) -> &Option<NameTarget>;
 }
 
+pub(crate) trait ValuableName {
+    fn val(&self) -> &Val;
+}
+
 #[derive(Clone, Debug)]
 pub(crate) struct Variable {
     name: String,
@@ -385,10 +389,6 @@ impl Constant {
             for_target: for_struct,
         }
     }
-
-    pub(crate) fn val(&self) -> &Val {
-        &self.val
-    }
 }
 
 impl ResolvableName for Constant {
@@ -398,6 +398,12 @@ impl ResolvableName for Constant {
 
     fn for_target(&self) -> &Option<NameTarget> {
         &self.for_target
+    }
+}
+
+impl ValuableName for Constant {
+    fn val(&self) -> &Val {
+        &self.val
     }
 }
 
@@ -424,10 +430,6 @@ impl Function {
             for_target: for_struct,
         }
     }
-
-    pub(crate) fn val(&self) -> &Val {
-        &self.val
-    }
 }
 
 impl ResolvableName for Function {
@@ -437,6 +439,12 @@ impl ResolvableName for Function {
 
     fn for_target(&self) -> &Option<NameTarget> {
         &self.for_target
+    }
+}
+
+impl ValuableName for Function {
+    fn val(&self) -> &Val {
+        &self.val
     }
 }
 

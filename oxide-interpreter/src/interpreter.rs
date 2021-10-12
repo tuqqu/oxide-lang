@@ -13,7 +13,7 @@ use oxide_parser::expr::{
 use oxide_parser::valtype::{TYPE_BOOL, TYPE_FLOAT, TYPE_FN, TYPE_INT, TYPE_STRUCT, TYPE_VEC};
 use oxide_parser::{Ast, Token, TokenType, ValType};
 
-use crate::env::{construct_static_name, Env, EnvVal, ResolvableName};
+use crate::env::{construct_static_name, Env, EnvVal, ResolvableName, ValuableName};
 use crate::error::RuntimeError;
 use crate::io::StdStreamProvider;
 use crate::val::{
@@ -1001,6 +1001,26 @@ impl Interpreter {
     }
 
     fn eval_get_static_prop_expr(&mut self, expr: &GetStaticProp) -> InterpretedResult<Val> {
+        fn extract_static_value(
+            name: &(impl ResolvableName + ValuableName),
+            public_access: bool,
+            token: Token,
+            static_name: &str,
+        ) -> InterpretedResult<Val> {
+            if let Some((_name, pub_)) = name.for_target() {
+                if StructInstance::can_access(*pub_, public_access) {
+                    Ok(name.val().clone())
+                } else {
+                    Err(RuntimeError::Definition(
+                        Some(token),
+                        format!("Cannot access private static member \"{}\"", static_name),
+                    ))
+                }
+            } else {
+                panic!("Static access value must not be a standalone one.");
+            }
+        }
+
         let static_caller = self.evaluate(&expr.name)?;
 
         match static_caller {
@@ -1016,38 +1036,10 @@ impl Interpreter {
                     // FIXME: can it lead to a bug? this branch should be possible only in Enum case
                     EnvVal::EnumValue(e) => Ok(e.val().clone()),
                     EnvVal::Constant(c) => {
-                        if let Some((_name, pub_)) = c.for_target().clone() {
-                            if StructInstance::can_access(pub_, public_access) {
-                                Ok(c.val().clone())
-                            } else {
-                                Err(RuntimeError::Definition(
-                                    Some(token),
-                                    format!(
-                                        "Cannot access private static member \"{}\"",
-                                        static_name
-                                    ),
-                                ))
-                            }
-                        } else {
-                            panic!("Static access constant must not be a standalone one.");
-                        }
+                        extract_static_value(c, public_access, token, &static_name)
                     }
                     EnvVal::Function(f) => {
-                        if let Some((_name, pub_)) = f.for_target().clone() {
-                            if StructInstance::can_access(pub_, public_access) {
-                                Ok(f.val().clone())
-                            } else {
-                                Err(RuntimeError::Definition(
-                                    Some(token),
-                                    format!(
-                                        "Cannot access private static member \"{}\"",
-                                        static_name
-                                    ),
-                                ))
-                            }
-                        } else {
-                            panic!("Static access function must not be a standalone one.");
-                        }
+                        extract_static_value(f, public_access, token, &static_name)
                     }
                     _ => Err(RuntimeError::Definition(
                         Some(token),
