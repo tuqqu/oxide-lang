@@ -1322,18 +1322,18 @@ impl Parser {
         }
 
         if self.match_token(TokenType::NumberFloat) {
-            let n = self.previous().literal.parse::<f64>().unwrap();
+            let n = self.previous().lexeme.parse::<f64>().unwrap();
             return Some(Expr::FloatLiteralExpr(FloatLiteral(n)));
         }
 
         if self.match_token(TokenType::NumberInt) {
-            let n = self.previous().literal.parse::<isize>().unwrap();
+            let n = self.previous().lexeme.parse::<isize>().unwrap();
             return Some(Expr::IntLiteralExpr(IntLiteral(n)));
         }
 
         if self.match_token(TokenType::String) {
             return Some(Expr::StrLiteralExpr(StrLiteral(
-                self.previous().literal.clone(),
+                self.previous().lexeme.clone(),
             )));
         }
 

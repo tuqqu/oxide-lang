@@ -1,13 +1,13 @@
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
+use std::result;
 
 use oxide_parser::stmt::{ConstDecl, FnDecl, FnSignatureDecl};
 use oxide_parser::{Token, ValType};
 
 use super::val::Val;
 use crate::error::RuntimeError;
-use crate::interpreter::InterpretedResult;
 use crate::val::{try_vtype_from_val, vtype_conforms_val, StructInstance};
 
 #[derive(Clone, Debug)]
@@ -24,6 +24,8 @@ impl Default for Env {
         Self::new()
     }
 }
+
+pub(crate) type EnvResult<T> = result::Result<T, RuntimeError>;
 
 impl Env {
     pub(crate) fn new() -> Self {
@@ -45,11 +47,10 @@ impl Env {
     }
 
     #[allow(dead_code)]
-    pub(crate) fn define_from(&mut self, val: EnvVal) -> InterpretedResult<()> {
+    pub(crate) fn define_from(&mut self, val: EnvVal) -> EnvResult<()> {
         use EnvVal::*;
 
         match val {
-            NoValue => {}
             Trait(_t) => {}
             Variable(v) => self.define_variable(v),
             Constant(c) => self.define_constant(c)?,
@@ -94,7 +95,7 @@ impl Env {
         );
     }
 
-    pub(crate) fn define_impl(&mut self, impl_: Impl) -> InterpretedResult<()> {
+    pub(crate) fn define_impl(&mut self, impl_: Impl) -> EnvResult<()> {
         self.impls
             .entry(impl_.impl_name.clone())
             .or_default()
@@ -118,7 +119,7 @@ impl Env {
         self.static_bind = Some(static_bind);
     }
 
-    pub(crate) fn define_constant(&mut self, constant: Constant) -> InterpretedResult<()> {
+    pub(crate) fn define_constant(&mut self, constant: Constant) -> EnvResult<()> {
         self.check_defined(&constant)?;
         self.vals.insert(
             constant.resolve_name(),
@@ -128,7 +129,7 @@ impl Env {
         Ok(())
     }
 
-    pub(crate) fn define_function(&mut self, func: Function) -> InterpretedResult<()> {
+    pub(crate) fn define_function(&mut self, func: Function) -> EnvResult<()> {
         self.check_defined(&func)?;
         self.vals.insert(
             func.resolve_name(),
@@ -138,16 +139,13 @@ impl Env {
         Ok(())
     }
 
-    pub(crate) fn get(&mut self, name: &Token) -> InterpretedResult<Rc<RefCell<EnvVal>>> {
+    pub(crate) fn get(&mut self, name: &Token) -> EnvResult<Rc<RefCell<EnvVal>>> {
         if self.vals.contains_key(&name.lexeme) {
             let val = self.vals.get(&name.lexeme);
 
             return match val {
                 Some(val) => Ok(val.clone()),
-                None => {
-                    // unreachable
-                    Ok(Rc::new(RefCell::new(EnvVal::NoValue)))
-                }
+                None => unreachable!(),
             };
         }
 
@@ -206,7 +204,7 @@ impl Env {
         None
     }
 
-    pub(crate) fn assign(&mut self, name: Token, val: &Val) -> InterpretedResult<()> {
+    pub(crate) fn assign(&mut self, name: Token, val: &Val) -> EnvResult<()> {
         #[allow(clippy::map_entry)]
         if self.vals.contains_key(&name.lexeme) {
             let env_val = self.get(&name)?;
@@ -235,7 +233,7 @@ impl Env {
         ))
     }
 
-    fn check_defined(&self, name: &impl ResolvableName) -> InterpretedResult<()> {
+    fn check_defined(&self, name: &impl ResolvableName) -> EnvResult<()> {
         if self.vals.contains_key(&name.resolve_name()) {
             return Err(RuntimeError::Definition(
                 Some(name.name().clone()),
@@ -249,7 +247,6 @@ impl Env {
 
 #[derive(Clone, Debug)]
 pub(crate) enum EnvVal {
-    NoValue,
     Variable(Variable),
     Constant(Constant),
     Function(Function),
@@ -260,14 +257,10 @@ pub(crate) enum EnvVal {
 }
 
 impl EnvVal {
-    fn try_to_assign(&mut self, val: Val, name: Token) -> InterpretedResult<()> {
+    fn try_to_assign(&mut self, val: Val, name: Token) -> EnvResult<()> {
         use EnvVal::*;
 
         return match self {
-            NoValue => Err(RuntimeError::Runtime(
-                name,
-                String::from("Trying to assign to an immutable value"),
-            )),
             Constant(_c) => Err(RuntimeError::Runtime(
                 name,
                 String::from("Trying to assign to a constant"),
@@ -630,11 +623,6 @@ mod tests {
     }
 
     fn identifier(lexeme: &str) -> Token {
-        Token::new(
-            TokenType::Identifier,
-            String::from(lexeme),
-            String::from(""),
-            TokenPos(0, 0),
-        )
+        Token::new(TokenType::Identifier, String::from(lexeme), TokenPos(0, 0))
     }
 }

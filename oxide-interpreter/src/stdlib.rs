@@ -40,12 +40,7 @@ impl Env {
         param_types: Vec<ValType>,
         ret_type: ValType,
     ) {
-        let token = Token::new(
-            TokenType::Identifier,
-            name.to_string(),
-            String::from(""),
-            TokenPos(0, 0),
-        );
+        let token = Token::new(TokenType::Identifier, name.to_string(), TokenPos(0, 0));
         self.define_function(env::Function::without_struct(
             token,
             Val::Callable(*Callable::new_boxed(

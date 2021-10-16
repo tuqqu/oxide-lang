@@ -496,10 +496,6 @@ impl Interpreter {
         use EnvVal::*;
 
         match env_val.deref() {
-            NoValue => Err(RuntimeError::Runtime(
-                expr.name().clone(),
-                format!("Trying to access a non-value \"{}\"", expr.name().lexeme),
-            )),
             Function(f) => Ok(f.val().clone()),
             Constant(c) => Ok(c.val().clone()),
             Variable(v) => {

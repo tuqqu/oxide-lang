@@ -48,12 +48,7 @@ impl Lexer<'_> {
             self.token();
         }
 
-        self.tokens.push(Token::new(
-            TokenType::Eof,
-            String::from(""),
-            String::from(""),
-            self.pos(),
-        ));
+        self.add_token_with_lexeme(TokenType::Eof, String::from(""));
 
         (&self.tokens, &self.errors)
     }
@@ -252,18 +247,14 @@ impl Lexer<'_> {
     }
 
     fn add_token(&mut self, token_type: TokenType) {
-        self.add_token_with_literal(token_type, "");
+        let lexeme = self.src_substr(self.start, self.current);
+        self.add_token_with_lexeme(token_type, lexeme);
     }
 
-    fn add_token_with_literal(&mut self, token_type: TokenType, literal: &str) {
-        let text = self.src_substr(self.start, self.current);
-        let len = text.len();
-        self.tokens.push(Token::new(
-            token_type,
-            text,
-            literal.to_string(),
-            self.pos(),
-        ));
+    fn add_token_with_lexeme(&mut self, token_type: TokenType, lexeme: String) {
+        let len = lexeme.len();
+
+        self.tokens.push(Token::new(token_type, lexeme, self.pos()));
 
         self.pos += len;
     }
@@ -307,7 +298,7 @@ impl Lexer<'_> {
         self.advance();
 
         let val = self.src_substr(self.start + 1, self.current - 1);
-        self.add_token_with_literal(TokenType::String, &val);
+        self.add_token_with_lexeme(TokenType::String, val);
     }
 
     fn src_substr(&self, start: usize, end: usize) -> String {
@@ -343,14 +334,11 @@ impl Lexer<'_> {
             }
         }
 
-        self.add_token_with_literal(
-            if float {
-                TokenType::NumberFloat
-            } else {
-                TokenType::NumberInt
-            },
-            &self.src_substr(self.start, self.current),
-        );
+        self.add_token(if float {
+            TokenType::NumberFloat
+        } else {
+            TokenType::NumberInt
+        });
     }
 
     fn identifier(&mut self) {
@@ -393,42 +381,12 @@ mod tests {
         assert_eq!(
             tokens,
             &vec![
-                Token::new(
-                    TokenType::Let,
-                    String::from("let"),
-                    String::from(""),
-                    Pos(1, 1)
-                ),
-                Token::new(
-                    TokenType::Identifier,
-                    String::from("x"),
-                    String::from(""),
-                    Pos(1, 5)
-                ),
-                Token::new(
-                    TokenType::Equal,
-                    String::from("="),
-                    String::from(""),
-                    Pos(1, 7)
-                ),
-                Token::new(
-                    TokenType::NumberInt,
-                    String::from("100"),
-                    String::from("100"),
-                    Pos(1, 9)
-                ),
-                Token::new(
-                    TokenType::Semicolon,
-                    String::from(";"),
-                    String::from(""),
-                    Pos(1, 12)
-                ),
-                Token::new(
-                    TokenType::Eof,
-                    String::from(""),
-                    String::from(""),
-                    Pos(1, 13)
-                ),
+                Token::new(TokenType::Let, String::from("let"), Pos(1, 1)),
+                Token::new(TokenType::Identifier, String::from("x"), Pos(1, 5)),
+                Token::new(TokenType::Equal, String::from("="), Pos(1, 7)),
+                Token::new(TokenType::NumberInt, String::from("100"), Pos(1, 9)),
+                Token::new(TokenType::Semicolon, String::from(";"), Pos(1, 12)),
+                Token::new(TokenType::Eof, String::from(""), Pos(1, 13)),
             ]
         );
     }
@@ -441,30 +399,10 @@ mod tests {
         assert_eq!(
             tokens,
             &vec![
-                Token::new(
-                    TokenType::Const,
-                    String::from("const"),
-                    String::from(""),
-                    Pos(1, 1)
-                ),
-                Token::new(
-                    TokenType::Identifier,
-                    String::from("X"),
-                    String::from(""),
-                    Pos(1, 7)
-                ),
-                Token::new(
-                    TokenType::Equal,
-                    String::from("="),
-                    String::from(""),
-                    Pos(1, 9)
-                ),
-                Token::new(
-                    TokenType::Eof,
-                    String::from(""),
-                    String::from(""),
-                    Pos(1, 11)
-                ),
+                Token::new(TokenType::Const, String::from("const"), Pos(1, 1)),
+                Token::new(TokenType::Identifier, String::from("X"), Pos(1, 7)),
+                Token::new(TokenType::Equal, String::from("="), Pos(1, 9)),
+                Token::new(TokenType::Eof, String::from(""), Pos(1, 11)),
             ]
         );
 
@@ -473,12 +411,7 @@ mod tests {
         assert!(!errs.is_empty());
         assert_eq!(
             tokens,
-            &vec![Token::new(
-                TokenType::Eof,
-                String::from(""),
-                String::from(""),
-                Pos(1, 1)
-            ),]
+            &vec![Token::new(TokenType::Eof, String::from(""), Pos(1, 1)),]
         );
     }
 }
