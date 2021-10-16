@@ -18,7 +18,6 @@ use oxide_parser::{Ast, Token, TokenType, ValType};
 
 use crate::env::{construct_static_name, Env, EnvVal, ResolvableName, ValuableName};
 use crate::error::RuntimeError;
-use crate::io::StdStreamProvider;
 use crate::val::{
     try_vtype_from_val, vtype_conforms_val, Callable, Function, PropFuncVal, StmtVal,
     StructCallable, StructInstance, Val, VecInstance,
@@ -50,17 +49,12 @@ impl Interpreter {
     const ENTRY_POINT: &'static str = "main";
 
     /// Returns an interpreter instance.
-    pub(crate) fn new(
-        stdlib: Env,
-        streams: Option<Box<dyn StreamProvider>>,
-        argv: &[String],
-    ) -> Self {
+    pub(crate) fn new(stdlib: Env, streams: Box<dyn StreamProvider>, argv: &[String]) -> Self {
         let mut args = Vec::<Val>::with_capacity(argv.len());
         for arg in argv {
             args.push(Val::Str(arg.clone()));
         }
 
-        let streams = streams.unwrap_or_else(|| Box::new(StdStreamProvider::new(None)));
         let glob = Rc::new(RefCell::new(stdlib));
         let env = Rc::clone(&glob);
 

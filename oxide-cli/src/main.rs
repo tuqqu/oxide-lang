@@ -87,7 +87,7 @@ fn print_help() {
             r"Oxide {}
 
 USAGE:
-    oxide [FLAGS] [FILE]
+    oxide [FLAGS] [ARGS]
 
 FLAGS:
     -h, --help              Prints help
@@ -96,10 +96,12 @@ FLAGS:
     -t, --allow-top-level   Allow top-level instructions
 
 ARGS:
-    <FILE>   Script file to run
+    <FILE>  Script file to run
+    <ARGV>  Arguments passed to script
 
 EXAMPLE:
-    oxide script.ox",
+    oxide script.ox arg1 arg2
+",
             Engine::VERSION
         )
     );
@@ -114,7 +116,7 @@ fn eprint_error(msg: &str) {
     eprintln!("Run the command with \"--help\" to see help information.");
 }
 
-fn on_error_handler(errs: Vec<Box<dyn std::error::Error>>) -> ! {
+fn on_error_handler(errs: &[Box<dyn std::error::Error>]) -> ! {
     for err in errs {
         eprintln!("\x1b[0;31m{}\x1b[0m", err);
     }

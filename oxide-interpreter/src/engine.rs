@@ -5,9 +5,9 @@ use oxide_parser::{Ast, Lexer, Parser};
 use crate::env::Env;
 use crate::interpreter::Interpreter;
 use crate::val::Val;
-use crate::StreamProvider;
+use crate::{StdStreamProvider, StreamProvider};
 
-type ErrorHandler = fn(Vec<Box<dyn error::Error>>) -> !;
+type ErrorHandler = fn(&[Box<dyn error::Error>]) -> !;
 
 pub struct Engine {
     on_error: ErrorHandler,
@@ -25,14 +25,14 @@ impl Engine {
         let mut lexer = Lexer::new(src);
         let (tokens, errors) = lexer.tokenize();
         if !errors.is_empty() {
-            (self.on_error)(Self::box_errors(errors.to_vec()));
+            (self.on_error)(&Self::box_errors(errors.to_vec()));
         }
 
         let mut parser = Parser::new(tokens.to_vec());
         let ast = match parser.parse() {
             Ok(ast) => ast,
             Err(errors) => {
-                (self.on_error)(Self::box_errors(errors.to_vec()));
+                (self.on_error)(&Self::box_errors(errors.to_vec()));
             }
         };
 
@@ -40,15 +40,17 @@ impl Engine {
     }
 
     pub fn run(&self, ast: &Ast, argv: &[String], streams: Option<Box<dyn StreamProvider>>) -> Val {
-        let mut i = Interpreter::new(Env::new_stdlib(), streams, argv);
-        self.run_code(ast, &mut i)
+        let streams = streams.unwrap_or_else(|| Box::new(StdStreamProvider::new(None)));
+        let mut inter = Interpreter::new(Env::new_stdlib(), streams, argv);
+
+        self.run_code(ast, &mut inter)
     }
 
-    fn run_code(&self, ast: &Ast, i: &mut Interpreter) -> Val {
-        match i.interpret(ast) {
+    fn run_code(&self, ast: &Ast, inter: &mut Interpreter) -> Val {
+        match inter.interpret(ast) {
             Ok(val) => val,
             Err(e) => {
-                (self.on_error)(Self::box_errors(vec![e]));
+                (self.on_error)(&Self::box_errors(vec![e]));
             }
         }
     }
