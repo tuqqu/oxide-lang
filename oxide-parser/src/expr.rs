@@ -1,5 +1,6 @@
-use crate::lexer::Token;
+use crate::stmt::Block;
 use crate::valtype::ValType;
+use crate::Token;
 
 #[derive(Debug, Clone)]
 pub enum Expr {
@@ -30,23 +31,10 @@ pub enum Expr {
     MatchExpr(Match),
 }
 
-#[derive(Debug, Clone)]
-pub enum Stmt {
-    Break,
-    Continue,
-    Expr(Expr),
-    Return(Return),
-    Let(VarDecl),
-    Const(ConstDecl),
-    BlockStmt(Block),
-    IfStmt(If),
-    Fn(FnDecl),
-    Enum(EnumDecl),
-    Struct(StructDecl),
-    Impl(ImplDecl),
-    Trait(TraitDecl),
-    LoopStmt(Loop),
-    ForInStmt(ForIn),
+impl Expr {
+    pub(crate) fn is_empty(&self) -> bool {
+        matches!(self, Expr::EmptyExpr)
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -66,509 +54,482 @@ pub struct StrLiteral(pub String);
 
 #[derive(Debug, Clone)]
 pub struct Unary {
-    pub expr: Box<Expr>,
-    pub operator: Token,
+    expr: Box<Expr>,
+    operator: Token,
+}
+
+impl Unary {
+    pub(crate) fn new(expr: Expr, operator: Token) -> Self {
+        Self {
+            expr: Box::new(expr),
+            operator,
+        }
+    }
+
+    pub fn expr(&self) -> &Expr {
+        &self.expr
+    }
+
+    pub fn operator(&self) -> &Token {
+        &self.operator
+    }
 }
 
 #[derive(Debug, Clone)]
 pub struct SelfStatic {
-    pub self_static: Token,
+    self_static: Token,
+}
+
+impl SelfStatic {
+    pub(crate) fn new(self_static: Token) -> Self {
+        Self { self_static }
+    }
+
+    pub fn self_static(&self) -> &Token {
+        &self.self_static
+    }
 }
 
 #[derive(Debug, Clone)]
 pub struct Self_ {
-    pub self_: Token,
+    self_: Token,
+}
+
+impl Self_ {
+    pub(crate) fn new(self_: Token) -> Self {
+        Self { self_ }
+    }
+
+    pub fn self_(&self) -> &Token {
+        &self.self_
+    }
 }
 
 #[derive(Debug, Clone)]
 pub struct Call {
-    pub callee: Box<Expr>,
-    pub args: Vec<Expr>,
+    callee: Box<Expr>,
+    args: Vec<Expr>,
+}
+
+impl Call {
+    pub(crate) fn new(callee: Expr, args: Vec<Expr>) -> Self {
+        Self {
+            callee: Box::new(callee),
+            args,
+        }
+    }
+
+    pub fn callee(&self) -> &Expr {
+        &self.callee
+    }
+
+    pub fn args(&self) -> &[Expr] {
+        &self.args
+    }
 }
 
 #[derive(Debug, Clone)]
 pub struct CallStruct {
-    pub callee: Box<Expr>,
-    pub args: Vec<(Token, Expr)>,
+    callee: Box<Expr>,
+    args: Vec<(Token, Expr)>,
+}
+
+impl CallStruct {
+    pub(crate) fn new(callee: Expr, args: Vec<(Token, Expr)>) -> Self {
+        Self {
+            callee: Box::new(callee),
+            args,
+        }
+    }
+
+    pub fn callee(&self) -> &Expr {
+        &self.callee
+    }
+
+    pub fn args(&self) -> &[(Token, Expr)] {
+        &self.args
+    }
 }
 
 #[derive(Debug, Clone)]
 pub struct Vec_ {
-    pub token: Token,
-    pub vals: Vec<Expr>,
-    pub val_type: Option<ValType>,
-}
-
-#[derive(Debug, Clone)]
-pub struct VecIndex {
-    pub callee: Box<Expr>,
-    pub index: Box<Expr>,
-}
-
-#[derive(Debug, Clone)]
-pub struct GetStaticProp {
-    pub name: Box<Expr>,
-    pub prop_name: Token,
-}
-
-#[derive(Debug, Clone)]
-pub struct GetProp {
-    pub name: Box<Expr>,
-    pub prop_name: Token,
-}
-
-#[derive(Debug, Clone)]
-pub struct SetProp {
-    pub name: Box<Expr>,
-    pub prop_name: Token,
-    pub operator: Token,
-    pub expr: Box<Expr>,
-}
-
-#[derive(Debug, Clone)]
-pub struct SetIndex {
-    pub name: Box<Expr>,
-    pub index: Box<Expr>,
-    pub operator: Token,
-    pub expr: Box<Expr>,
-}
-
-pub type ParamList = Vec<(Token, ValType, bool)>;
-
-#[derive(Debug, Clone)]
-pub struct Lambda {
-    pub params: ParamList,
-    pub ret_type: ValType,
-    pub body: Vec<Stmt>,
-}
-
-#[derive(Debug, Clone)]
-pub struct Binary {
-    pub left: Box<Expr>,
-    pub right: Box<Expr>,
-    pub operator: Token,
-}
-
-#[derive(Debug, Clone)]
-pub struct TypeCast {
-    pub left: Box<Expr>,
-    pub to_type: ValType,
-    pub operator: Token,
-}
-
-#[derive(Debug, Clone)]
-pub struct Grouping {
-    pub expr: Box<Expr>,
-}
-
-#[derive(Debug, Clone)]
-pub struct Variable {
-    pub name: Token,
-}
-
-#[derive(Debug, Clone)]
-pub struct Assignment {
-    pub name: Token,
-    pub operator: Token,
-    pub expr: Box<Expr>,
-}
-
-#[derive(Debug, Clone)]
-pub struct VarDecl {
-    pub name: Token,
-    pub init: Box<Option<Expr>>,
-    pub v_type: Option<ValType>,
-    pub mutable: bool,
-}
-
-#[derive(Debug, Clone)]
-pub struct ConstDecl {
-    pub name: Token,
-    pub init: Box<Expr>,
-    pub v_type: Option<ValType>,
-}
-
-#[derive(Debug, Clone)]
-pub struct Block {
-    pub stmts: Vec<Stmt>,
-}
-
-#[derive(Debug, Clone)]
-pub struct If {
-    pub condition: Box<Expr>,
-    pub then_stmt: Box<Stmt>,
-    pub else_stmt: Option<Box<Stmt>>,
-}
-
-#[derive(Debug, Clone)]
-pub struct Return {
-    pub keyword: Token,
-    pub expr: Box<Expr>,
-}
-
-#[derive(Debug, Clone)]
-pub struct FnDecl {
-    pub name: Token,
-    pub lambda: Lambda,
-}
-
-// FIXME: try to unite FnSignature with FnDecl and Lambda
-#[derive(Debug, Clone)]
-pub struct FnSignatureDecl {
-    pub name: Token,
-    pub params: ParamList,
-    pub ret_type: ValType,
-}
-
-#[derive(Debug, Clone)]
-pub struct EnumDecl {
-    /// Enum name.
-    pub name: Token,
-    /// Vector of values.
-    pub vals: Vec<Token>,
-}
-
-type StructItems<T> = Vec<(T, bool)>;
-
-#[derive(Debug, Clone)]
-pub struct StructDecl {
-    /// Struct name.
-    pub name: Token,
-    /// Vector of properties.
-    pub props: StructItems<VarDecl>,
-}
-
-#[derive(Debug, Clone)]
-pub struct ImplDecl {
-    /// Impl name.
-    pub impl_name: Token,
-    /// For name if present.
-    pub for_name: Option<Token>,
-    /// Instance methods.
-    pub methods: StructItems<FnDecl>,
-    /// Static methods.
-    pub fns: StructItems<FnDecl>,
-    /// Associated constants.
-    pub consts: StructItems<ConstDecl>,
-}
-
-#[derive(Debug, Clone)]
-pub struct TraitDecl {
-    /// Trait name.
-    pub name: Token,
-    /// Instance method signatures
-    pub method_signs: Vec<FnSignatureDecl>,
-}
-
-#[derive(Debug, Clone)]
-pub struct Loop {
-    pub inc: Box<Expr>,
-    pub condition: Box<Expr>,
-    pub body: Box<Stmt>,
-}
-
-#[derive(Debug, Clone)]
-pub struct ForIn {
-    pub iter_value: Token,
-    pub index_value: Option<Token>,
-    pub iter: Box<Expr>,
-    pub body: Vec<Stmt>,
-}
-
-#[derive(Debug, Clone)]
-pub struct Match {
-    pub keyword: Token,
-    pub expr: Box<Expr>,
-    pub arms: Vec<MatchArm>,
-    pub default: Option<Box<Expr>>,
-}
-
-#[derive(Debug, Clone)]
-pub struct MatchArm {
-    pub expr: Box<Expr>,
-    pub body: Box<Expr>,
-}
-
-impl Expr {
-    pub fn is_empty(&self) -> bool {
-        matches!(self, Expr::EmptyExpr)
-    }
-}
-
-impl Binary {
-    pub fn new(left: Box<Expr>, right: Box<Expr>, operator: Token) -> Self {
-        Self {
-            left,
-            right,
-            operator,
-        }
-    }
-}
-
-impl TypeCast {
-    pub fn new(left: Box<Expr>, to_type: ValType, operator: Token) -> Self {
-        Self {
-            left,
-            to_type,
-            operator,
-        }
-    }
-}
-
-impl Unary {
-    pub fn new(expr: Box<Expr>, operator: Token) -> Self {
-        Self { expr, operator }
-    }
-}
-
-impl Call {
-    pub fn new(callee: Box<Expr>, args: Vec<Expr>) -> Self {
-        Self { callee, args }
-    }
-}
-
-impl SelfStatic {
-    pub fn new(self_static: Token) -> Self {
-        Self { self_static }
-    }
-}
-
-impl Self_ {
-    pub fn new(self_: Token) -> Self {
-        Self { self_ }
-    }
-}
-
-impl CallStruct {
-    pub fn new(callee: Box<Expr>, args: Vec<(Token, Expr)>) -> Self {
-        Self { callee, args }
-    }
+    token: Token,
+    vals: Vec<Expr>,
+    val_type: Option<ValType>,
 }
 
 impl Vec_ {
-    pub fn new(vals: Vec<Expr>, val_type: Option<ValType>, token: Token) -> Self {
+    pub(crate) fn new(vals: Vec<Expr>, val_type: Option<ValType>, token: Token) -> Self {
         Self {
             token,
             vals,
             val_type,
         }
     }
+
+    pub fn token(&self) -> &Token {
+        &self.token
+    }
+    pub fn vals(&self) -> &[Expr] {
+        &self.vals
+    }
+
+    pub fn val_type(&self) -> &Option<ValType> {
+        &self.val_type
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct VecIndex {
+    callee: Box<Expr>,
+    index: Box<Expr>,
 }
 
 impl VecIndex {
-    pub fn new(callee: Box<Expr>, index: Box<Expr>) -> Self {
-        Self { callee, index }
+    pub(crate) fn new(callee: Expr, index: Expr) -> Self {
+        Self {
+            callee: Box::new(callee),
+            index: Box::new(index),
+        }
     }
+
+    pub fn callee(&self) -> &Expr {
+        &self.callee
+    }
+
+    pub fn index(&self) -> &Expr {
+        &self.index
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct GetStaticProp {
+    name: Box<Expr>,
+    prop_name: Token,
 }
 
 impl GetStaticProp {
-    pub fn new(name: Box<Expr>, prop_name: Token) -> Self {
-        Self { name, prop_name }
+    pub(crate) fn new(name: Expr, prop_name: Token) -> Self {
+        Self {
+            name: Box::new(name),
+            prop_name,
+        }
     }
+
+    pub fn name(&self) -> &Expr {
+        &self.name
+    }
+
+    pub fn prop_name(&self) -> &Token {
+        &self.prop_name
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct GetProp {
+    name: Box<Expr>,
+    prop_name: Token,
 }
 
 impl GetProp {
-    pub fn new(name: Box<Expr>, prop_name: Token) -> Self {
-        Self { name, prop_name }
+    pub(crate) fn new(name: Expr, prop_name: Token) -> Self {
+        Self {
+            name: Box::new(name),
+            prop_name,
+        }
     }
+
+    pub fn name(&self) -> &Expr {
+        &self.name
+    }
+
+    pub fn prop_name(&self) -> &Token {
+        &self.prop_name
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct SetProp {
+    name: Box<Expr>,
+    prop_name: Token,
+    operator: Token,
+    expr: Box<Expr>,
 }
 
 impl SetProp {
-    pub fn new(name: Box<Expr>, prop_name: Token, operator: Token, expr: Box<Expr>) -> Self {
+    pub(crate) fn new(name: Expr, prop_name: Token, operator: Token, expr: Expr) -> Self {
         Self {
-            name,
+            name: Box::new(name),
             prop_name,
             operator,
-            expr,
+            expr: Box::new(expr),
         }
     }
+
+    pub fn name(&self) -> &Expr {
+        &self.name
+    }
+
+    pub fn prop_name(&self) -> &Token {
+        &self.prop_name
+    }
+
+    pub fn operator(&self) -> &Token {
+        &self.operator
+    }
+
+    pub fn expr(&self) -> &Expr {
+        &self.expr
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct SetIndex {
+    name: Box<Expr>,
+    index: Box<Expr>,
+    operator: Token,
+    expr: Box<Expr>,
 }
 
 impl SetIndex {
-    pub fn new(name: Box<Expr>, index: Box<Expr>, operator: Token, expr: Box<Expr>) -> Self {
+    pub(crate) fn new(name: Expr, index: Expr, operator: Token, expr: Expr) -> Self {
         Self {
-            name,
-            index,
+            name: Box::new(name),
+            index: Box::new(index),
             operator,
-            expr,
+            expr: Box::new(expr),
         }
     }
-}
 
-impl Grouping {
-    pub fn new(expr: Box<Expr>) -> Self {
-        Self { expr }
+    pub fn name(&self) -> &Expr {
+        &self.name
+    }
+
+    pub fn index(&self) -> &Expr {
+        &self.index
+    }
+
+    pub fn operator(&self) -> &Token {
+        &self.operator
+    }
+
+    pub fn expr(&self) -> &Expr {
+        &self.expr
     }
 }
 
-impl Variable {
-    pub fn new(name: Token) -> Self {
-        Self { name }
-    }
-}
+pub type Param = (Token, ValType, bool);
 
-impl Assignment {
-    pub fn new(name: Token, operator: Token, expr: Box<Expr>) -> Self {
-        Self {
-            name,
-            operator,
-            expr,
-        }
-    }
-}
-
-impl VarDecl {
-    pub fn new(
-        name: Token,
-        init: Box<Option<Expr>>,
-        mutable: bool,
-        v_type: Option<ValType>,
-    ) -> Self {
-        Self {
-            name,
-            init,
-            v_type,
-            mutable,
-        }
-    }
-}
-
-impl ConstDecl {
-    pub fn new(name: Token, init: Box<Expr>, v_type: Option<ValType>) -> Self {
-        Self { name, init, v_type }
-    }
-}
-
-impl Block {
-    pub fn new(stmts: Vec<Stmt>) -> Self {
-        Self { stmts }
-    }
-}
-
-impl If {
-    pub fn new(condition: Box<Expr>, then_stmt: Box<Stmt>, else_stmt: Option<Box<Stmt>>) -> Self {
-        Self {
-            condition,
-            then_stmt,
-            else_stmt,
-        }
-    }
-}
-
-impl Return {
-    pub fn new(keyword: Token, expr: Box<Expr>) -> Self {
-        Self { keyword, expr }
-    }
-}
-
-impl FnDecl {
-    pub const MAX_ARGS: usize = 127;
-
-    pub fn new(name: Token, lambda: Lambda) -> Self {
-        Self { name, lambda }
-    }
-}
-
-impl FnSignatureDecl {
-    pub fn new(name: Token, params: ParamList, ret_type: ValType) -> Self {
-        Self {
-            name,
-            params,
-            ret_type,
-        }
-    }
-}
-
-impl EnumDecl {
-    pub fn new(name: Token, vals: Vec<Token>) -> Self {
-        Self { name, vals }
-    }
-}
-
-impl StructDecl {
-    pub fn new(name: Token, props: StructItems<VarDecl>) -> Self {
-        Self { name, props }
-    }
-}
-
-impl ImplDecl {
-    pub fn new(
-        impl_name: Token,
-        for_name: Option<Token>,
-        methods: StructItems<FnDecl>,
-        fns: StructItems<FnDecl>,
-        consts: StructItems<ConstDecl>,
-    ) -> Self {
-        Self {
-            impl_name,
-            for_name,
-            methods,
-            fns,
-            consts,
-        }
-    }
-}
-
-impl TraitDecl {
-    pub fn new(name: Token, method_signs: Vec<FnSignatureDecl>) -> Self {
-        Self { name, method_signs }
-    }
+#[derive(Debug, Clone)]
+pub struct Lambda {
+    params: Vec<Param>,
+    ret_type: ValType,
+    /// Body of the lambda.
+    /// We store Block directly instead of the generic Stmt
+    /// Because we need to evaluate it with a custom env
+    body: Block,
 }
 
 impl Lambda {
-    pub fn new(params: ParamList, ret_type: ValType, body: Vec<Stmt>) -> Self {
+    pub(crate) fn new(params: Vec<Param>, ret_type: ValType, body: Block) -> Self {
         Self {
             params,
             ret_type,
             body,
         }
     }
-}
 
-impl Loop {
-    pub fn new(inc: Box<Expr>, condition: Box<Expr>, body: Box<Stmt>) -> Self {
-        Self {
-            inc,
-            condition,
-            body,
-        }
+    pub fn params(&self) -> &[Param] {
+        &self.params
+    }
+
+    pub fn ret_type(&self) -> &ValType {
+        &self.ret_type
+    }
+
+    pub fn body(&self) -> &Block {
+        &self.body
     }
 }
 
-impl ForIn {
-    pub fn new(
-        iter_value: Token,
-        index_value: Option<Token>,
-        iter: Box<Expr>,
-        body: Vec<Stmt>,
-    ) -> Self {
+#[derive(Debug, Clone)]
+pub struct Binary {
+    left: Box<Expr>,
+    right: Box<Expr>,
+    operator: Token,
+}
+
+impl Binary {
+    pub(crate) fn new(left: Expr, right: Expr, operator: Token) -> Self {
         Self {
-            iter_value,
-            index_value,
-            iter,
-            body,
+            left: Box::new(left),
+            right: Box::new(right),
+            operator,
         }
     }
+
+    pub fn left(&self) -> &Expr {
+        &self.left
+    }
+
+    pub fn right(&self) -> &Expr {
+        &self.right
+    }
+
+    pub fn operator(&self) -> &Token {
+        &self.operator
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct TypeCast {
+    left: Box<Expr>,
+    to_type: ValType,
+    operator: Token,
+}
+
+impl TypeCast {
+    pub(crate) fn new(left: Expr, to_type: ValType, operator: Token) -> Self {
+        Self {
+            left: Box::new(left),
+            to_type,
+            operator,
+        }
+    }
+
+    pub fn left(&self) -> &Expr {
+        &self.left
+    }
+
+    pub fn to_type(&self) -> &ValType {
+        &self.to_type
+    }
+
+    pub fn operator(&self) -> &Token {
+        &self.operator
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct Grouping {
+    expr: Box<Expr>,
+}
+
+impl Grouping {
+    pub(crate) fn new(expr: Expr) -> Self {
+        Self {
+            expr: Box::new(expr),
+        }
+    }
+
+    pub fn expr(&self) -> &Expr {
+        &self.expr
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct Variable {
+    name: Token,
+}
+
+impl Variable {
+    pub(crate) fn new(name: Token) -> Self {
+        Self { name }
+    }
+
+    pub fn name(&self) -> &Token {
+        &self.name
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct Assignment {
+    name: Token,
+    operator: Token,
+    expr: Box<Expr>,
+}
+
+impl Assignment {
+    pub(crate) fn new(name: Token, operator: Token, expr: Expr) -> Self {
+        Self {
+            name,
+            operator,
+            expr: Box::new(expr),
+        }
+    }
+
+    pub fn name(&self) -> &Token {
+        &self.name
+    }
+
+    pub fn operator(&self) -> &Token {
+        &self.operator
+    }
+
+    pub fn expr(&self) -> &Expr {
+        &self.expr
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct Match {
+    keyword: Token,
+    expr: Box<Expr>,
+    arms: Vec<MatchArm>,
+    default: Option<Box<Expr>>,
 }
 
 impl Match {
-    pub fn new(
+    pub(crate) fn new(
         keyword: Token,
-        expr: Box<Expr>,
+        expr: Expr,
         arms: Vec<MatchArm>,
         default: Option<Box<Expr>>,
     ) -> Self {
         Self {
             keyword,
-            expr,
+            expr: Box::new(expr),
             arms,
             default,
         }
     }
+
+    pub fn keyword(&self) -> &Token {
+        &self.keyword
+    }
+
+    pub fn expr(&self) -> &Expr {
+        &self.expr
+    }
+
+    pub fn arms(&self) -> &[MatchArm] {
+        &self.arms
+    }
+
+    pub fn default(&self) -> &Option<Box<Expr>> {
+        &self.default
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct MatchArm {
+    expr: Box<Expr>,
+    body: Box<Expr>,
 }
 
 impl MatchArm {
-    pub fn new(expr: Box<Expr>, body: Box<Expr>) -> Self {
-        Self { expr, body }
+    pub(crate) fn new(expr: Expr, body: Expr) -> Self {
+        Self {
+            expr: Box::new(expr),
+            body: Box::new(body),
+        }
+    }
+
+    pub fn expr(&self) -> &Expr {
+        &self.expr
+    }
+
+    pub fn body(&self) -> &Expr {
+        &self.body
     }
 }

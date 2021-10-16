@@ -2,7 +2,7 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
 
-use oxide_parser::expr::{ConstDecl, FnDecl, FnSignatureDecl};
+use oxide_parser::stmt::{ConstDecl, FnDecl, FnSignatureDecl};
 use oxide_parser::{Token, ValType};
 
 use super::val::Val;

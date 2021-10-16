@@ -98,14 +98,7 @@ pub struct FnType {
 impl FnType {
     const TYPE: &'static str = TYPE_FN;
 
-    pub fn new(param_types: Vec<ValType>, ret_type: Box<ValType>) -> Self {
-        Self {
-            param_types,
-            ret_type,
-        }
-    }
-
-    pub fn get_type(param_types: &[ValType], ret_type: &ValType) -> String {
+    pub fn construct_type(param_types: &[ValType], ret_type: &ValType) -> String {
         format!(
             "{}({}){}",
             Self::TYPE,
@@ -122,6 +115,13 @@ impl FnType {
         )
     }
 
+    pub fn new(param_types: Vec<ValType>, ret_type: Box<ValType>) -> Self {
+        Self {
+            param_types,
+            ret_type,
+        }
+    }
+
     pub fn param_types(&self) -> &[ValType] {
         &self.param_types
     }
@@ -133,7 +133,11 @@ impl FnType {
 
 impl fmt::Display for FnType {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}", Self::get_type(&self.param_types, &self.ret_type))
+        write!(
+            f,
+            "{}",
+            Self::construct_type(&self.param_types, &self.ret_type)
+        )
     }
 }
 

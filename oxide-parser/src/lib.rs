@@ -6,4 +6,5 @@ mod error;
 pub mod expr;
 mod lexer;
 mod parser;
+pub mod stmt;
 pub mod valtype;

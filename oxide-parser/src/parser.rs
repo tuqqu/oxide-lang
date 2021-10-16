@@ -2,13 +2,15 @@ use std::result;
 
 use crate::error::ParseError;
 use crate::expr::{
-    Assignment, Binary, Block, BoolLiteral, Call, CallStruct, ConstDecl, EnumDecl, Expr,
-    FloatLiteral, FnDecl, FnSignatureDecl, ForIn, GetProp, GetStaticProp, Grouping, If, ImplDecl,
-    IntLiteral, Lambda, Loop, Match, MatchArm, NilLiteral, ParamList, Return, SelfStatic, Self_,
-    SetIndex, SetProp, Stmt, StrLiteral, StructDecl, TraitDecl, TypeCast, Unary, VarDecl, Variable,
-    VecIndex, Vec_,
+    Assignment, Binary, BoolLiteral, Call, CallStruct, Expr, FloatLiteral, GetProp, GetStaticProp,
+    Grouping, IntLiteral, Lambda, Match, MatchArm, NilLiteral, Param, SelfStatic, Self_, SetIndex,
+    SetProp, StrLiteral, TypeCast, Unary, Variable, VecIndex, Vec_,
 };
 use crate::lexer::{Token, TokenType};
+use crate::stmt::{
+    Block, ConstDecl, EnumDecl, FnDecl, FnSignatureDecl, ForIn, If, ImplDecl, Loop, Return, Stmt,
+    StructDecl, TraitDecl, VarDecl,
+};
 use crate::valtype::{FnType, ValType};
 
 type ParseResult<'a, T> = result::Result<T, &'a [ParseError]>;
@@ -171,7 +173,7 @@ impl Parser {
         };
 
         self.consume(TokenType::Semicolon, None)?;
-        let var_decl_stmt = Stmt::Let(VarDecl::new(name, Box::new(init), mutable, v_type));
+        let var_decl_stmt = Stmt::Let(VarDecl::new(name, init, mutable, v_type));
 
         Ok(var_decl_stmt)
     }
@@ -184,7 +186,7 @@ impl Parser {
         self.consume(TokenType::Colon, None)?;
 
         let v_type = self.type_decl()?;
-        let var_decl = VarDecl::new(name, Box::new(None), true, Some(v_type));
+        let var_decl = VarDecl::new(name, None, true, Some(v_type));
 
         Ok(var_decl)
     }
@@ -231,7 +233,7 @@ impl Parser {
 
         self.consume(TokenType::Semicolon, None)?;
 
-        let const_decl = ConstDecl::new(name, Box::new(init), v_type);
+        let const_decl = ConstDecl::new(name, init, v_type);
 
         Ok(const_decl)
     }
@@ -513,14 +515,14 @@ impl Parser {
     /// Since match is an expression, it must end with a semicolon.
     fn match_expr(&mut self) -> Result<Expr> {
         let token = self.previous().clone();
-        let expr = Box::new(self.any_expr()?);
+        let expr = self.any_expr()?;
         self.consume(TokenType::LeftCurlyBrace, None)?;
         let mut branches = vec![];
 
         loop {
-            let br_expr = Box::new(self.any_expr()?);
+            let br_expr = self.any_expr()?;
             self.consume(TokenType::FatArrow, None)?;
-            let br_body = Box::new(self.any_expr()?);
+            let br_body = self.any_expr()?;
             branches.push(MatchArm::new(br_expr, br_body));
 
             if !self.match_token(TokenType::Comma) {
@@ -546,14 +548,13 @@ impl Parser {
         let (params, instance_method) = self.param_list(expect_method)?;
         let ret_type = self.return_type()?;
         let body = self.block_stmt()?;
-
         let body = if let Stmt::BlockStmt(block) = body {
             block
         } else {
             return Err(ParseError::BlockExpected(self.peek().clone()));
         };
 
-        let lambda_expr = Expr::FnExpr(Lambda::new(params, ret_type, body.stmts));
+        let lambda_expr = Expr::FnExpr(Lambda::new(params, ret_type, body));
 
         self.fn_depth -= 1;
 
@@ -561,7 +562,7 @@ impl Parser {
     }
 
     /// Parses parameter list in function declaration, expressions and signatures.
-    fn param_list(&mut self, expect_method: bool) -> Result<(ParamList, bool)> {
+    fn param_list(&mut self, expect_method: bool) -> Result<(Vec<Param>, bool)> {
         self.consume(TokenType::LeftParen, None)?;
 
         let mut params: Vec<(Token, ValType, bool)> = vec![];
@@ -667,7 +668,7 @@ impl Parser {
         }
 
         if self.match_token(TokenType::LeftCurlyBrace) {
-            let block_stmt = Stmt::BlockStmt(Block::new(self.block()?));
+            let block_stmt = Stmt::BlockStmt(self.block()?);
 
             return Ok(block_stmt);
         }
@@ -676,17 +677,16 @@ impl Parser {
     }
 
     fn if_stmt(&mut self) -> Result<Stmt> {
-        let condition = Box::new(self.any_expr()?);
-        let then_stmt = Box::new(self.block_stmt()?);
+        let condition = self.any_expr()?;
+        let then_stmt = self.block_stmt()?;
         let else_stmt = if self.match_token(TokenType::Else) {
-            let stmt = if self.match_token(TokenType::If) {
+            if self.match_token(TokenType::If) {
                 self.if_stmt()?
             } else {
                 self.block_stmt()?
-            };
-            Some(Box::new(stmt))
+            }
         } else {
-            None
+            Stmt::Expr(Expr::EmptyExpr)
         };
 
         let if_stmt = Stmt::IfStmt(If::new(condition, then_stmt, else_stmt));
@@ -712,11 +712,7 @@ impl Parser {
             }
         };
 
-        let while_stmt = Stmt::LoopStmt(Loop::new(
-            Box::new(Expr::EmptyExpr),
-            Box::new(condition),
-            Box::new(body),
-        ));
+        let while_stmt = Stmt::LoopStmt(Loop::new(Expr::EmptyExpr, condition, body));
 
         self.loop_depth -= 1;
 
@@ -735,9 +731,9 @@ impl Parser {
         };
 
         let loop_stmt = Stmt::LoopStmt(Loop::new(
-            Box::new(Expr::EmptyExpr),
-            Box::new(Expr::BoolLiteralExpr(BoolLiteral(true))),
-            Box::new(body),
+            Expr::EmptyExpr,
+            Expr::BoolLiteralExpr(BoolLiteral(true)),
+            body,
         ));
 
         Ok(loop_stmt)
@@ -784,7 +780,7 @@ impl Parser {
 
         self.consume(TokenType::Semicolon, None)?;
 
-        let inc = Box::new(if self.check(TokenType::LeftCurlyBrace) {
+        let inc = if self.check(TokenType::LeftCurlyBrace) {
             Expr::EmptyExpr
         } else {
             match self.any_expr() {
@@ -794,7 +790,7 @@ impl Parser {
                     return Err(e);
                 }
             }
-        });
+        };
 
         let block = match self.block_stmt() {
             Ok(stmt) => stmt,
@@ -804,15 +800,13 @@ impl Parser {
             }
         };
 
-        let body = Box::new(block);
-
-        let condition = Box::new(if condition.is_empty() {
+        let condition = if condition.is_empty() {
             Expr::BoolLiteralExpr(BoolLiteral(true))
         } else {
             condition
-        });
+        };
 
-        let mut for_stmt = Stmt::LoopStmt(Loop::new(inc, condition, body));
+        let mut for_stmt = Stmt::LoopStmt(Loop::new(inc, condition, block));
 
         if init.is_some() {
             for_stmt = Stmt::BlockStmt(Block::new(vec![init.unwrap(), for_stmt]));
@@ -849,12 +843,7 @@ impl Parser {
             return Err(ParseError::BlockExpected(self.peek().clone()));
         };
 
-        let for_in_stmt = Stmt::ForInStmt(ForIn::new(
-            iter_value,
-            index_value,
-            Box::new(iter),
-            block.stmts,
-        ));
+        let for_in_stmt = Stmt::ForInStmt(ForIn::new(iter_value, index_value, iter, block));
         self.loop_depth -= 1;
 
         Ok(for_in_stmt)
@@ -894,7 +883,7 @@ impl Parser {
 
         self.consume(TokenType::Semicolon, None)?;
 
-        Ok(Stmt::Return(Return::new(token, Box::new(expr))))
+        Ok(Stmt::Return(Return::new(token, expr)))
     }
 
     fn expr_stmt(&mut self) -> Result<Stmt> {
@@ -907,7 +896,7 @@ impl Parser {
 
     fn block_stmt(&mut self) -> Result<Stmt> {
         if self.match_token(TokenType::LeftCurlyBrace) {
-            let block_stmt = Stmt::BlockStmt(Block::new(self.block()?));
+            let block_stmt = Stmt::BlockStmt(self.block()?);
 
             return Ok(block_stmt);
         }
@@ -915,7 +904,7 @@ impl Parser {
         Err(ParseError::BlockExpected(self.tokens[self.current].clone()))
     }
 
-    fn block(&mut self) -> Result<Vec<Stmt>> {
+    fn block(&mut self) -> Result<Block> {
         let mut stmts = Vec::<Stmt>::new();
 
         while !self.check(TokenType::RightCurlyBrace) && !self.at_end() {
@@ -926,7 +915,7 @@ impl Parser {
 
         self.consume(TokenType::RightCurlyBrace, None)?;
 
-        Ok(stmts)
+        Ok(Block::new(stmts))
     }
 
     fn any_expr(&mut self) -> Result<Expr> {
@@ -954,21 +943,21 @@ impl Parser {
 
             return match &expr {
                 Expr::VariableExpr(variable) => Ok(Expr::AssignmentExpr(Assignment::new(
-                    variable.name.clone(),
+                    variable.name().clone(),
                     operator,
-                    Box::new(expr_val),
+                    expr_val,
                 ))),
                 Expr::GetPropExpr(get_prop) => Ok(Expr::SetPropExpr(SetProp::new(
-                    get_prop.name.clone(),
-                    get_prop.prop_name.clone(),
+                    get_prop.name().clone(),
+                    get_prop.prop_name().clone(),
                     operator,
-                    Box::new(expr_val),
+                    expr_val,
                 ))),
-                Expr::VecIndexExpr(vec_indx) => Ok(Expr::SetIndexExpr(SetIndex::new(
-                    vec_indx.callee.clone(),
-                    vec_indx.index.clone(),
+                Expr::VecIndexExpr(vec_index) => Ok(Expr::SetIndexExpr(SetIndex::new(
+                    vec_index.callee().clone(),
+                    vec_index.index().clone(),
                     operator,
-                    Box::new(expr_val),
+                    expr_val,
                 ))),
                 _ => Err(ParseError::UnexpectedExpr(
                     operator,
@@ -986,7 +975,7 @@ impl Parser {
         while self.match_token(TokenType::LogicOr) {
             let operator = self.previous().clone();
             let right = self.logic_and()?;
-            expr = Expr::LogicalBinaryExpr(Binary::new(Box::new(expr), Box::new(right), operator));
+            expr = Expr::LogicalBinaryExpr(Binary::new(expr, right, operator));
         }
 
         Ok(expr)
@@ -998,7 +987,7 @@ impl Parser {
         while self.match_token(TokenType::LogicAnd) {
             let operator = self.previous().clone();
             let right = self.equality_expr()?;
-            expr = Expr::LogicalBinaryExpr(Binary::new(Box::new(expr), Box::new(right), operator));
+            expr = Expr::LogicalBinaryExpr(Binary::new(expr, right, operator));
         }
 
         Ok(expr)
@@ -1010,7 +999,7 @@ impl Parser {
         while self.match_tokens(&[TokenType::BangEqual, TokenType::EqualEqual]) {
             let operator: Token = self.previous().clone();
             let right: Expr = self.comparison_expr()?;
-            expr = Expr::BinaryExpr(Binary::new(Box::new(expr), Box::new(right), operator));
+            expr = Expr::BinaryExpr(Binary::new(expr, right, operator));
         }
 
         Ok(expr)
@@ -1027,7 +1016,7 @@ impl Parser {
         ]) {
             let operator: Token = self.previous().clone();
             let right: Expr = self.bitwise_expr()?;
-            expr = Expr::BinaryExpr(Binary::new(Box::new(expr), Box::new(right), operator));
+            expr = Expr::BinaryExpr(Binary::new(expr, right, operator));
         }
 
         Ok(expr)
@@ -1043,7 +1032,7 @@ impl Parser {
         ]) {
             let operator: Token = self.previous().clone();
             let right: Expr = self.sum_expr()?;
-            expr = Expr::BinaryExpr(Binary::new(Box::new(expr), Box::new(right), operator));
+            expr = Expr::BinaryExpr(Binary::new(expr, right, operator));
         }
 
         Ok(expr)
@@ -1055,7 +1044,7 @@ impl Parser {
         while self.match_tokens(&[TokenType::Minus, TokenType::Plus]) {
             let operator: Token = self.previous().clone();
             let right: Expr = self.mult_expr()?;
-            expr = Expr::BinaryExpr(Binary::new(Box::new(expr), Box::new(right), operator));
+            expr = Expr::BinaryExpr(Binary::new(expr, right, operator));
         }
 
         Ok(expr)
@@ -1067,7 +1056,7 @@ impl Parser {
         while self.match_tokens(&[TokenType::Asterisk, TokenType::Slash, TokenType::Modulus]) {
             let operator: Token = self.previous().clone();
             let right: Expr = self.range_expr()?;
-            expr = Expr::BinaryExpr(Binary::new(Box::new(expr), Box::new(right), operator));
+            expr = Expr::BinaryExpr(Binary::new(expr, right, operator));
         }
 
         Ok(expr)
@@ -1079,7 +1068,7 @@ impl Parser {
         while self.match_tokens(&[TokenType::DotDot, TokenType::DotDotEqual]) {
             let operator: Token = self.previous().clone();
             let right: Expr = self.as_expr()?;
-            expr = Expr::BinaryExpr(Binary::new(Box::new(expr), Box::new(right), operator));
+            expr = Expr::BinaryExpr(Binary::new(expr, right, operator));
         }
 
         Ok(expr)
@@ -1091,7 +1080,7 @@ impl Parser {
         while self.match_token(TokenType::As) {
             let operator: Token = self.previous().clone();
             let to_type: ValType = self.consume_type()?;
-            expr = Expr::TypeCastExpr(TypeCast::new(Box::new(expr), to_type, operator));
+            expr = Expr::TypeCastExpr(TypeCast::new(expr, to_type, operator));
         }
 
         Ok(expr)
@@ -1101,7 +1090,7 @@ impl Parser {
         if self.match_tokens(&[TokenType::Bang, TokenType::Minus]) {
             let operator: Token = self.previous().clone();
             let right: Expr = self.unary_expr()?;
-            let unary = Expr::UnaryExpr(Unary::new(Box::new(right), operator));
+            let unary = Expr::UnaryExpr(Unary::new(right, operator));
 
             return Ok(unary);
         }
@@ -1139,13 +1128,13 @@ impl Parser {
                     TokenType::Identifier,
                     Some("Property or method name expected after \".\""),
                 )?;
-                expr = Expr::GetPropExpr(GetProp::new(Box::new(expr), name));
+                expr = Expr::GetPropExpr(GetProp::new(expr, name));
             } else if self.match_token(TokenType::ColonColon) {
                 let name = self.consume(
                     TokenType::Identifier,
                     Some("Constant or static method name expected after \"::\""),
                 )?;
-                expr = Expr::GetStaticExpr(GetStaticProp::new(Box::new(expr), name));
+                expr = Expr::GetStaticExpr(GetStaticProp::new(expr, name));
             } else {
                 break;
             }
@@ -1176,7 +1165,7 @@ impl Parser {
 
         self.consume(TokenType::RightParen, None)?;
 
-        let call = Expr::CallExpr(Call::new(Box::new(callee), args));
+        let call = Expr::CallExpr(Call::new(callee, args));
 
         Ok(call)
     }
@@ -1211,7 +1200,7 @@ impl Parser {
 
         self.consume(TokenType::RightCurlyBrace, None)?;
 
-        let call = Expr::CallStructExpr(CallStruct::new(Box::new(callee), args));
+        let call = Expr::CallStructExpr(CallStruct::new(callee, args));
 
         Ok(call)
     }
@@ -1221,7 +1210,7 @@ impl Parser {
 
         self.consume(TokenType::RightBracket, None)?;
 
-        let call = Expr::VecIndexExpr(VecIndex::new(Box::new(callee), Box::new(index_expr)));
+        let call = Expr::VecIndexExpr(VecIndex::new(callee, index_expr));
 
         Ok(call)
     }
@@ -1303,7 +1292,7 @@ impl Parser {
         if self.match_token(TokenType::LeftParen) {
             let expr = self.any_expr()?;
             self.consume(TokenType::RightParen, None)?;
-            let grouping_expr = Expr::GroupingExpr(Grouping::new(Box::new(expr)));
+            let grouping_expr = Expr::GroupingExpr(Grouping::new(expr));
 
             return Ok(grouping_expr);
         }

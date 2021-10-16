@@ -6,7 +6,8 @@ use std::rc::Rc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 
-use oxide_parser::expr::{Lambda, StructDecl};
+use oxide_parser::expr::Lambda;
+use oxide_parser::stmt::StructDecl;
 use oxide_parser::valtype::{
     FnType, Generics, ValType, TYPE_ANY, TYPE_BOOL, TYPE_ENUM, TYPE_FLOAT, TYPE_INT, TYPE_NIL,
     TYPE_STR, TYPE_STRUCT, TYPE_TRAIT, TYPE_UNINIT, TYPE_VEC,
@@ -524,7 +525,7 @@ impl Val {
             Str(_str) => TYPE_STR.to_string(),
             Int(_isize) => TYPE_INT.to_string(),
             Float(_f64) => TYPE_FLOAT.to_string(),
-            Callable(f) => FnType::get_type(&f.param_types, &f.ret_type),
+            Callable(f) => FnType::construct_type(&f.param_types, &f.ret_type),
             Struct(_t, _c) => TYPE_STRUCT.to_string(),
             StructInstance(i) => i.borrow().struct_name.clone(),
             Enum(_e) => TYPE_ENUM.to_string(),
@@ -558,7 +559,10 @@ impl Val {
             Str(s) => s.clone(),
             Int(n) => n.to_string(),
             Float(n) => n.to_string(),
-            Callable(c) => format!("[fn] {}", FnType::get_type(&c.param_types, &c.ret_type)),
+            Callable(c) => format!(
+                "[fn] {}",
+                FnType::construct_type(&c.param_types, &c.ret_type)
+            ),
             Struct(t, _c) => format!("[struct {}]", t.lexeme),
             StructInstance(i) => {
                 let mut props = vec![];
@@ -701,11 +705,11 @@ pub struct StructInstance {
 impl StructInstance {
     pub(crate) fn new(struct_: StructDecl, impls: Vec<Impl>) -> Rc<RefCell<Self>> {
         let mut props: HashMap<String, (Val, ValType, bool)> = HashMap::new();
-        for (prop, public) in struct_.props {
+        for (prop, public) in struct_.props() {
             // we can be sure that v_type is always present
             props.insert(
-                prop.name.lexeme.to_string(),
-                (Val::Uninit, prop.v_type.unwrap(), public),
+                prop.name().lexeme.to_string(),
+                (Val::Uninit, prop.v_type().clone().unwrap(), *public),
             );
         }
 
@@ -720,7 +724,7 @@ impl StructInstance {
             id: internal_id(),
             props,
             fns: HashMap::new(),
-            struct_name: struct_.name.lexeme,
+            struct_name: struct_.name().lexeme.clone(),
             impls: impl_names,
         };
 
@@ -729,8 +733,8 @@ impl StructInstance {
             let mut borrowed_self = self_.borrow_mut();
             for (fun, pub_) in impl_.methods() {
                 borrowed_self.fns.insert(
-                    fun.name.lexeme.to_string(),
-                    (fun.lambda.clone(), self_.clone(), *pub_),
+                    fun.name().lexeme.to_string(),
+                    (fun.lambda().clone(), self_.clone(), *pub_),
                 );
             }
         }
@@ -883,10 +887,7 @@ impl VecInstance {
         Ok(())
     }
 
-    pub(crate) fn get_method(
-        name: &Token,
-        vec: Rc<RefCell<VecInstance>>,
-    ) -> InterpretedResult<Val> {
+    pub(crate) fn get_method(name: &Token, vec: Rc<RefCell<Self>>) -> InterpretedResult<Val> {
         let val_type = vec.borrow().val_type.clone();
 
         let callable = match name.lexeme.as_str() {
@@ -894,9 +895,9 @@ impl VecInstance {
                 vec![],
                 val_type,
                 Arc::new(move |_inter, _args| {
-                    let poped = vec.borrow_mut().vals.pop().unwrap_or(Val::Uninit);
+                    let popped = vec.borrow_mut().vals.pop().unwrap_or(Val::Uninit);
 
-                    Ok(poped)
+                    Ok(popped)
                 }),
             )),
             Self::PUSH => Val::Callable(*Callable::new_boxed(
