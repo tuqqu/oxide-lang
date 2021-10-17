@@ -10,13 +10,13 @@ use oxide_parser::expr::{
     StrLiteral, TypeCast, Unary, Variable, VecIndex, Vec_,
 };
 use oxide_parser::stmt::{
-    Block, ConstDecl, EnumDecl, FnDecl, ForIn, If, ImplDecl, Loop, Return, Stmt, StructDecl,
-    TraitDecl, VarDecl,
+    Block, ConstDecl, EnumDecl, FnDecl, FnSignatureDecl, ForIn, If, ImplDecl, Loop, Return, Stmt,
+    StructDecl, TraitDecl, VarDecl,
 };
 use oxide_parser::valtype::{TYPE_BOOL, TYPE_FLOAT, TYPE_FN, TYPE_INT, TYPE_STRUCT, TYPE_VEC};
 use oxide_parser::{Ast, Token, TokenType, ValType};
 
-use crate::env::{construct_static_name, Env, EnvVal, ResolvableName, ValuableName};
+use crate::env::{construct_static_name, Env, EnvVal, NameTarget, ResolvableName, ValuableName};
 use crate::error::RuntimeError;
 use crate::val::{
     try_vtype_from_val, vtype_conforms_val, Callable, Function, PropFuncVal, StmtVal,
@@ -112,7 +112,7 @@ impl Interpreter {
             self.env.borrow_mut().define_enum_value(env::EnumValue::new(
                 val_name_t,
                 Val::EnumValue(name, val_name, val),
-                name_t,
+                NameTarget(name_t.lexeme, true),
             ));
         }
 
@@ -187,6 +187,26 @@ impl Interpreter {
     }
 
     fn eval_impl_stmt(&mut self, stmt: &ImplDecl) -> InterpretedResult<StmtVal> {
+        #[inline]
+        fn validate_signature(
+            method: &FnDecl,
+            signature: &FnSignatureDecl,
+        ) -> InterpretedResult<()> {
+            if method.lambda().ret_type() != signature.ret_type()
+                || method.lambda().params() != signature.params()
+            {
+                return Err(RuntimeError::Definition(
+                    Some(method.name().clone()),
+                    format!(
+                        "Mismatched signature of method \"{}\"",
+                        method.name().lexeme
+                    ),
+                ));
+            }
+
+            Ok(())
+        }
+
         let decl = stmt.clone();
 
         let (impl_name, trait_name) = if let Some(for_name) = decl.for_name() {
@@ -196,22 +216,10 @@ impl Interpreter {
             match trait_ {
                 EnvVal::Trait(t) => {
                     for signature in t.methods() {
-                        // FIXME: improve traversing
                         let mut found = false;
                         for (method, _pub) in decl.methods() {
                             if method.name() == signature.name() {
-                                if method.lambda().ret_type() != signature.ret_type()
-                                    || method.lambda().params() != signature.params()
-                                {
-                                    return Err(RuntimeError::Definition(
-                                        Some(method.name().clone()),
-                                        format!(
-                                            "Mismatched signature of method \"{}\"",
-                                            method.name().lexeme
-                                        ),
-                                    ));
-                                }
-
+                                validate_signature(method, signature)?;
                                 found = true;
                             }
                         }
@@ -252,7 +260,7 @@ impl Interpreter {
                 .define_constant(env::Constant::with_struct(
                     const_decl.name().clone(),
                     val,
-                    (stmt.impl_name().clone(), *pub_),
+                    NameTarget(stmt.impl_name().lexeme.clone(), *pub_),
                 ))?;
         }
 
@@ -269,7 +277,7 @@ impl Interpreter {
                 .define_function(env::Function::with_struct(
                     fn_.name().clone(),
                     val,
-                    (stmt.impl_name().clone(), *pub_),
+                    NameTarget(stmt.impl_name().lexeme.clone(), *pub_),
                 ))?;
         }
 
@@ -282,9 +290,9 @@ impl Interpreter {
             );
 
             let static_name = if let Some(name) = stmt.for_name().clone() {
-                name
+                name.lexeme
             } else {
-                stmt.impl_name().clone()
+                stmt.impl_name().lexeme.clone()
             };
 
             self.env
@@ -292,7 +300,7 @@ impl Interpreter {
                 .define_function(env::Function::with_struct(
                     fn_.name().clone(),
                     val,
-                    (static_name, *pub_),
+                    NameTarget(static_name, *pub_),
                 ))?;
         }
 
@@ -982,7 +990,7 @@ impl Interpreter {
             token: Token,
             static_name: &str,
         ) -> InterpretedResult<Val> {
-            if let Some((_name, pub_)) = name.for_target() {
+            if let Some(NameTarget(_name, pub_)) = name.for_target() {
                 if StructInstance::can_access(*pub_, public_access) {
                     Ok(name.val().clone())
                 } else {
@@ -1008,7 +1016,6 @@ impl Interpreter {
                     .get(&Token::from_token(&token, static_name.clone()))?;
                 let env_val = static_val.borrow_mut();
                 match env_val.deref() {
-                    // FIXME: can it lead to a bug? this branch should be possible only in Enum case
                     EnvVal::EnumValue(e) => Ok(e.val().clone()),
                     EnvVal::Constant(c) => {
                         extract_static_value(c, public_access, token, &static_name)

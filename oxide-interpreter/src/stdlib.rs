@@ -1,5 +1,3 @@
-// #![allow(clippy::ptr_arg)]
-
 use std::fs::File;
 use std::io;
 use std::io::Write;

@@ -176,7 +176,6 @@ impl FnDecl {
     }
 }
 
-// FIXME: try to unite FnSignature with FnDecl and Lambda
 #[derive(Debug, Clone)]
 pub struct FnSignatureDecl {
     name: Token,

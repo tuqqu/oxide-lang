@@ -7,7 +7,6 @@ Interpreted scripting language with a Rust influenced syntax. [Latest release][l
 /// structs
 
 struct Circle {                                // struct declaration
-    pub name: str | nil,                       // union type field
     pub radius: float,                         // public field
     center: Point,                             // private field
 }
@@ -19,7 +18,6 @@ impl Circle {                                  // struct implementation
         return Self {
             radius: r,
             center: c,
-            name: nil,
         };
     }
 }
@@ -61,7 +59,7 @@ enum Ordering {
 }
 
 impl Ordering {
-    pub fn compare(a: int, b: int) -> Self {
+    pub fn compare(a: int | float, b: int | float) -> Self {
         return match true {
             a < b  => Self::Less,
             a == b => Self::Equal,

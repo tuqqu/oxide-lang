@@ -251,7 +251,7 @@ impl Parser {
     /// without it being a statement
     fn fn_decl_inner(&mut self, expect_method: bool) -> Result<(FnDecl, bool)> {
         let name: Token = self.consume(TokenType::Identifier, None)?;
-        let (lambda, is_method) = self.lambda_expr(expect_method)?; // FIXME: rethink, maybe we need different methods for fn/method
+        let (lambda, is_method) = self.lambda_expr(expect_method)?;
 
         let lambda = match lambda {
             Expr::FnExpr(l) => l,
@@ -1433,9 +1433,7 @@ impl Parser {
             };
 
             consumed_type = Some(v_type);
-        }
-
-        if self.check(Vec) {
+        } else if self.check(Vec) {
             let v_type_token = self.advance().clone();
             let generics = self.consume_generic_types(1, 1)?;
             let generics = if generics.is_empty() {
@@ -1451,9 +1449,7 @@ impl Parser {
             };
 
             consumed_type = Some(v_type);
-        }
-
-        if self.check(SelfStatic) {
+        } else if self.check(SelfStatic) {
             let v_type = if let Some(name) = self.current_impl_target.clone() {
                 self.advance();
                 ValType::Instance(name)
@@ -1465,9 +1461,7 @@ impl Parser {
             };
 
             consumed_type = Some(v_type);
-        }
-
-        if self.check(Fn) {
+        } else if self.check(Fn) {
             let fn_type = self.fn_type()?;
             consumed_type = Some(ValType::Fn(fn_type));
         }

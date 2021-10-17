@@ -312,12 +312,13 @@ impl EnvVal {
     }
 }
 
-type NameTarget = (Token, bool);
+#[derive(Clone, Debug)]
+pub(crate) struct NameTarget(pub(crate) String, pub(crate) bool);
 
 pub(crate) trait ResolvableName {
     fn resolve_name(&self) -> String {
-        if let Some((for_struct, _)) = self.for_target() {
-            construct_static_name(&for_struct.lexeme, &self.name().lexeme.clone())
+        if let Some(NameTarget(for_struct, _)) = self.for_target() {
+            construct_static_name(for_struct, &self.name().lexeme.clone())
         } else {
             self.name().lexeme.clone()
         }
@@ -461,11 +462,11 @@ impl Enum {
 pub(crate) struct EnumValue {
     name: Token,
     val: Val,
-    for_enum: Token,
+    for_enum: NameTarget,
 }
 
 impl EnumValue {
-    pub(crate) fn new(name: Token, val: Val, for_enum: Token) -> Self {
+    pub(crate) fn new(name: Token, val: Val, for_enum: NameTarget) -> Self {
         Self {
             name,
             val,
@@ -478,7 +479,7 @@ impl EnumValue {
     }
 
     fn get_name(&self) -> String {
-        construct_static_name(&self.for_enum.lexeme, &self.name.lexeme)
+        construct_static_name(&self.for_enum.0, &self.name.lexeme)
     }
 }
 
@@ -586,7 +587,7 @@ mod tests {
         let constant = Constant::new(
             identifier("test_const"),
             Val::Int(100),
-            Some((identifier("test_struct"), true)),
+            Some(NameTarget(str::to_string("test_struct"), true)),
         );
 
         assert_eq!(constant.resolve_name(), "test_struct::test_const");
@@ -601,7 +602,7 @@ mod tests {
         let fun = Function::new(
             identifier("test_fn"),
             Val::Int(100),
-            Some((identifier("test_struct"), true)),
+            Some(NameTarget(str::to_string("test_struct"), true)),
         );
 
         assert_eq!(fun.resolve_name(), "test_struct::test_fn");
@@ -616,7 +617,7 @@ mod tests {
         let enum_val = EnumValue::new(
             identifier("test_enum_val"),
             Val::Int(100),
-            identifier("test_struct"),
+            NameTarget(str::to_string("test_struct"), true),
         );
 
         assert_eq!(enum_val.get_name(), "test_struct::test_enum_val");
