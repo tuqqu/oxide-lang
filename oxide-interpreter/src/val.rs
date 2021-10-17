@@ -606,18 +606,27 @@ pub(crate) enum StmtVal {
     Return(Val),
 }
 
-type Func = Arc<dyn Fn(&mut Interpreter, &Vec<Val>) -> InterpretedResult<Val>>;
-type Constructor = Arc<dyn Fn(&mut Interpreter, &Vec<(Token, Val)>) -> InterpretedResult<Val>>;
+type OxideCallable<V> = dyn Fn(&mut Interpreter, &[V]) -> InterpretedResult<Val>;
+
+pub(crate) type OxideFunction = OxideCallable<Val>;
+type OxideConstructor = OxideCallable<(Token, Val)>;
+
+type OxideFnPointer = Arc<OxideFunction>;
+type OxideConstructorPointer = Arc<OxideConstructor>;
 
 pub struct Callable {
     arity: usize,
     param_types: Vec<ValType>,
     ret_type: ValType,
-    call: Box<Func>,
+    call: Box<OxideFnPointer>,
 }
 
 impl Callable {
-    pub(crate) fn new_boxed(param_types: Vec<ValType>, ret_type: ValType, call: Func) -> Box<Self> {
+    pub(crate) fn new_boxed(
+        param_types: Vec<ValType>,
+        ret_type: ValType,
+        call: OxideFnPointer,
+    ) -> Box<Self> {
         Box::new(Self {
             arity: param_types.len(),
             param_types,
@@ -630,7 +639,7 @@ impl Callable {
         self.arity
     }
 
-    pub(crate) fn call(&self) -> &Func {
+    pub(crate) fn call(&self) -> &OxideFnPointer {
         &self.call
     }
 }
@@ -656,11 +665,11 @@ impl fmt::Debug for Callable {
 
 pub struct StructCallable {
     arity: usize,
-    call: Box<Constructor>,
+    call: Box<OxideConstructorPointer>,
 }
 
 impl StructCallable {
-    pub(crate) fn new_boxed(arity: usize, call: Constructor) -> Box<Self> {
+    pub(crate) fn new_boxed(arity: usize, call: OxideConstructorPointer) -> Box<Self> {
         Box::new(Self {
             arity,
             call: Box::new(call),
@@ -671,7 +680,7 @@ impl StructCallable {
         self.arity
     }
 
-    pub(crate) fn call(&self) -> &Constructor {
+    pub(crate) fn call(&self) -> &OxideConstructorPointer {
         &self.call
     }
 }
