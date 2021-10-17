@@ -1,4 +1,4 @@
-use std::fmt;
+use std::{fmt, ops};
 
 use crate::lexer::{Token, TokenType};
 
@@ -32,6 +32,7 @@ pub enum ValType {
     /// Corresponds to both enum & struct.
     Instance(String),
     Any,
+    Union(Vec<Self>),
 }
 
 impl ValType {
@@ -55,6 +56,28 @@ impl ValType {
     }
 }
 
+impl ops::Add for ValType {
+    type Output = Self;
+
+    fn add(self, rhs: Self) -> Self::Output {
+        match (self, rhs) {
+            (Self::Union(mut v_a), Self::Union(mut v_b)) => {
+                v_a.append(&mut v_b);
+                Self::Union(v_a)
+            }
+            (Self::Union(mut v_a), rhs) => {
+                v_a.push(rhs);
+                Self::Union(v_a)
+            }
+            (lhs, Self::Union(mut v_a)) => {
+                v_a.push(lhs);
+                Self::Union(v_a)
+            }
+            (lhs, rhs) => Self::Union(vec![lhs, rhs]),
+        }
+    }
+}
+
 impl fmt::Display for ValType {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
@@ -70,6 +93,14 @@ impl fmt::Display for ValType {
             Self::Vec(g) => write!(f, "{}<{}>", TYPE_VEC, g.types.first().unwrap()),
             Self::Map => write!(f, "{}", TYPE_MAP),
             Self::Instance(s) => write!(f, "{}", s),
+            Self::Union(v) => write!(
+                f,
+                "{}",
+                v.iter()
+                    .map(|vt| vt.to_string())
+                    .collect::<Vec<String>>()
+                    .join(" | ")
+            ),
         }
     }
 }

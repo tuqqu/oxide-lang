@@ -1101,7 +1101,8 @@ impl Parser {
     fn call_expr(&mut self) -> Result<Expr> {
         let mut expr = self.primary_expr()?;
 
-        if self.constructors.contains(&self.previous().lexeme)
+        if self.previous().token_type != TokenType::String
+            && self.constructors.contains(&self.previous().lexeme)
             && self.match_token(TokenType::LeftCurlyBrace)
         {
             expr = self.finish_struct_call_expr(expr)?
@@ -1412,6 +1413,7 @@ impl Parser {
 
     fn consume_type(&mut self) -> Result<ValType> {
         use TokenType::*;
+        let mut consumed_type: Option<ValType> = None;
 
         if self.check(Num)
             || self.check(Float)
@@ -1425,10 +1427,12 @@ impl Parser {
         {
             let v_type_token = self.advance().clone();
             let v_type = ValType::try_from_token(&v_type_token, None);
-            return match v_type {
-                Some(v_type) => Ok(v_type),
-                None => Err(ParseError::UnknownType(v_type_token)),
+            let v_type = match v_type {
+                Some(v_type) => v_type,
+                None => return Err(ParseError::UnknownType(v_type_token)),
             };
+
+            consumed_type = Some(v_type);
         }
 
         if self.check(Vec) {
@@ -1441,27 +1445,43 @@ impl Parser {
             };
 
             let v_type = ValType::try_from_token(&v_type_token, generics);
-            return match v_type {
-                Some(v_type) => Ok(v_type),
-                None => Err(ParseError::UnknownType(v_type_token)),
+            let v_type = match v_type {
+                Some(v_type) => v_type,
+                None => return Err(ParseError::UnknownType(v_type_token)),
             };
+
+            consumed_type = Some(v_type);
         }
 
         if self.check(SelfStatic) {
-            return if let Some(name) = self.current_impl_target.clone() {
+            let v_type = if let Some(name) = self.current_impl_target.clone() {
                 self.advance();
-                Ok(ValType::Instance(name))
+                ValType::Instance(name)
             } else {
-                Err(ParseError::InstanceContext(
+                return Err(ParseError::InstanceContext(
                     self.advance().clone(),
                     "Type \"Self\" can be used inside \"impl\" blocks only".to_string(),
-                ))
+                ));
             };
+
+            consumed_type = Some(v_type);
         }
 
         if self.check(Fn) {
             let fn_type = self.fn_type()?;
-            return Ok(ValType::Fn(fn_type));
+            consumed_type = Some(ValType::Fn(fn_type));
+        }
+
+        if let Some(mut consumed_type) = consumed_type {
+            consumed_type = if self.check(BitwiseOr) {
+                self.advance();
+                let unioned_type = self.consume_type()?;
+                consumed_type + unioned_type
+            } else {
+                consumed_type
+            };
+
+            return Ok(consumed_type);
         }
 
         Err(ParseError::UnknownType(self.peek().clone()))

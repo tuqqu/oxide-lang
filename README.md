@@ -6,18 +6,20 @@ Interpreted scripting language with a Rust influenced syntax. [Latest release][l
 ```rust
 /// structs
 
-struct Circle {                                 // struct declaration
-    pub radius: float,                          // public field
-    center: Point,                              // private field
+struct Circle {                                // struct declaration
+    pub name: str | nil,                       // union type field
+    pub radius: float,                         // public field
+    center: Point,                             // private field
 }
 
-impl Circle {                                   // struct implementation
-    const PI: float = 3.14159;                  // private associated constant
+impl Circle {                                  // struct implementation
+    const PI: float = 3.14159;                 // private associated constant
 
-    pub fn new(r: float, c: Point) -> Self {    // public static method
+    pub fn new(r: float, c: Point) -> Self {   // public static method
         return Self {
             radius: r,
             center: c,
+            name: nil,
         };
     }
 }
@@ -147,6 +149,7 @@ oxide script.ox
     * [Mutability](#mutability)
     * [Shadowing](#shadowing)
     * [Casting](#casting)
+    * [Union Types](#union-types)
 * [Control Flow and Loops](#control-flow-and-loops)
     * [If](#if)
     * [Match](#match)
@@ -191,15 +194,32 @@ fn f() {}
 
 ## Variables and Type System
 
-There are ten types in Oxide: `nil`, `int`, `float`, `bool`, `str`, `fn(T) -> T`, `vec<T>`, `any` and user-defined types (via [`structs`](#structs) and [`enums`](#enums)). See [type system][type-system]
+Types and example values:
+
+* `nil`: only `nil` value itself,
+* `bool`: `false`, `true`,
+* `int`: `1`,
+* `float`: `0.56`,
+* `str`: `"string"`,
+* `fn(T) -> T`: any function or lambda with this signature,
+* `vec<T>`: `vec[1, 2, 3, 4]`,
+* `any`: any value, 
+* union types `str | int | T | ...`: any value of the types composing the union
+
+user-defined types 
+* [`structs`](#structs): `Foo { bar: "bar" }`
+* [`enums`](#enums): `Foo::Bar`
+
+See [type system][type-system]
 
 Variables are typed either explicitly:
 
 ```rust
-let x: int;                                  // type = int
-let y: str = "hello world";                  // type = str
-let nums: vec<int> = vec[1, 2];              // type = vec<int>
-let jane: Person = Person { name: "Jane" };  // type = Person
+let x: int | float;                    // union type = int | float
+let nums: vec<int> = vec[1, 2];        // type = vec<int>
+let jane: Person | nil = Person {      // union type = Person | nil
+    name: "Jane" 
+};  
 
 // functions are their own type
 let double: fn(int) -> int = fn (x: int) -> int { return x * 2; };
@@ -240,7 +260,7 @@ x += " world"; // ok
 Variables can be shadowed. Each variable declaration "shadows" the previous one:
 
 ```rust
-let x: int = 100;
+let x: int | nil = 100;
 let x: vec<int> = vec[1, 2];
 ```
 
@@ -258,13 +278,27 @@ let x = 10;
 "this is x: " + x as str;       // values must be cast to str for concatenation
 ```
 
-Using non-primitives (vector `vec<T>`, function `fn(T) -> T`, enum, and struct types) will result in a type error.
+Using non-primitives (vector `vec<T>`, function `fn(T) -> T`, `enum`, and `struct` types) will result in a type error.
 
 `any` type must be explicitly cast to be used in expressions:
 
 ```rust
 let x: any = 1;
 let d = 100 + x as int; // omitting cast would produce an error
+```
+
+### Union types
+
+Types can be composed to form a union. Works similarly to Typescript's Union Types. 
+```rust
+let mut x: str | nil = nil;
+x = "string";
+
+fn triple(n: int | float) -> int | float { return n * 3; }
+triple(2);
+triple(2.2);
+
+struct Foo { bar: str | int }
 ```
 
 ## Control Flow and Loops
@@ -504,7 +538,7 @@ You can make property public with a `pub` keyword. Public fields can be accessed
 
 ```rust
 struct StellarSystem {           
-    pub name: str,               // public field
+    pub name: str | nil,         // public field
     pub planets: vec<Planet>,    // public vector of structs
     pub star: Star,         
     age: int                     // private field

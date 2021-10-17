@@ -56,6 +56,8 @@ impl Val {
         use Val::*;
         let val = match (lhs, rhs) {
             (Nil, Nil) => true,
+            (Nil, _) => false,
+            (_, Nil) => false,
             (Bool(lhs), Bool(rhs)) => lhs == rhs,
             (Str(lhs), Str(rhs)) => lhs == rhs,
             (Int(lhs), Int(rhs)) => lhs == rhs,
@@ -90,6 +92,8 @@ impl Val {
         use Val::*;
         let val = match (lhs, rhs) {
             (Nil, Nil) => false,
+            (Nil, _) => true,
+            (_, Nil) => true,
             (Bool(lhs), Bool(rhs)) => lhs != rhs,
             (Str(lhs), Str(rhs)) => lhs != rhs,
             (Int(lhs), Int(rhs)) => lhs != rhs,
@@ -1029,6 +1033,16 @@ pub(crate) fn vtype_conforms_val(vtype: &ValType, val: &Val) -> bool {
             let vi_g_type = v.borrow_mut().val_type.clone();
 
             *v_g_type == vi_g_type
+        }
+        (ValType::Union(v), val) => {
+            for v_type in v {
+                let target_type = val.get_type();
+                if target_type == v_type.to_string() {
+                    return true;
+                }
+            }
+
+            false
         }
         _ => false,
     }

@@ -1,0 +1,31 @@
+0
+int
+0.1
+float
+9
+int
+string
+str
+true
+bool
+nil
+nil
+98
+int
+100
+int
+[enum] E::A
+E
+[enum] X::A
+X
+Y passed
+[struct] Z {  }
+Z
+Z passed
+[struct] Y {  }
+Y
+nil passed
+56
+int
+[struct] Y {  }
+[struct] Y {  }
