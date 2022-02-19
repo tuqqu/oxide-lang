@@ -666,8 +666,8 @@ impl Interpreter {
         let mut param_types: Vec<ValType> = func
             .lambda()
             .params()
-            .to_vec()
-            .into_iter()
+            .iter()
+            .cloned()
             .map(|(_, vt, _)| vt)
             .collect();
 
@@ -675,7 +675,7 @@ impl Interpreter {
 
         if self_argument {
             assert!(
-                !self_static.is_none(),
+                self_static.is_some(),
                 "Function cannot have \"self\" as an argument without \"self_static\" being set"
             );
 
