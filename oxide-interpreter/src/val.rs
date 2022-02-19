@@ -10,7 +10,7 @@ use oxide_parser::expr::Lambda;
 use oxide_parser::stmt::StructDecl;
 use oxide_parser::valtype::{
     FnType, Generics, ValType, TYPE_ANY, TYPE_BOOL, TYPE_ENUM, TYPE_FLOAT, TYPE_INT, TYPE_NIL,
-    TYPE_STR, TYPE_STRUCT, TYPE_TRAIT, TYPE_UNINIT, TYPE_VEC,
+    TYPE_STR, TYPE_STRUCT, TYPE_TRAIT, TYPE_TYPE, TYPE_UNINIT, TYPE_VEC,
 };
 use oxide_parser::Token;
 
@@ -36,6 +36,7 @@ pub enum Val {
     Struct(Token, StructCallable),
     StructInstance(Rc<RefCell<StructInstance>>),
     Enum(Token),
+    Type(ValType),
     EnumValue(String, String, usize),
     VecInstance(Rc<RefCell<VecInstance>>),
     Trait(Token),
@@ -537,6 +538,7 @@ impl Val {
             VecInstance(v) => format!("{}<{}>", TYPE_VEC, v.borrow_mut().val_type),
             Trait(_t) => TYPE_TRAIT.to_string(),
             Any(_v) => TYPE_ANY.to_string(),
+            Type(_v) => TYPE_TYPE.to_string(),
         }
     }
 
@@ -592,6 +594,7 @@ impl Val {
             }
             Trait(t) => format!("[trait {}]", t.lexeme),
             Any(v) => format!("[any] {}", v),
+            Type(v) => format!("[type] {}", v),
         }
     }
 }
@@ -1036,8 +1039,7 @@ pub(crate) fn vtype_conforms_val(vtype: &ValType, val: &Val) -> bool {
         }
         (ValType::Union(v), val) => {
             for v_type in v {
-                let target_type = val.get_type();
-                if target_type == v_type.to_string() {
+                if vtype_conforms_val(v_type, val) {
                     return true;
                 }
             }

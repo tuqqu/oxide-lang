@@ -1,0 +1,7 @@
+[type] int
+[type] nil | vec<int> | int
+14
+10
+[vec] [1, 2]
+nil
+nil

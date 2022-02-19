@@ -48,6 +48,11 @@ fn test_types_union() {
 }
 
 #[test]
+fn test_type_decl() {
+    test_script("type_decl");
+}
+
+#[test]
 fn test_type_inference() {
     test_script("type_inference");
 }

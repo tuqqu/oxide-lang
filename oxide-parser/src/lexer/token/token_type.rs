@@ -88,6 +88,7 @@ pub enum TokenType {
     Impl,
     Trait,
     Mod,
+    Type,
 
     Pub,
 
@@ -193,6 +194,7 @@ impl TokenType {
             Self::Impl => Some("impl"),
             Self::Trait => Some("trait"),
             Self::Mod => Some("mod"),
+            Self::Type => Some("type"),
 
             Self::Pub => Some("pub"),
 

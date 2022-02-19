@@ -16,7 +16,7 @@ impl Matrix {
 
     /// Matrix multiplication
     /// Compute product of two matrices.
-    pub fn multiply(self, b: Matrix) -> Matrix {
+    pub fn multiply(self, b: Self) -> Self {
         let product = Self::create_empty(self.m.len(), self.m[0].len());
 
         for i in 0..self.m.len() {
@@ -28,7 +28,7 @@ impl Matrix {
             }
         }
 
-        return Matrix { m: product };
+        return Self { m: product };
     }
 
     // Private static method: create empty matrix MxN

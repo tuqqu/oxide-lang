@@ -59,7 +59,7 @@ enum Ordering {
 }
 
 impl Ordering {
-    pub fn compare(a: int | float, b: int | float) -> Self {
+    pub fn compare(a: int|float, b: int|float) -> Self {
         return match true {
             a < b  => Self::Less,
             a == b => Self::Equal,
@@ -148,6 +148,7 @@ oxide script.ox
     * [Shadowing](#shadowing)
     * [Casting](#casting)
     * [Union Types](#union-types)
+    * [Type aliases](#type-aliases)
 * [Control Flow and Loops](#control-flow-and-loops)
     * [If](#if)
     * [Match](#match)
@@ -179,15 +180,22 @@ fn main() {
 }
 ```
 
-On the top level only item (`const`, `fn`, `struct`, `enum`, `trait`, `impl`) declarations are possible.
+On the top level only item (`const`, `fn`, `struct`, `enum`, `trait`, `impl`, `type`) declarations are allowed.
 
 ```rust
-struct S {}
-trait T {}
-impl T for S {}
-enum E {}
-const C = 0;
-fn f() {}
+struct Foo {}
+
+trait Bar {}
+
+enum Foo {}
+
+impl Bar for Foo {}
+
+const C: int = 0;
+
+fn baz() {}
+
+type Foo = int;
 ```
 
 ## Variables and Type System
@@ -207,15 +215,16 @@ Types and example values:
 user-defined types 
 * [`structs`](#structs): `Foo { bar: "bar" }`
 * [`enums`](#enums): `Foo::Bar`
+* type aliases `type Foo = Bar;`
 
 See [type system][type-system]
 
 Variables are typed either explicitly:
 
 ```rust
-let x: int | float;                    // union type = int | float
+let x: int;                            // type = int
 let nums: vec<int> = vec[1, 2];        // type = vec<int>
-let jane: Person | nil = Person {      // union type = Person | nil
+let jane: Person|nil = Person {        // union type = Person|nil
     name: "Jane" 
 };  
 
@@ -246,7 +255,7 @@ let x = 100;
 x += 1; //! error, x is immutable
 ```
 
-To be mutable they must be defined with `mut` keyword.
+To become mutable they must be defined with `mut` keyword.
 
 ```rust
 let mut x: str = "hello";
@@ -258,7 +267,7 @@ x += " world"; // ok
 Variables can be shadowed. Each variable declaration "shadows" the previous one:
 
 ```rust
-let x: int | nil = 100;
+let x: int|nil = 100;
 let x: vec<int> = vec[1, 2];
 ```
 
@@ -289,15 +298,32 @@ let d = 100 + x as int; // omitting cast would produce an error
 
 Types can be composed to form a union. Works similarly to Typescript's Union Types. 
 ```rust
-let mut x: str | nil = nil;
+let mut x: str|nil = nil;
 x = "string";
 
-fn triple(n: int | float) -> int | float { return n * 3; }
+fn triple(n: int|float) -> int|float {
+    return n * 3;
+}
+
 triple(2);
 triple(2.2);
 
-struct Foo { bar: str | int }
+struct Foo { 
+    bar: str|int
+}
 ```
+
+### Type aliases
+
+Type aliases can be created with a type declaration statement.
+```rust
+type Celcius = int;
+
+// works with union types as well
+type IntStrVec = vec<int>|vec<str>;
+```
+
+Type alias behaves like a normal type and can be used wherever a type is expecte.
 
 ## Control Flow and Loops
 
@@ -352,8 +378,10 @@ enum HttpStatus {
     Ok
 }
 
+type Code = int;
+
 impl HttpStatus {
-    fn code(status: Self) -> int {
+    fn code(status: Self) -> Code {
         return match status {
             Self::NotFound => 404,
             Self::NotModified => 304,
@@ -363,7 +391,7 @@ impl HttpStatus {
 }
 
 fn main() {
-    let status = HttpStatus::code(HttpStatus::Ok); // 200
+    let status: Code = HttpStatus::code(HttpStatus::Ok); // 200
 }
 ```
 
@@ -536,7 +564,7 @@ You can make property public with a `pub` keyword. Public fields can be accessed
 
 ```rust
 struct StellarSystem {           
-    pub name: str | nil,         // public field
+    pub name: str|nil,           // public field
     pub planets: vec<Planet>,    // public vector of structs
     pub star: Star,         
     age: int                     // private field
@@ -566,11 +594,11 @@ Methods with `self` as the first argument are instance methods. Methods without 
 
 ```rust
 impl Star {                      
-    pub const WHITE_DWARF = 123.3;     // public associated constants
-    pub const NEUTRON_STAR = 335.2;    // lets pretend those values are real
-    pub const BLACK_HOLE = 9349.02;  
+    pub const WHITE_DWARF: float = 123.3;       // public associated constants
+    pub const NEUTRON_STAR: float = 335.2;      // lets pretend those values are real
+    pub const BLACK_HOLE: float = 9349.02;  
   
-    const MAX_AGE: int = 99999;        // private constant
+    const MAX_AGE: int = 99999;                 // private constant
   
     pub fn new(name: str, mass: int) -> Self {  // public static method
         return Self {

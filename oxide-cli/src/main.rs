@@ -82,9 +82,7 @@ fn repl(engine: &Engine) {
 
 fn print_help() {
     println!(
-        "{}",
-        format!(
-            r"Oxide {}
+        r"Oxide {}
 
 USAGE:
     oxide [FLAGS] [ARGS]
@@ -102,8 +100,7 @@ ARGS:
 EXAMPLE:
     oxide script.ox arg1 arg2
 ",
-            Engine::VERSION
-        )
+        Engine::VERSION
     );
 }
 

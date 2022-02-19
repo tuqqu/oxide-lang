@@ -11,9 +11,11 @@ use oxide_parser::expr::{
 };
 use oxide_parser::stmt::{
     Block, ConstDecl, EnumDecl, FnDecl, FnSignatureDecl, ForIn, If, ImplDecl, Loop, Return, Stmt,
-    StructDecl, TraitDecl, VarDecl,
+    StructDecl, TraitDecl, TypeDecl, VarDecl,
 };
-use oxide_parser::valtype::{TYPE_BOOL, TYPE_FLOAT, TYPE_FN, TYPE_INT, TYPE_STRUCT, TYPE_VEC};
+use oxide_parser::valtype::{
+    Generics, TYPE_BOOL, TYPE_FLOAT, TYPE_FN, TYPE_INT, TYPE_STRUCT, TYPE_VEC,
+};
 use oxide_parser::{Ast, Token, TokenType, ValType};
 
 use crate::env::{construct_static_name, Env, EnvVal, NameTarget, ResolvableName, ValuableName};
@@ -150,6 +152,8 @@ impl Interpreter {
                             {
                                 let public = *public;
                                 let v_type = v_type.clone();
+                                let v_type = inter.resolve_type(v_type);
+
                                 if vtype_conforms_val(&v_type, param) {
                                     instance_borrowed.props_mut().insert(
                                         prop.lexeme.clone(),
@@ -159,7 +163,7 @@ impl Interpreter {
                                     return Err(RuntimeError::Type(
                                         Some(prop.clone()),
                                         format!(
-                                            "Expected argument \"{}\" of type \"{}\"",
+                                            "Expected argument of type \"{}\", got \"{}\"",
                                             v_type,
                                             param.get_type()
                                         ),
@@ -327,10 +331,57 @@ impl Interpreter {
         Ok(StmtVal::None)
     }
 
+    fn eval_type_stmt(&mut self, stmt: &TypeDecl) -> InterpretedResult<StmtVal> {
+        let mut vtype = stmt.type_value().clone();
+        vtype = self.resolve_type(vtype);
+
+        self.env
+            .borrow_mut()
+            .define_type(env::Type::new(stmt.name().lexeme.clone(), Val::Type(vtype)));
+
+        Ok(StmtVal::None)
+    }
+
     fn eval_expr_stmt(&mut self, expr: &Expr) -> InterpretedResult<StmtVal> {
         self.evaluate(expr)?;
 
         Ok(StmtVal::None)
+    }
+
+    fn resolve_type(&mut self, v_type: ValType) -> ValType {
+        if let ValType::Instance(type_name) = &v_type {
+            let v = self.env.borrow_mut().get_by_str(type_name);
+            if let Ok(v) = v {
+                let v = v.borrow_mut();
+                if let EnvVal::Type(type_value) = v.deref() {
+                    let val = type_value.val();
+                    if let Val::Type(vtype) = val {
+                        return vtype.clone();
+                    }
+                }
+            }
+        }
+
+        if let ValType::Union(types) = &v_type {
+            let mut newtypes = vec![];
+            for unioned_type in types {
+                newtypes.push(self.resolve_type(unioned_type.clone()));
+            }
+
+            return ValType::Union(newtypes);
+        }
+
+        if let ValType::Vec(vtype) = &v_type {
+            let mut newtypes = vec![];
+            let types = vtype.types();
+            for gen_type in types {
+                newtypes.push(self.resolve_type(gen_type.clone()));
+            }
+
+            return ValType::Vec(Generics::new(newtypes));
+        }
+
+        v_type
     }
 
     fn eval_var_stmt(&mut self, stmt: &VarDecl) -> InterpretedResult<StmtVal> {
@@ -339,10 +390,11 @@ impl Interpreter {
             None => Val::Uninit,
         };
 
-        let v_type: ValType;
+        let mut v_type: ValType;
 
         if stmt.v_type().is_some() {
             v_type = stmt.v_type().clone().unwrap();
+            v_type = self.resolve_type(v_type);
 
             if !vtype_conforms_val(&v_type, &val) {
                 return Err(RuntimeError::Type(
@@ -524,6 +576,7 @@ impl Interpreter {
             EnumValue(e) => Ok(e.val().clone()),
             Struct(s) => Ok(s.val().clone()),
             Trait(t) => Ok(t.val().clone()),
+            Type(t) => Ok(t.val().clone()),
         }
     }
 
@@ -654,7 +707,8 @@ impl Interpreter {
 
                     let cur_instance = args[0].clone();
                     let self_type = self_type.as_ref().unwrap();
-                    if !vtype_conforms_val(self_type, &cur_instance) {
+                    let self_type = inter.resolve_type(self_type.clone());
+                    if !vtype_conforms_val(&self_type, &cur_instance) {
                         return Err(RuntimeError::Type(
                             None,
                             format!(
@@ -679,8 +733,10 @@ impl Interpreter {
                 for (i, param) in func.lambda().params().iter().enumerate() {
                     let arg_index = if self_argument { i + 1 } else { i };
                     let arg = args[arg_index].clone();
+                    let param_vtype = param.1.clone();
+                    let param_vtype = inter.resolve_type(param_vtype);
 
-                    if !vtype_conforms_val(&param.1, &arg) {
+                    if !vtype_conforms_val(&param_vtype, &arg) {
                         return Err(RuntimeError::Type(
                             Some(param.0.clone()),
                             format!(
@@ -716,7 +772,10 @@ impl Interpreter {
                     }
                 };
 
-                if vtype_conforms_val(func.lambda().ret_type(), &val) {
+                let ret_type = func.lambda().ret_type().clone();
+                let ret_type = inter.resolve_type(ret_type);
+
+                if vtype_conforms_val(&ret_type, &val) {
                     Ok(val)
                 } else {
                     Err(RuntimeError::Type(
@@ -1343,7 +1402,7 @@ impl Interpreter {
                 None,
                 String::from(
                     "Only item (\"const\", \"impl\", \"struct\", \"fn\", \"enum\", \
-                    \"trait\") declarations are allowed on the top-level",
+                    \"trait\", \"type\") declarations are allowed on the top-level",
                 ),
             )),
 
@@ -1363,6 +1422,7 @@ impl Interpreter {
             (_, Stmt::Struct(struct_decl)) => self.eval_struct_stmt(struct_decl),
             (_, Stmt::Impl(impl_decl)) => self.eval_impl_stmt(impl_decl),
             (_, Stmt::Trait(trait_decl)) => self.eval_trait_stmt(trait_decl),
+            (_, Stmt::Type(type_decl)) => self.eval_type_stmt(type_decl),
         }
     }
 

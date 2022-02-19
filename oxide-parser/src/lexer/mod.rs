@@ -23,8 +23,8 @@ impl Lexer<'_> {
 
         let mut keywords = HashMap::new();
         for token_t in &[
-            Enum, Struct, Fn, Impl, Trait, Mod, Const, Pub, As, Nil, Str, Num, Int, Float, Any,
-            Vec, Bool, Map, False, True, Continue, Break, Return, SelfStatic, Self_, Let, Mut,
+            Enum, Struct, Fn, Impl, Trait, Mod, Const, Type, Pub, As, Nil, Str, Num, Int, Float,
+            Any, Vec, Bool, Map, False, True, Continue, Break, Return, SelfStatic, Self_, Let, Mut,
             Loop, While, For, In, Match, If, Else,
         ] {
             keywords.insert(token_t.value().unwrap(), *token_t);

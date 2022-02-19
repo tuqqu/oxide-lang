@@ -16,6 +16,7 @@ pub const TYPE_MAP: &str = "map";
 pub const TYPE_STRUCT: &str = "struct";
 pub const TYPE_TRAIT: &str = "trait";
 pub const TYPE_ENUM: &str = "enum";
+pub const TYPE_TYPE: &str = "type";
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum ValType {

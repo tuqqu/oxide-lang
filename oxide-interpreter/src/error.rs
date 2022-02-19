@@ -6,7 +6,7 @@ use oxide_parser::Token;
 pub enum RuntimeError {
     /// Error in definitions of items.
     Definition(Option<Token>, String),
-    /// Error related to wrong operation usage.
+    /// Error related to wrong operator usage.
     Operator(Token, String),
     /// Program structure error.
     Script(Option<Token>, String),

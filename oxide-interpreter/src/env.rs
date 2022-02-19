@@ -58,6 +58,7 @@ impl Env {
             Enum(e) => self.define_enum(e),
             EnumValue(e) => self.define_enum_value(e),
             Struct(s) => self.define_struct(s),
+            Type(t) => self.define_type(t),
         };
 
         Ok(())
@@ -111,6 +112,13 @@ impl Env {
         );
     }
 
+    pub(crate) fn define_type(&mut self, type_: Type) {
+        self.vals.insert(
+            type_.name.clone(),
+            Rc::new(RefCell::new(EnvVal::Type(type_))),
+        );
+    }
+
     pub(crate) fn define_self(&mut self, self_: Rc<RefCell<StructInstance>>) {
         self.self_ = Some(self_);
     }
@@ -158,6 +166,34 @@ impl Env {
         Err(RuntimeError::Runtime(
             name.clone(),
             format!("Trying to access an undefined value \"{}\"", name.lexeme),
+        ))
+    }
+
+    // todo change get to always by str
+    pub(crate) fn get_by_str(&mut self, name: &str) -> EnvResult<Rc<RefCell<EnvVal>>> {
+        if self.vals.contains_key(name) {
+            let val = self.vals.get(name);
+
+            return match val {
+                Some(val) => Ok(val.clone()),
+                None => unreachable!(),
+            };
+        }
+
+        if self.enclosing.is_some() {
+            let val = self
+                .enclosing
+                .as_ref()
+                .unwrap()
+                .borrow_mut()
+                .get_by_str(name);
+
+            return val;
+        }
+
+        Err(RuntimeError::Definition(
+            None,
+            format!("Trying to access an undefined value \"{}\"", name),
         ))
     }
 
@@ -254,6 +290,7 @@ pub(crate) enum EnvVal {
     EnumValue(EnumValue),
     Struct(Struct),
     Trait(Trait),
+    Type(Type),
 }
 
 impl EnvVal {
@@ -304,7 +341,7 @@ impl EnvVal {
                     ))
                 }
             }
-            EnumValue(_) | Enum(_) | Struct(_) | Trait(_) => Err(RuntimeError::Runtime(
+            EnumValue(_) | Enum(_) | Struct(_) | Trait(_) | Type(_) => Err(RuntimeError::Runtime(
                 name,
                 String::from("Trying to assign to a non-value."),
             )),
@@ -564,6 +601,27 @@ impl Impl {
     #[allow(dead_code)]
     pub(crate) fn consts(&self) -> &[(ConstDecl, bool)] {
         &self.consts
+    }
+}
+
+#[derive(Clone, Debug)]
+pub(crate) struct Type {
+    name: String,
+    val: Val,
+}
+
+impl Type {
+    pub(crate) fn new(name: String, val: Val) -> Self {
+        Self { name, val }
+    }
+
+    pub(crate) fn val(&self) -> &Val {
+        &self.val
+    }
+
+    #[allow(dead_code)]
+    fn name(&self) -> &str {
+        &self.name
     }
 }
 

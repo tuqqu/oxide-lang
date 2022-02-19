@@ -8,17 +8,19 @@ pub enum Stmt {
     Continue,
     Expr(Expr),
     Return(Return),
-    Let(VarDecl),
-    Const(ConstDecl),
     BlockStmt(Block),
     IfStmt(If),
+    LoopStmt(Loop),
+    ForInStmt(ForIn),
+    // Language Items
+    Let(VarDecl),
+    Const(ConstDecl),
     Fn(FnDecl),
     Enum(EnumDecl),
     Struct(StructDecl),
     Impl(ImplDecl),
     Trait(TraitDecl),
-    LoopStmt(Loop),
-    ForInStmt(ForIn),
+    Type(TypeDecl),
 }
 
 #[derive(Debug, Clone)]
@@ -394,5 +396,28 @@ impl ForIn {
 
     pub fn body(&self) -> &Block {
         &self.body
+    }
+}
+
+/// Type definition.
+/// Works as a type alias of a singular type or a union.
+/// `type X = int|str;`
+#[derive(Debug, Clone)]
+pub struct TypeDecl {
+    name: Token,
+    type_value: ValType,
+}
+
+impl TypeDecl {
+    pub(crate) fn new(name: Token, type_value: ValType) -> Self {
+        Self { name, type_value }
+    }
+
+    pub fn type_value(&self) -> &ValType {
+        &self.type_value
+    }
+
+    pub fn name(&self) -> &Token {
+        &self.name
     }
 }

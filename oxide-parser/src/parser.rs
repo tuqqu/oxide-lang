@@ -9,13 +9,14 @@ use crate::expr::{
 use crate::lexer::{Token, TokenType};
 use crate::stmt::{
     Block, ConstDecl, EnumDecl, FnDecl, FnSignatureDecl, ForIn, If, ImplDecl, Loop, Return, Stmt,
-    StructDecl, TraitDecl, VarDecl,
+    StructDecl, TraitDecl, TypeDecl, VarDecl,
 };
 use crate::valtype::{FnType, ValType};
 
 type ParseResult<'a, T> = result::Result<T, &'a [ParseError]>;
 type Result<T> = result::Result<T, ParseError>;
 
+#[derive(Debug)]
 pub struct Ast {
     tree: Vec<Stmt>,
     top_level: bool,
@@ -128,6 +129,14 @@ impl Parser {
                     None
                 }
             }
+        } else if self.match_token(TokenType::Type) {
+            match self.type_decl() {
+                Ok(type_decl) => Some(type_decl),
+                Err(p_err) => {
+                    self.on_error(p_err);
+                    None
+                }
+            }
         } else {
             let stmt = if self.match_token(TokenType::Let) {
                 match self.var_decl() {
@@ -161,7 +170,7 @@ impl Parser {
         let mutable: bool = self.match_token(TokenType::Mut);
         let name: Token = self.consume(TokenType::Identifier, None)?;
         let v_type = if self.match_token(TokenType::Colon) {
-            Some(self.type_decl()?)
+            Some(self.valtype_decl()?)
         } else {
             None
         };
@@ -185,15 +194,15 @@ impl Parser {
 
         self.consume(TokenType::Colon, None)?;
 
-        let v_type = self.type_decl()?;
+        let v_type = self.valtype_decl()?;
         let var_decl = VarDecl::new(name, None, true, Some(v_type));
 
         Ok(var_decl)
     }
 
-    /// Type declaration for anything: variable, argument,
+    /// Value type declaration for anything: variable, argument,
     /// function return type, struct field.
-    fn type_decl(&mut self) -> Result<ValType> {
+    fn valtype_decl(&mut self) -> Result<ValType> {
         self.consume_type()
     }
 
@@ -210,7 +219,7 @@ impl Parser {
     fn const_decl_inner(&mut self) -> Result<ConstDecl> {
         let name: Token = self.consume(TokenType::Identifier, None)?;
         let v_type = if self.match_token(TokenType::Colon) {
-            Some(self.type_decl()?)
+            Some(self.valtype_decl()?)
         } else {
             None
         };
@@ -511,6 +520,20 @@ impl Parser {
         Ok(trait_decl_stmt)
     }
 
+    /// Parses the type declaration, type alias
+    fn type_decl(&mut self) -> Result<Stmt> {
+        let name: Token = self.consume(TokenType::Identifier, None)?;
+
+        self.consume(TokenType::Equal, None)?;
+
+        let type_value = self.valtype_decl()?;
+        let type_stmt = Stmt::Type(TypeDecl::new(name, type_value));
+
+        self.consume(TokenType::Semicolon, None)?;
+
+        Ok(type_stmt)
+    }
+
     /// Parses match expressions.
     /// Since match is an expression, it must end with a semicolon.
     fn match_expr(&mut self) -> Result<Expr> {
@@ -604,7 +627,7 @@ impl Parser {
                     let id = self.consume(TokenType::Identifier, None)?;
 
                     let v_type = if self.match_token(TokenType::Colon) {
-                        self.type_decl()?
+                        self.valtype_decl()?
                     } else {
                         return Err(ParseError::TypeExpected(
                             id.clone(),
@@ -632,7 +655,7 @@ impl Parser {
     /// Parses return type. If no type is present, assumes it is `nil` value.
     fn return_type(&mut self) -> Result<ValType> {
         if self.match_token(TokenType::Arrow) {
-            self.type_decl()
+            self.valtype_decl()
         } else {
             Ok(ValType::Nil)
         }
@@ -1563,7 +1586,7 @@ impl Parser {
 
             match self.peek().token_type {
                 Trait | Enum | Struct | Fn | Impl | Let | Const | For | If | Loop | While
-                | Match | Return | Continue => {
+                | Match | Return | Continue | Type => {
                     return;
                 }
                 _ => {}
