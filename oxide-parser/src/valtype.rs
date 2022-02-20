@@ -37,7 +37,13 @@ pub enum ValType {
 }
 
 impl ValType {
-    pub(crate) fn try_from_token(token: &Token, generics: Option<Vec<Self>>) -> Option<Self> {
+    pub(crate) fn new_vec(generics: Option<Vec<Self>>) -> Self {
+        let generics = generics.unwrap_or_else(|| vec![Self::Any]);
+
+        Self::Vec(Generics::new(generics))
+    }
+
+    pub(crate) fn try_from_token(token: &Token) -> Option<Self> {
         match token.token_type {
             TokenType::Num => Some(Self::Num),
             TokenType::Int => Some(Self::Int),
@@ -45,10 +51,7 @@ impl ValType {
             TokenType::Bool => Some(Self::Bool),
             TokenType::Nil => Some(Self::Nil),
             TokenType::Str => Some(Self::Str),
-            TokenType::Vec => {
-                let generics = generics.unwrap_or_else(|| vec![Self::Any]);
-                Some(Self::Vec(Generics::new(generics)))
-            }
+            TokenType::Vec => Some(Self::Vec(Generics::new(vec![Self::Any]))),
             TokenType::Map => Some(Self::Map),
             TokenType::Any => Some(Self::Any),
             TokenType::Identifier => Some(Self::Instance(token.lexeme.clone())),
@@ -100,7 +103,7 @@ impl fmt::Display for ValType {
                 v.iter()
                     .map(|vt| vt.to_string())
                     .collect::<Vec<String>>()
-                    .join(" | ")
+                    .join("|")
             ),
         }
     }
@@ -192,19 +195,23 @@ mod tests {
         let nil = Token::new(TokenType::Nil, String::from("nil"), Pos(0, 0));
         let boolean = Token::new(TokenType::Bool, String::from("true"), Pos(0, 0));
 
-        assert_eq!(ValType::try_from_token(&int, None).unwrap(), ValType::Int);
-        assert_eq!(
-            ValType::try_from_token(&float, None).unwrap(),
-            ValType::Float
-        );
-        assert_eq!(
-            ValType::try_from_token(&string, None).unwrap(),
-            ValType::Str
-        );
-        assert_eq!(ValType::try_from_token(&nil, None).unwrap(), ValType::Nil);
-        assert_eq!(
-            ValType::try_from_token(&boolean, None).unwrap(),
-            ValType::Bool
-        );
+        assert_eq!(ValType::try_from_token(&int).unwrap(), ValType::Int);
+        assert_eq!(ValType::try_from_token(&float).unwrap(), ValType::Float);
+        assert_eq!(ValType::try_from_token(&string).unwrap(), ValType::Str);
+        assert_eq!(ValType::try_from_token(&nil).unwrap(), ValType::Nil);
+        assert_eq!(ValType::try_from_token(&boolean).unwrap(), ValType::Bool);
+    }
+
+    #[test]
+    fn test_unite_types() {
+        use ValType::*;
+
+        let int = Int;
+        let float = Float;
+        let string = Str;
+        let int_float_union = Union(vec![Int, Float]);
+
+        assert_eq!(int_float_union, int.clone() + float.clone());
+        assert_eq!(Union(vec![Int, Float, Str]), int_float_union + string);
     }
 }

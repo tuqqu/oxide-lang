@@ -1449,7 +1449,7 @@ impl Parser {
             || self.check(Identifier)
         {
             let v_type_token = self.advance().clone();
-            let v_type = ValType::try_from_token(&v_type_token, None);
+            let v_type = ValType::try_from_token(&v_type_token);
             let v_type = match v_type {
                 Some(v_type) => v_type,
                 None => return Err(ParseError::UnknownType(v_type_token)),
@@ -1457,7 +1457,8 @@ impl Parser {
 
             consumed_type = Some(v_type);
         } else if self.check(Vec) {
-            let v_type_token = self.advance().clone();
+            self.advance();
+
             let generics = self.consume_generic_types(1, 1)?;
             let generics = if generics.is_empty() {
                 None
@@ -1465,11 +1466,7 @@ impl Parser {
                 Some(generics)
             };
 
-            let v_type = ValType::try_from_token(&v_type_token, generics);
-            let v_type = match v_type {
-                Some(v_type) => v_type,
-                None => return Err(ParseError::UnknownType(v_type_token)),
-            };
+            let v_type = ValType::new_vec(generics);
 
             consumed_type = Some(v_type);
         } else if self.check(SelfStatic) {
