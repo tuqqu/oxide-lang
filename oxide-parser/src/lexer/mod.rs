@@ -1,10 +1,12 @@
 use std::collections::HashMap;
 
 use self::error::LexerError;
-pub use self::token::{Pos, Token, TokenType};
+pub use self::token::{Pos, Token};
+pub use self::token_type::TokenType;
 
 mod error;
 mod token;
+mod token_type;
 
 pub struct Lexer<'a> {
     src: String,
@@ -27,7 +29,7 @@ impl Lexer<'_> {
             Any, Vec, Bool, Map, False, True, Continue, Break, Return, SelfStatic, Self_, Let, Mut,
             Loop, While, For, In, Match, If, Else,
         ] {
-            keywords.insert(token_t.value().unwrap(), *token_t);
+            keywords.insert(token_t.value(), *token_t);
         }
 
         Self {
