@@ -14,7 +14,8 @@ use oxide_parser::valtype::{
 };
 use oxide_parser::Token;
 
-use crate::env::{construct_static_name, Env, Impl};
+use crate::env::Env;
+use crate::env_val::{construct_static_name, Impl};
 use crate::error::RuntimeError;
 use crate::interpreter::{InterpretedResult, Interpreter};
 

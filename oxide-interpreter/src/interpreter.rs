@@ -18,13 +18,16 @@ use oxide_parser::valtype::{
 };
 use oxide_parser::{Ast, Token, TokenType, ValType};
 
-use crate::env::{construct_static_name, Env, EnvVal, NameTarget, ResolvableName, ValuableName};
+use crate::env::Env;
+use crate::env_val::{
+    self, construct_static_name, EnvVal, NameTarget, ResolvableName, ValuableName,
+};
 use crate::error::RuntimeError;
 use crate::val::{
     try_vtype_from_val, vtype_conforms_val, Callable, Function, PropFuncVal, StmtVal,
     StructCallable, StructInstance, Val, VecInstance,
 };
-use crate::{env, StreamProvider};
+use crate::StreamProvider;
 
 pub type InterpretedResult<T> = result::Result<T, RuntimeError>;
 
@@ -34,7 +37,7 @@ enum Mode {
     TopLevel,
     /// Only item declaration allowed on the top-level.
     /// Execution starts from "main".
-    EntryPoint(Option<Box<env::Function>>),
+    EntryPoint(Option<Box<env_val::Function>>),
 }
 
 pub struct Interpreter {
@@ -111,14 +114,16 @@ impl Interpreter {
             let name = name_t.lexeme.clone();
             let val_name = val_name_t.lexeme.clone();
 
-            self.env.borrow_mut().define_enum_value(env::EnumValue::new(
-                val_name_t,
-                Val::EnumValue(name, val_name, val),
-                NameTarget(name_t.lexeme, true),
-            ));
+            self.env
+                .borrow_mut()
+                .define_enum_value(env_val::EnumValue::new(
+                    val_name_t,
+                    Val::EnumValue(name, val_name, val),
+                    NameTarget(name_t.lexeme, true),
+                ));
         }
 
-        let enum_ = env::Enum::new(stmt.name().clone(), Val::Enum(stmt.name().clone()));
+        let enum_ = env_val::Enum::new(stmt.name().clone(), Val::Enum(stmt.name().clone()));
 
         self.env.borrow_mut().define_enum(enum_);
 
@@ -129,7 +134,7 @@ impl Interpreter {
         self.check_name(stmt.name())?;
 
         let decl = stmt.clone();
-        let struct_ = env::Struct::new(
+        let struct_ = env_val::Struct::new(
             stmt.name().lexeme.clone(),
             Val::Struct(
                 stmt.name().clone(),
@@ -261,7 +266,7 @@ impl Interpreter {
 
             self.env
                 .borrow_mut()
-                .define_constant(env::Constant::with_struct(
+                .define_constant(env_val::Constant::with_struct(
                     const_decl.name().clone(),
                     val,
                     NameTarget(stmt.impl_name().lexeme.clone(), *pub_),
@@ -278,7 +283,7 @@ impl Interpreter {
 
             self.env
                 .borrow_mut()
-                .define_function(env::Function::with_struct(
+                .define_function(env_val::Function::with_struct(
                     fn_.name().clone(),
                     val,
                     NameTarget(stmt.impl_name().lexeme.clone(), *pub_),
@@ -301,14 +306,14 @@ impl Interpreter {
 
             self.env
                 .borrow_mut()
-                .define_function(env::Function::with_struct(
+                .define_function(env_val::Function::with_struct(
                     fn_.name().clone(),
                     val,
                     NameTarget(static_name, *pub_),
                 ))?;
         }
 
-        self.env.borrow_mut().define_impl(env::Impl::new(
+        self.env.borrow_mut().define_impl(env_val::Impl::new(
             impl_name,
             trait_name,
             decl.methods().to_vec(),
@@ -322,7 +327,7 @@ impl Interpreter {
     fn eval_trait_stmt(&mut self, stmt: &TraitDecl) -> InterpretedResult<StmtVal> {
         self.check_name(stmt.name())?;
 
-        self.env.borrow_mut().define_trait(env::Trait::new(
+        self.env.borrow_mut().define_trait(env_val::Trait::new(
             stmt.name().lexeme.clone(),
             stmt.method_signs().to_vec(),
             Val::Trait(stmt.name().clone()),
@@ -335,9 +340,10 @@ impl Interpreter {
         let mut vtype = stmt.type_value().clone();
         vtype = self.resolve_type(vtype);
 
-        self.env
-            .borrow_mut()
-            .define_type(env::Type::new(stmt.name().lexeme.clone(), Val::Type(vtype)));
+        self.env.borrow_mut().define_type(env_val::Type::new(
+            stmt.name().lexeme.clone(),
+            Val::Type(vtype),
+        ));
 
         Ok(StmtVal::None)
     }
@@ -421,12 +427,14 @@ impl Interpreter {
             }
         }
 
-        self.env.borrow_mut().define_variable(env::Variable::new(
-            stmt.name().lexeme.clone(),
-            val,
-            stmt.mutable(),
-            v_type,
-        ));
+        self.env
+            .borrow_mut()
+            .define_variable(env_val::Variable::new(
+                stmt.name().lexeme.clone(),
+                val,
+                stmt.mutable(),
+                v_type,
+            ));
 
         Ok(StmtVal::None)
     }
@@ -437,7 +445,7 @@ impl Interpreter {
 
         self.env
             .borrow_mut()
-            .define_constant(env::Constant::without_struct(stmt.name().clone(), val))?;
+            .define_constant(env_val::Constant::without_struct(stmt.name().clone(), val))?;
 
         Ok(StmtVal::None)
     }
@@ -479,7 +487,7 @@ impl Interpreter {
         match iter {
             Val::VecInstance(v) => {
                 let env = Rc::new(RefCell::new(Env::with_enclosing(self.env.clone())));
-                env.borrow_mut().define_variable(env::Variable::new(
+                env.borrow_mut().define_variable(env_val::Variable::new(
                     stmt.iter_value().lexeme.clone(),
                     Val::Uninit,
                     true,
@@ -487,7 +495,7 @@ impl Interpreter {
                 ));
 
                 if stmt.index_value().is_some() {
-                    env.borrow_mut().define_variable(env::Variable::new(
+                    env.borrow_mut().define_variable(env_val::Variable::new(
                         stmt.index_value().clone().unwrap().lexeme,
                         Val::Uninit,
                         true,
@@ -624,7 +632,8 @@ impl Interpreter {
 
     fn eval_fn_stmt(&mut self, fn_decl: &FnDecl) -> InterpretedResult<StmtVal> {
         let fn_val = self.eval_fn_expr(fn_decl.lambda(), None, None, false);
-        let func: env::Function = env::Function::without_struct(fn_decl.name().clone(), fn_val);
+        let func: env_val::Function =
+            env_val::Function::without_struct(fn_decl.name().clone(), fn_val);
 
         if fn_decl.name().lexeme == Self::ENTRY_POINT {
             if let Mode::EntryPoint(entry_point) = &self.mode {
@@ -748,7 +757,7 @@ impl Interpreter {
                         ));
                     }
 
-                    let var = env::Variable::new(
+                    let var = env_val::Variable::new(
                         param.0.lexeme.clone(),
                         args[arg_index].clone(),
                         param.2,

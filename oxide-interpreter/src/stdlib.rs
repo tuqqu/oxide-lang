@@ -7,7 +7,8 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use oxide_parser::{Token, TokenPos, TokenType, ValType};
 
 use self::builtin::BuiltinFn;
-use crate::env::{self, Env};
+use crate::env::Env;
+use crate::env_val;
 use crate::interpreter::{InterpretedResult, Interpreter};
 use crate::val::{Callable, Val};
 
@@ -43,7 +44,7 @@ impl Env {
         ret_type: ValType,
     ) {
         let token = Token::new(TokenType::Identifier, name.to_string(), TokenPos(0, 0));
-        self.define_function(env::Function::without_struct(
+        self.define_function(env_val::Function::without_struct(
             token,
             Val::Callable(*Callable::new_boxed(
                 param_types,
