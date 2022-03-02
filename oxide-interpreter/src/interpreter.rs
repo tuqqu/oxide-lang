@@ -214,7 +214,7 @@ impl Interpreter {
         let decl = stmt.clone();
 
         let (impl_name, trait_name) = if let Some(for_name) = decl.for_name() {
-            let trait_ = self.env.borrow_mut().get(decl.impl_name())?;
+            let trait_ = self.env.borrow_mut().get(&decl.impl_name().lexeme)?;
             let trait_ = trait_.borrow_mut().deref().clone();
 
             match trait_ {
@@ -350,7 +350,7 @@ impl Interpreter {
 
     fn resolve_type(&mut self, v_type: ValType) -> ValType {
         if let ValType::Instance(type_name) = &v_type {
-            let v = self.env.borrow_mut().get_by_str(type_name);
+            let v = self.env.borrow_mut().get(type_name);
             if let Ok(v) = v {
                 let v = v.borrow_mut();
                 if let EnvVal::Type(type_value) = v.deref() {
@@ -550,7 +550,7 @@ impl Interpreter {
     }
 
     fn eval_var_expr(&mut self, expr: &Variable) -> InterpretedResult<Val> {
-        let env_val = self.env.borrow_mut().get(expr.name())?;
+        let env_val = self.env.borrow_mut().get(&expr.name().lexeme)?;
         let env_val = env_val.borrow_mut();
 
         use EnvVal::*;
@@ -592,7 +592,7 @@ impl Interpreter {
             | TokenType::BitwiseAndEqual
             | TokenType::BitwiseOrEqual
             | TokenType::BitwiseXorEqual => {
-                let env_val = self.env.borrow_mut().get(expr.name())?;
+                let env_val = self.env.borrow_mut().get(&expr.name().lexeme)?;
                 let env_val = env_val.borrow_mut();
                 match env_val.deref() {
                     EnvVal::Variable(v) => {
@@ -899,7 +899,7 @@ impl Interpreter {
         match self_static {
             Some(s) => {
                 let self_token = Token::from_token(expr.self_static(), s);
-                let struct_ = self.env.borrow_mut().get(&self_token)?;
+                let struct_ = self.env.borrow_mut().get(&self_token.lexeme)?;
                 let struct_ = struct_.borrow_mut().deref().clone();
 
                 match struct_ {
@@ -1069,10 +1069,7 @@ impl Interpreter {
             Val::Struct(token, _) | Val::Enum(token) | Val::Trait(token) => {
                 let static_name = construct_static_name(&token.lexeme, &expr.prop_name().lexeme);
                 let public_access = self.is_public_static_access(token.lexeme.clone());
-                let static_val = self
-                    .env
-                    .borrow_mut()
-                    .get(&Token::from_token(&token, static_name.clone()))?;
+                let static_val = self.env.borrow_mut().get(&static_name)?;
                 let env_val = static_val.borrow_mut();
                 match env_val.deref() {
                     EnvVal::EnumValue(e) => Ok(e.val().clone()),

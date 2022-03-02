@@ -4,7 +4,6 @@ use std::io::Write;
 use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use oxide_parser::valtype::Generics;
 use oxide_parser::{Token, TokenPos, TokenType, ValType};
 
 use self::builtin::BuiltinFn;
@@ -30,7 +29,7 @@ impl Env {
             "args",
             &builtin::args,
             vec![],
-            Vec(Generics::new(vec![Str])),
+            ValType::new_vec(Some(vec![Str])),
         );
 
         lib

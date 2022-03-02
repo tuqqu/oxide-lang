@@ -37,7 +37,7 @@ pub enum ValType {
 }
 
 impl ValType {
-    pub(crate) fn new_vec(generics: Option<Vec<Self>>) -> Self {
+    pub fn new_vec(generics: Option<Vec<Self>>) -> Self {
         let generics = generics.unwrap_or_else(|| vec![Self::Any]);
 
         Self::Vec(Generics::new(generics))

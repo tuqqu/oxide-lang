@@ -147,30 +147,7 @@ impl Env {
         Ok(())
     }
 
-    pub(crate) fn get(&mut self, name: &Token) -> EnvResult<Rc<RefCell<EnvVal>>> {
-        if self.vals.contains_key(&name.lexeme) {
-            let val = self.vals.get(&name.lexeme);
-
-            return match val {
-                Some(val) => Ok(val.clone()),
-                None => unreachable!(),
-            };
-        }
-
-        if self.enclosing.is_some() {
-            let val = self.enclosing.as_ref().unwrap().borrow_mut().get(name);
-
-            return val;
-        }
-
-        Err(RuntimeError::Runtime(
-            name.clone(),
-            format!("Trying to access an undefined value \"{}\"", name.lexeme),
-        ))
-    }
-
-    // todo change get to always by str
-    pub(crate) fn get_by_str(&mut self, name: &str) -> EnvResult<Rc<RefCell<EnvVal>>> {
+    pub(crate) fn get(&mut self, name: &str) -> EnvResult<Rc<RefCell<EnvVal>>> {
         if self.vals.contains_key(name) {
             let val = self.vals.get(name);
 
@@ -181,12 +158,7 @@ impl Env {
         }
 
         if self.enclosing.is_some() {
-            let val = self
-                .enclosing
-                .as_ref()
-                .unwrap()
-                .borrow_mut()
-                .get_by_str(name);
+            let val = self.enclosing.as_ref().unwrap().borrow_mut().get(name);
 
             return val;
         }
@@ -243,7 +215,7 @@ impl Env {
     pub(crate) fn assign(&mut self, name: Token, val: &Val) -> EnvResult<()> {
         #[allow(clippy::map_entry)]
         if self.vals.contains_key(&name.lexeme) {
-            let env_val = self.get(&name)?;
+            let env_val = self.get(&name.lexeme)?;
             env_val
                 .borrow_mut()
                 .try_to_assign(val.clone(), name.clone())?;
